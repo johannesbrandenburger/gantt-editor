@@ -12,6 +12,23 @@ const areSlotsOverlapping = (slots: {
     return false;
 }
 
+const areSlotsOverlappingWithDeadlineConsidered = (slots: {
+    openTime: Date, closeTime: Date, deadline?: Date
+}[]): boolean => {
+    const sortedSlots = slots.map(s => ({
+        openTime: s.openTime,
+        closeTime: s.closeTime,
+        deadline: s.deadline
+    })).sort((a, b) => a.openTime.getTime() - b.openTime.getTime());
+    for (let i = 0; i < sortedSlots.length - 1; i++) {
+        const currentCloseTime = sortedSlots[i].deadline || sortedSlots[i].closeTime;
+        if (currentCloseTime.getTime() > sortedSlots[i + 1].openTime.getTime()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 export const addSlotToRows = (rows: { name: string, slots: {
     openTime: Date, closeTime: Date, destinationId: string, id: string
     }[], id: string }[], slot: {
@@ -28,7 +45,7 @@ export const addSlotToRows = (rows: { name: string, slots: {
         }
     } else {
         for (const row of rows) {
-            if (!areSlotsOverlapping([...row.slots, slot])) {
+            if (!areSlotsOverlappingWithDeadlineConsidered([...row.slots, slot])) {
                 row.slots.push(slot);
                 rowFound = true;
                 break;
