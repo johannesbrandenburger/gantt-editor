@@ -199,7 +199,7 @@ const handleClickOnSlot = (slotId: string) => {
 
 const handleHoverOnSlot = (slotId: string) => {
     console.log('Callback: Hovering on slot', slotId);
-    showEventMessage(`🖱️ Hovering on ${slotId}`, 1000);
+    showEventMessage(`🖱️ Hovering on ${slotId}`, 2000);
 };
 
 const handleDoubleClickOnSlot = (slotId: string) => {

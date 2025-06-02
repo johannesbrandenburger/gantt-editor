@@ -684,14 +684,30 @@ export function updateChart(
             .style("fill", "rgba(255,255,255,0.3)");
 
 
+        // Hover delay mechanism
+        let hoverTimeout: number | null = null;
+        const HOVER_DELAY = 500; // 500ms delay like native tooltips
+
         // Update the slots section to include both drag and resize
         const slotsUpdate = slots.merge(slotsEnter as any)
             .on("mouseover", function (event, d) {
-                if (updateChartProps.onHoverOnSlot) {
-                    updateChartProps.onHoverOnSlot(d.slotData.id);
+                if (hoverTimeout) {
+                    clearTimeout(hoverTimeout);
                 }
+                
+                // Set a new timeout for the hover event
+                hoverTimeout = setTimeout(() => {
+                    if (updateChartProps.onHoverOnSlot) {
+                        updateChartProps.onHoverOnSlot(d.slotData.id);
+                    }
+                }, HOVER_DELAY);
             })
             .on("mouseout", function () {
+                // Clear the timeout when mouse leaves
+                if (hoverTimeout) {
+                    clearTimeout(hoverTimeout);
+                    hoverTimeout = null;
+                }
             })
             .on("mousemove", function () {
             })
