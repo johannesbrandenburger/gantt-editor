@@ -40,7 +40,7 @@ interface GanttEditorProps {
   destinationGroups: Array<GanttEditorDestinationGroup>,
   suggestions: Array<GanttEditorSuggestion>,
   markedRegions: Array<GanttEditorMarkedRegion>,
-  isReadOnly: boolean // TODO: to be implemented
+  isReadOnly: boolean
 }
 interface GanttEditorEmits {
   onChangeStartAndEndTime: [Date, Date],
@@ -232,6 +232,7 @@ const triggerUpdate = () => {
         destinationGroups: props.destinationGroups,
         heights: heightMap.value,
         svgRefs: svgRefs,
+        isReadOnly: props.isReadOnly,
       }
     );
   }
@@ -278,6 +279,12 @@ watch(
 );
 watch(
   () => props.markedRegions,
+  () => {
+    triggerUpdate();
+  }
+);
+watch(
+  () => props.isReadOnly,
   () => {
     triggerUpdate();
   }

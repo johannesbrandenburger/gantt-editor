@@ -10,7 +10,6 @@
 
         TODO:
         - Documentation
-´        - New prop: `isReadOnly` to enter read-only mode
         - Single click to select one slot
         - Control + click to select multiple slots
         - Right-Click and double click events handled by parent component
@@ -18,9 +17,30 @@
         - Departure time (deadline) is always rendered as black vertical line connected with the slot by a dashed line
         - Flights as a list on the left side on destination level
     -->
-        <div style="height: 100%; width: 100%; margin: 0 auto;">
+    <div style="height: 100vh; width: 100%; margin: 0 auto; display: flex; flex-direction: column;">
+        <div style="padding: 10px; background: #f5f5f5; border-bottom: 1px solid #ddd; flex-shrink: 0;">
+            <button 
+                @click="toggleReadOnly"
+                :style="{
+                    padding: '8px 16px',
+                    borderRadius: '4px',
+                    border: '1px solid #ccc',
+                    background: isReadOnly ? '#e74c3c' : '#27ae60',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                }"
+            >
+                {{ isReadOnly ? '🔒 Read-Only Mode' : '✏️ Editable Mode' }}
+            </button>
+            <span style="margin-left: 10px; color: #666;">
+                {{ isReadOnly ? 'Slots cannot be moved or resized' : 'Slots can be moved and resized' }}
+            </span>
+        </div>
+        
+        <div style="flex: 1; overflow: hidden;">
             <GanttEditorComponent
-                :isReadOnly="false"
+                :isReadOnly="isReadOnly"
                 :startTime="startTime"
                 :endTime="endTime"
                 :slots="slots"
@@ -34,6 +54,7 @@
                 @onClickOnSlot="handleClickOnSlot"
             />
         </div>
+    </div>
 </template>
 
 <script setup lang="ts">
@@ -46,6 +67,7 @@ const numberOfSlots = ref(100);
 // Define reactive state
 const startTime = ref(new Date('2025-01-01T00:00:00Z'));
 const endTime = ref(new Date('2025-01-02T00:00:00Z'));
+const isReadOnly = ref(false);
 
 // Function to generate random time within the day
 const generateRandomTime = (dayStart: Date, dayEnd: Date): Date => {
@@ -116,6 +138,11 @@ const suggestions = reactive([]);
 const markedRegions = reactive([]);
 
 // Event handlers that mutate state
+const toggleReadOnly = () => {
+    isReadOnly.value = !isReadOnly.value;
+    console.log('Toggle read-only mode:', isReadOnly.value);
+};
+
 const handleChangeStartAndEndTime = (newStartTime: Date, newEndTime: Date) => {
     console.log('Callback: Navigated to new time window', newStartTime, newEndTime);
     startTime.value = newStartTime;

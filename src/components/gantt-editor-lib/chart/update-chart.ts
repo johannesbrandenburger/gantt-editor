@@ -14,6 +14,8 @@ import { setupCurrentTime } from './current-time';
 import { updateSuggestionButtons } from './suggestion-buttons';
 import type { GanttEditorDestination, GanttEditorDestinationGroup, GanttEditorSlot } from './types';
 
+
+// NOTE: this is still prototype code and not really ready for production use
 export function updateChart(
     xAxisSvgRef: SVGElement,
     data: Array<GanttEditorSlotWithUiAttributes>,
@@ -27,7 +29,7 @@ export function updateChart(
     settings: any,
     clipboardUpdate: () => void,
     openAllocationDetails: (allocationId: string) => void,
-    updateChartProps: {
+    updateChartProps: { // TODO: move all parameters to this object
         markedRegion: { destinationId: string; timeInterval: { start: number; end: number } } | null;
         suggestions: {
             id: string;
@@ -37,6 +39,7 @@ export function updateChart(
         destinationGroups: Array<GanttEditorDestinationGroup>,
         svgRefs: Map<string, SVGElement>;
         heights: Map<string, number>;
+        isReadOnly: boolean;
     },
     animationDuration: number = 200,
 ): void {
@@ -442,6 +445,7 @@ export function updateChart(
     });
 
     const moveClipboardToTopic = (topicId: string) => {
+        if (updateChartProps.isReadOnly) return;
         const clipboard = JSON.parse(localStorage.getItem("pointerClipboard") || "[]") as GanttEditorSlot[];
 
         if (clipboard.length === 0) return;
@@ -472,6 +476,7 @@ export function updateChart(
     };
 
     const previewClipboardPaste = (topicId: string) => {
+        if (updateChartProps.isReadOnly) return;
         const clipboard = JSON.parse(localStorage.getItem("pointerClipboard") || "[]") as GanttEditorSlot[];
         if (clipboard.length === 0) return;
 
@@ -533,10 +538,14 @@ export function updateChart(
                     collapseTopic(d.id);
                     return;
                 }
-                moveClipboardToTopic(d.id);
+                if (!updateChartProps.isReadOnly) {
+                    moveClipboardToTopic(d.id);
+                }
             })
             .on("mouseover", (event, d) => {
-                previewClipboardPaste(d.id);
+                if (!updateChartProps.isReadOnly) {
+                    previewClipboardPaste(d.id);
+                }
             })
             .transition()
             .duration(animationDuration)
@@ -568,7 +577,7 @@ export function updateChart(
     });
 
     const addSlotToClipboard = (slotData: GanttEditorSlot) => {
-        if (!slotData) return;
+        if (updateChartProps.isReadOnly || !slotData) return;
         const pointerClipboard = JSON.parse(localStorage.getItem("pointerClipboard") || "[]");
         let isCopied = false;
         if (pointerClipboard.find((slot: GanttEditorSlot) => slot.id === slotData?.id)) {
@@ -597,7 +606,7 @@ export function updateChart(
 
     const onSelectedSomethingWrapper = (def: GroupDefs) => {
         return (selection: [[number, number], [number, number]]) => {
-
+            if (updateChartProps.isReadOnly) return;
             // all slots that are in the selection should be added to the clipboard
             console.log("Selected something", selection);
             const slots = def.slotDefinition.filter((slot) => {
@@ -663,13 +672,13 @@ export function updateChart(
         slotsEnter.append("rect")
             .attr("class", "slot-resize-handle-left")
             .attr("width", 8).attr("rx", 4).attr("ry", 4)
-            .style("cursor", "ew-resize")
+            .style("cursor", updateChartProps.isReadOnly ? "default" : "ew-resize")
             .style("fill", "rgba(255,255,255,0.3)");
 
         slotsEnter.append("rect")
             .attr("class", "slot-resize-handle-right")
             .attr("width", 8).attr("rx", 4).attr("ry", 4)
-            .style("cursor", "ew-resize")
+            .style("cursor", updateChartProps.isReadOnly ? "default" : "ew-resize")
             .style("fill", "rgba(255,255,255,0.3)");
 
 
@@ -682,6 +691,7 @@ export function updateChart(
             .on("mousemove", function () {
             })
             .on("click", function (event, d) {
+                if (updateChartProps.isReadOnly) return;
                 console.log("Clicked on slot", d.slotData);
                 const slotData = data.find(slot => slot.id === d.slotData.id);
                 if (!slotData) return;
@@ -785,20 +795,20 @@ export function updateChart(
             .style("color", "white");
 
         slotsUpdate.select(".slot-resize-handle-left")
-            .style("display", d => d.isStartInView ? null : "none")
+            .style("display", d => (d.isStartInView && !updateChartProps.isReadOnly) ? null : "none")
             .attr("x", d => 0)
             .attr("y", d => 0)
             .attr("height", d => d.height)
             .style("opacity", 0)
-            .call(dragResizeHandleLeft as any);
+            .call(updateChartProps.isReadOnly ? function() {} : dragResizeHandleLeft as any);
 
         slotsUpdate.select(".slot-resize-handle-right")
-            .style("display", d => d.isEndInView ? null : "none")
+            .style("display", d => (d.isEndInView && !updateChartProps.isReadOnly) ? null : "none")
             .attr("x", d => 0 + d.width - 8)
             .attr("y", d => 0)
             .attr("height", d => d.height)
             .style("opacity", 0)
-            .call(dragResizeHandleRight as any);
+            .call(updateChartProps.isReadOnly ? function() {} : dragResizeHandleRight as any);
 
         // Remove old slots
         slots.exit()
