@@ -507,7 +507,7 @@ export function updateChart(
                         newSlotData.isCopied = false;
                         newSlotData.id = newSlotData.id + "-preview";
                         // to the first row
-                        addSlotToRows(topic.rows, newSlotData, topic.id, true);
+                        addSlotToRows(topic.rows, newSlotData, topic.id, false);
                     });
             }
             return topic;
@@ -714,11 +714,18 @@ export function updateChart(
             })
             .on("click", function (event, d) {
                 if (updateChartProps.isReadOnly) return;
-                console.log("Clicked on slot", d.slotData);
+                // console.log("Clicked on slot", d.slotData);
                 const slotData = data.find(slot => slot.id === d.slotData.id);
                 if (!slotData) return;
-                // Add to clipboard AND trigger the click event
-                addSlotToClipboard(slotData);
+
+                // only add it to the clipboard if the clipboard is empty or the control key is pressed
+                const pointerClipboard = JSON.parse(localStorage.getItem("pointerClipboard") || "[]");
+                const multipleSelect = (event.ctrlKey || event.metaKey)
+                if (pointerClipboard.length === 0 || multipleSelect) {
+                    addSlotToClipboard(slotData);
+                } else {
+                    moveClipboardToTopic(slotData.destinationId);
+                }
                 openAllocationDetails(d.slotData.id);
             })
             .on("dblclick", function (event, d) {
