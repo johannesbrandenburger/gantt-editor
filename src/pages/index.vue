@@ -8,17 +8,9 @@
         - slots (e.g. flights) are rendered as bars
         - slots can be resized at its ends and moved by pin and paste
 
-        TODO:
-        - Documentation
-        - Single click to select one slot
-        - Control + click to select multiple slots
-        - Right-Click and double click events handled by parent component
-          (`onClickOnSlot` and `onDoubleClickOnSlot`)
-        - Departure time (deadline) is always rendered as black vertical line connected with the slot by a dashed line
-        - Flights as a list on the left side on destination level
     -->
     <div style="height: 100vh; width: 100%; margin: 0 auto; display: flex; flex-direction: column;">
-        <div style="padding: 10px; background: #f5f5f5; border-bottom: 1px solid #ddd; flex-shrink: 0;">
+        <div style="padding: 10px; background: #f5f5f5; border-bottom: 1px solid #ddd; flex-shrink: 0; display: flex; align-items: center; gap: 10px;">
             <button 
                 @click="toggleReadOnly"
                 :style="{
@@ -32,10 +24,24 @@
                 }"
             >
                 {{ isReadOnly ? '🔒 Read-Only Mode' : '✏️ Editable Mode' }}
-            </button>
-            <span style="margin-left: 10px; color: #666;">
-                {{ isReadOnly ? 'Slots cannot be moved or resized' : 'Slots can be moved and resized' }}
-            </span>
+            </button>            
+            <div 
+                v-if="eventMessage"
+                :style="{
+                    padding: '6px 12px',
+                    backgroundColor: '#333',
+                    color: 'white',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    maxWidth: '300px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    animation: 'fadeIn 0.3s ease-in-out'
+                }"
+            >
+                {{ eventMessage }}
+            </div>
         </div>
         
         <div style="flex: 1; overflow: hidden;">
@@ -68,6 +74,15 @@ const numberOfSlots = ref(100);
 const startTime = ref(new Date('2025-01-01T00:00:00Z'));
 const endTime = ref(new Date('2025-01-02T00:00:00Z'));
 const isReadOnly = ref(false);
+const eventMessage = ref('');
+
+// Function to show event message with auto-clear
+const showEventMessage = (message: string, duration = 3000) => {
+    eventMessage.value = message;
+    setTimeout(() => {
+        eventMessage.value = '';
+    }, duration);
+};
 
 // Function to generate random time within the day
 const generateRandomTime = (dayStart: Date, dayEnd: Date): Date => {
@@ -141,12 +156,14 @@ const markedRegions = reactive([]);
 const toggleReadOnly = () => {
     isReadOnly.value = !isReadOnly.value;
     console.log('Toggle read-only mode:', isReadOnly.value);
+    showEventMessage(`🔄 Switched to ${isReadOnly.value ? 'Read-Only' : 'Editable'} mode`);
 };
 
 const handleChangeStartAndEndTime = (newStartTime: Date, newEndTime: Date) => {
     console.log('Callback: Navigated to new time window', newStartTime, newEndTime);
     startTime.value = newStartTime;
     endTime.value = newEndTime;
+    showEventMessage(`📅 Time window: ${newStartTime.toLocaleDateString()} - ${newEndTime.toLocaleDateString()}`);
 };
 
 const handleChangeDestinationId = (slotId: string, destinationId: string) => {
@@ -159,6 +176,7 @@ const handleChangeDestinationId = (slotId: string, destinationId: string) => {
                 ? { ...slot, destinationId } 
                 : slot
         );
+        showEventMessage(`📦 Moved ${slotId} to ${destinationId}`);
     }
 };
 
@@ -168,11 +186,19 @@ const handleChangeSlotTime = (slotId: string, openTime: Date, closeTime: Date) =
     if (slotToUpdate && !slotToUpdate.readOnly) {
         slotToUpdate.openTime = openTime;
         slotToUpdate.closeTime = closeTime;
+        showEventMessage(`⏰ Resized ${slotId} (${openTime.toLocaleTimeString()} - ${closeTime.toLocaleTimeString()})`);
     }
 };
 
 const handleClickOnSlot = (slotId: string) => {
     console.log('Callback: Opening details for slot', slotId);
-    
+    showEventMessage(`👆 Clicked on ${slotId}`);
 };
 </script>
+
+<style scoped>
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+</style>
