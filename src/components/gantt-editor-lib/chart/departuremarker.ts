@@ -24,41 +24,10 @@ export const updateDepartureMarker = (
             .style("color", "black")
     }
 
-    const departureMarker = chartGroup
-        .selectAll<SVGRectElement, DepartureMarker>(".departure-marker")
-        .data(departureMarkerDefinition.filter(d => !d.lineVisible), d => `departure-marker-${d.id}`);
-    departureMarker.enter()
-        .append("rect")
-        .attr("class", "departure-marker")
-        .attr("opacity", 0)
-        .on("mousemove", (event, d) => {
-            tooltip
-                .html(d.info)
-                .style("visibility", "visible")
-                .style("left", `${event.pageX + 10}px`)
-                .style("top", `${event.pageY - 50}px`);
-        })
-        .on("mouseout", (event, d) => {
-            tooltip.style("visibility", "hidden");
-        })
-        .merge(departureMarker) // Merge enter + update selections
-        .transition()
-        .duration(ANIMATION_DURATION)
-        .attr("fill", d => d.color)
-        .attr("x", d => d.x1)
-        .attr("width", d => d.x2 - d.x1)
-        .attr("y", d => d.y)
-        .attr("height", d => d.height)
-        .attr("opacity", 0.5);
-    departureMarker.exit()
-        .transition()
-        .duration(ANIMATION_DURATION)
-        .attr("opacity", 0)
-        .remove();
-
+    // Always show horizontal black bars for departure times
     const departureMarkerEndline = chartGroup
         .selectAll<SVGRectElement, DepartureMarker>(".departure-marker-endline")
-        .data(departureMarkerDefinition.filter(d => d.lineVisible), d => `departure-marker-endline-${d.id}`);
+        .data(departureMarkerDefinition, d => `departure-marker-endline-${d.id}`);
 
     departureMarkerEndline.enter()
         .append("rect")
@@ -75,9 +44,8 @@ export const updateDepartureMarker = (
         .on("mouseout", (event, d) => {
             tooltip.style("visibility", "hidden");
         })
-        .merge(departureMarkerEndline) // Merge enter + update selections
+        .merge(departureMarkerEndline)
         .transition()
-        .attr("display", d => (d.lineVisible ? "block" : "none"))
         .duration(ANIMATION_DURATION)
         .attr("x", d => d.x2-1)
         .attr("width", d => 2)
@@ -85,6 +53,42 @@ export const updateDepartureMarker = (
         .attr("height", d => d.lineHeight)
         .attr("opacity", 1);
     departureMarkerEndline.exit()
+        .transition()
+        .duration(ANIMATION_DURATION)
+        .attr("opacity", 0)
+        .remove();
+
+    // Add dashed lines between x1 and x2 when lineVisible is true
+    const departureMarkerDashedLine = chartGroup
+        .selectAll<SVGLineElement, DepartureMarker>(".departure-marker-dashed-line")
+        .data(departureMarkerDefinition.filter(d => !d.lineVisible), d => `departure-marker-dashed-line-${d.id}`);
+
+    departureMarkerDashedLine.enter()
+        .append("line")
+        .attr("class", "departure-marker-dashed-line")
+        .attr("stroke", "gray")
+        .attr("stroke-width", 1)
+        .attr("stroke-dasharray", "3,3")
+        .attr("opacity", 0)
+        .on("mousemove", (event, d) => {
+            tooltip
+                .html(d.info)
+                .style("visibility", "visible")
+                .style("left", `${event.pageX + 10}px`)
+                .style("top", `${event.pageY - 50}px`);
+        })
+        .on("mouseout", (event, d) => {
+            tooltip.style("visibility", "hidden");
+        })
+        .merge(departureMarkerDashedLine)
+        .transition()
+        .duration(ANIMATION_DURATION)
+        .attr("x1", d => d.x1)
+        .attr("x2", d => d.x2)
+        .attr("y1", d => d.lineY + d.lineHeight / 2)
+        .attr("y2", d => d.lineY + d.lineHeight / 2)
+        .attr("opacity", 1);
+    departureMarkerDashedLine.exit()
         .transition()
         .duration(ANIMATION_DURATION)
         .attr("opacity", 0)
