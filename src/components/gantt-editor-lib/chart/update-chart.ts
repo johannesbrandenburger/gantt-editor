@@ -40,6 +40,8 @@ export function updateChart(
         svgRefs: Map<string, SVGElement>;
         heights: Map<string, number>;
         isReadOnly: boolean;
+        onHoverOnSlot?: (slotId: string) => void;
+        onDoubleClickOnSlot?: (slotId: string) => void;
     },
     animationDuration: number = 200,
 ): void {
@@ -685,6 +687,9 @@ export function updateChart(
         // Update the slots section to include both drag and resize
         const slotsUpdate = slots.merge(slotsEnter as any)
             .on("mouseover", function (event, d) {
+                if (updateChartProps.onHoverOnSlot) {
+                    updateChartProps.onHoverOnSlot(d.slotData.id);
+                }
             })
             .on("mouseout", function () {
             })
@@ -696,6 +701,11 @@ export function updateChart(
                 const slotData = data.find(slot => slot.id === d.slotData.id);
                 if (!slotData) return;
                 addSlotToClipboard(slotData);
+            })
+            .on("dblclick", function (event, d) {
+                if (updateChartProps.onDoubleClickOnSlot) {
+                    updateChartProps.onDoubleClickOnSlot(d.slotData.id);
+                }
             })
             .on("contextmenu", function (event, d) {
                 event.preventDefault();

@@ -58,6 +58,8 @@
                 @onChangeDestinationId="handleChangeDestinationId"
                 @onChangeSlotTime="handleChangeSlotTime"
                 @onClickOnSlot="handleClickOnSlot"
+                @onHoverOnSlot="handleHoverOnSlot"
+                @onDoubleClickOnSlot="handleDoubleClickOnSlot"
             />
         </div>
     </div>
@@ -193,6 +195,16 @@ const handleChangeSlotTime = (slotId: string, openTime: Date, closeTime: Date) =
 const handleClickOnSlot = (slotId: string) => {
     console.log('Callback: Opening details for slot', slotId);
     showEventMessage(`👆 Clicked on ${slotId}`);
+};
+
+const handleHoverOnSlot = (slotId: string) => {
+    console.log('Callback: Hovering on slot', slotId);
+    showEventMessage(`🖱️ Hovering on ${slotId}`, 1000);
+};
+
+const handleDoubleClickOnSlot = (slotId: string) => {
+    console.log('Callback: Double clicked on slot', slotId);
+    showEventMessage(`🖱️🖱️ Double clicked on ${slotId}`);
 };
 </script>
 
