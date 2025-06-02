@@ -42,6 +42,7 @@ export function updateChart(
         isReadOnly: boolean;
         onHoverOnSlot?: (slotId: string) => void;
         onDoubleClickOnSlot?: (slotId: string) => void;
+        onContextClickOnSlot?: (slotId: string) => void;
     },
     animationDuration: number = 200,
 ): void {
@@ -716,7 +717,9 @@ export function updateChart(
                 console.log("Clicked on slot", d.slotData);
                 const slotData = data.find(slot => slot.id === d.slotData.id);
                 if (!slotData) return;
+                // Add to clipboard AND trigger the click event
                 addSlotToClipboard(slotData);
+                openAllocationDetails(d.slotData.id);
             })
             .on("dblclick", function (event, d) {
                 if (updateChartProps.onDoubleClickOnSlot) {
@@ -725,8 +728,9 @@ export function updateChart(
             })
             .on("contextmenu", function (event, d) {
                 event.preventDefault();
-                console.log("Right clicked on slot", d.slotData);
-                openAllocationDetails(d.slotData.id);
+                if (updateChartProps.onContextClickOnSlot) {
+                    updateChartProps.onContextClickOnSlot(d.slotData.id);
+                }
             });
 
         const dragStartLeftRight = (event: d3.D3DragEvent<Element, any, any>, d: SlotDefinition): void => {

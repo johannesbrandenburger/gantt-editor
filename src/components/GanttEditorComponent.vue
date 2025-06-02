@@ -48,7 +48,8 @@ interface GanttEditorEmits {
   onChangeSlotTime: [string, Date, Date],
   onClickOnSlot: [string],
   onHoverOnSlot: [string],
-  onDoubleClickOnSlot: [string]
+  onDoubleClickOnSlot: [string],
+  onContextClickOnSlot: [string]
 }
 
 const props = defineProps<GanttEditorProps>();
@@ -236,7 +237,8 @@ const triggerUpdate = () => {
         svgRefs: svgRefs,
         isReadOnly: props.isReadOnly,
         onHoverOnSlot: (allocationId: string) => { emit("onHoverOnSlot", allocationId); },
-        onDoubleClickOnSlot: (allocationId: string) => { emit("onDoubleClickOnSlot", allocationId); }
+        onDoubleClickOnSlot: (allocationId: string) => { emit("onDoubleClickOnSlot", allocationId); },
+        onContextClickOnSlot: (allocationId: string) => { emit("onContextClickOnSlot", allocationId); }
       }
     );
   }

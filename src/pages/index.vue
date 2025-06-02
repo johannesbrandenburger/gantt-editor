@@ -60,6 +60,7 @@
                 @onClickOnSlot="handleClickOnSlot"
                 @onHoverOnSlot="handleHoverOnSlot"
                 @onDoubleClickOnSlot="handleDoubleClickOnSlot"
+                @onContextClickOnSlot="handleContextClickOnSlot"
             />
         </div>
     </div>
@@ -205,6 +206,11 @@ const handleHoverOnSlot = (slotId: string) => {
 const handleDoubleClickOnSlot = (slotId: string) => {
     console.log('Callback: Double clicked on slot', slotId);
     showEventMessage(`🖱️🖱️ Double clicked on ${slotId}`);
+};
+
+const handleContextClickOnSlot = (slotId: string) => {
+    console.log('Callback: Right clicked on slot', slotId);
+    showEventMessage(`🖱️ Right clicked on ${slotId}`);
 };
 </script>
 
