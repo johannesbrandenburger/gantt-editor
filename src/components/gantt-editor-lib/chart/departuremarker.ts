@@ -24,7 +24,6 @@ export const updateDepartureMarker = (
             .style("color", "black")
     }
 
-    // Always show horizontal black bars for departure times
     const departureMarkerEndline = chartGroup
         .selectAll<SVGRectElement, DepartureMarker>(".departure-marker-endline")
         .data(departureMarkerDefinition, d => `departure-marker-endline-${d.id}`);
@@ -58,7 +57,6 @@ export const updateDepartureMarker = (
         .attr("opacity", 0)
         .remove();
 
-    // Add dashed lines between x1 and x2 when lineVisible is true
     const departureMarkerDashedLine = chartGroup
         .selectAll<SVGLineElement, DepartureMarker>(".departure-marker-dashed-line")
         .data(departureMarkerDefinition.filter(d => !d.lineVisible), d => `departure-marker-dashed-line-${d.id}`);
@@ -89,6 +87,39 @@ export const updateDepartureMarker = (
         .attr("y2", d => d.lineY + d.lineHeight / 2)
         .attr("opacity", 1);
     departureMarkerDashedLine.exit()
+        .transition()
+        .duration(ANIMATION_DURATION)
+        .attr("opacity", 0)
+        .remove();
+
+    const departureMarkerHoverArea = chartGroup
+        .selectAll<SVGRectElement, DepartureMarker>(".departure-marker-hover-area")
+        .data(departureMarkerDefinition, d => `departure-marker-hover-area-${d.id}`);
+
+    departureMarkerHoverArea.enter()
+        .append("rect")
+        .attr("class", "departure-marker-hover-area")
+        .attr("fill", "transparent")
+        .attr("opacity", 0)
+        .on("mousemove", (event, d) => {
+            tooltip
+                .html(d.info)
+                .style("visibility", "visible")
+                .style("left", `${event.pageX + 10}px`)
+                .style("top", `${event.pageY - 50}px`);
+        })
+        .on("mouseout", (event, d) => {
+            tooltip.style("visibility", "hidden");
+        })
+        .merge(departureMarkerHoverArea)
+        .transition()
+        .duration(ANIMATION_DURATION)
+        .attr("x", d => Math.min(d.x1, d.x2))
+        .attr("width", d => Math.abs(d.x2 - d.x1))
+        .attr("y", d => d.lineY)
+        .attr("height", d => d.lineHeight)
+        .attr("opacity", 1);
+    departureMarkerHoverArea.exit()
         .transition()
         .duration(ANIMATION_DURATION)
         .attr("opacity", 0)
