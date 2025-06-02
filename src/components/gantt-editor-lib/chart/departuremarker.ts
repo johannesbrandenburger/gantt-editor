@@ -43,6 +43,10 @@ export const updateDepartureMarker = (
         .on("mouseout", (event, d) => {
             tooltip.style("visibility", "hidden");
         })
+        .attr("x", d => d.x1)
+        .attr("width", 2)
+        .attr("y", d => d.lineY)
+        .attr("height", d => d.lineHeight)
         .merge(departureMarkerEndline)
         .transition()
         .duration(ANIMATION_DURATION)
@@ -78,6 +82,10 @@ export const updateDepartureMarker = (
         .on("mouseout", (event, d) => {
             tooltip.style("visibility", "hidden");
         })
+        .attr("x1", d => d.x1)
+        .attr("x2", d => d.x1)
+        .attr("y1", d => d.lineY + d.lineHeight / 2)
+        .attr("y2", d => d.lineY + d.lineHeight / 2)
         .merge(departureMarkerDashedLine)
         .transition()
         .duration(ANIMATION_DURATION)

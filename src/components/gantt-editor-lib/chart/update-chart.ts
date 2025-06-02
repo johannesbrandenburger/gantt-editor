@@ -687,7 +687,7 @@ export function updateChart(
 
         // Hover delay mechanism
         let hoverTimeout: number | null = null;
-        const HOVER_DELAY = 500; // 500ms delay like native tooltips
+        const HOVER_DELAY = 500;
 
         // Update the slots section to include both drag and resize
         const slotsUpdate = slots.merge(slotsEnter as any)
