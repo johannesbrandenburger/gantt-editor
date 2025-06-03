@@ -71,9 +71,18 @@ export function updateAxis(
             clearClipboardButton.on("mouseout", () => {
                 clearClipboardButton.select("rect").attr("fill", "#f0f0f0");
             });
+
+            // clear clipboard on ESC key press
+            d3.select(document).on("keydown.clearClipboard", (event) => {
+                if (event.key === "Escape" || event.keyCode === 27) {
+                    clearClipboard();
+                }
+            });
         }
     } else {
         xAxisGroup.select<SVGGElement>('.clear-clipboard-button').remove();
+        // Remove ESC key listener when clipboard is empty
+        d3.select(document).on("keydown.clearClipboard", null);
     }
 
 }
