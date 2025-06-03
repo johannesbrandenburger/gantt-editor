@@ -762,12 +762,12 @@ export function updateChart(
             const newOpenTime = xScale.invert(d.newX);
 
             const slot = d3.select<SVGGElement, SlotDefinition>(d.element.parentNode);
-            slot.attr('transform', `translate(${d.newX},${d.y})`);
             slot.select('.slot-box')
-                .attr('d', d => createSlotPath({ ...d.slotData, openTime: newOpenTime }, startDateTime, endDateTime, d.y, d.height, xScale));
+                .attr('d', d => createSlotPath({ ...d.slotData, openTime: newOpenTime }, startDateTime, endDateTime, d.y, d.height, xScale))
+                .attr('transform', `translate(${dx},0)`);
 
             slot.select('.slot-resize-handle-left')
-                .attr('x', d.newX);
+                .attr('x', d.newX - 8);
         }
 
         const draggingRight = (event: d3.D3DragEvent<Element, any, any>, d: SlotDefinition): void => {
@@ -786,6 +786,8 @@ export function updateChart(
         }
 
         const dragLeftRightEnd = (event: d3.D3DragEvent<Element, any, any>, d: SlotDefinition): void => {
+            const slot = d3.select<SVGGElement, SlotDefinition>(d.element.parentNode);
+            slot.select('.slot-box').attr('transform', `translate(0,0)`);
             d.newX = d.newX || d.x;
             d.newWidth = d.newWidth || d.width;
             d.x = d.newX;
@@ -793,11 +795,12 @@ export function updateChart(
             d.slotData.openTime = xScale.invert(d.newX);
             d.slotData.closeTime = xScale.invert(d.newX + d.newWidth);
             let slotData = data.find(slot => slot.id === d.slotData.id);
+
             if (!slotData) return;
             slotData.openTime = d.slotData.openTime;
             slotData.closeTime = d.slotData.closeTime;
             onItemChanged({ id: slotData.id, openTime: slotData.openTime, closeTime: slotData.closeTime });
-            updateChart(xAxisSvgRef, data, destinationData, [], windowWidth, startDateTime, endDateTime, onItemChanged, onChangeStartAndEndDateTime, settings, clipboardUpdate, openAllocationDetails, updateChartProps);
+            updateChart(xAxisSvgRef, data, destinationData, [], windowWidth, startDateTime, endDateTime, onItemChanged, onChangeStartAndEndDateTime, settings, clipboardUpdate, openAllocationDetails, updateChartProps, 0);
         }
         const dragResizeHandleLeft = d3.drag<Element, SlotDefinition, any>()
             .on('start', function (event, d) { d.element = this; dragStartLeftRight(event, d) })
