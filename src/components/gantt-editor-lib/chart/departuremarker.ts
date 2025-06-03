@@ -119,6 +119,23 @@ export const updateDepartureMarker = (
         .on("mouseout", (event, d) => {
             tooltip.style("visibility", "hidden");
         })
+        .on("click", function(event) {
+            // Allow click events to pass through by temporarily disabling pointer events
+            // and re-dispatching the event to the element below
+            const element = this as SVGRectElement;
+            element.style.pointerEvents = 'none';
+            const elementBelow = document.elementFromPoint(event.clientX, event.clientY);
+            element.style.pointerEvents = '';
+            
+            if (elementBelow && elementBelow !== element) {
+                elementBelow.dispatchEvent(new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: event.clientX,
+                    clientY: event.clientY
+                }));
+            }
+        })
         .merge(departureMarkerHoverArea)
         .transition()
         .duration(ANIMATION_DURATION)
