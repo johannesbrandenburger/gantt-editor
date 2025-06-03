@@ -21,7 +21,10 @@ const areSlotsOverlappingWithDeadlineConsidered = (slots: {
         deadline: s.deadline
     })).sort((a, b) => a.openTime.getTime() - b.openTime.getTime());
     for (let i = 0; i < sortedSlots.length - 1; i++) {
-        const currentCloseTime = sortedSlots[i].deadline || sortedSlots[i].closeTime;
+        let currentCloseTime = sortedSlots[i].deadline || sortedSlots[i].closeTime;
+        if (sortedSlots[i].deadline) {
+            currentCloseTime = new Date(Math.max(sortedSlots[i].closeTime.getTime(), currentCloseTime.getTime()));
+        }
         if (currentCloseTime.getTime() > sortedSlots[i + 1].openTime.getTime()) {
             return true;
         }
