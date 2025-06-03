@@ -882,8 +882,8 @@ export function updateChart(
             xScale,
             width,
             margin,
-            unprocessedStartDateTime,
-            unprocessedEndDateTime,
+            startDateTime,
+            endDateTime,
             changeStartAndEndDateTime,
             changeStartAndEndDateTimeWithoutFetch
         );

@@ -9,12 +9,21 @@ export const setupPanAndZoom = (
     unprocessedEndDateTime: Date,
     changeStartAndEndDateTime: (startDateTime: Date, endDateTime: Date) => void,
     changeStartAndEndDateTimeWithoutFetch: (startDateTime: Date, endDateTime: Date) => void,
-
 ) => {
     let startPanX: number;
     let originalStartDateTime: Date;
     let originalEndDateTime: Date;
     let isPanning = false;
+    
+    // Store timeout and scroll data on the chartGroup to persist across renders
+    const chartGroupNode = chartGroup.node() as any;
+    if (!chartGroupNode._horizontalScrollData) {
+        chartGroupNode._horizontalScrollData = {
+            timeout: null,
+            lastDates: null
+        };
+    }
+    const scrollData = chartGroupNode._horizontalScrollData;
 
     // Prevent context menu from showing up during panning
     chartGroup.on('contextmenu', (event) => {
@@ -22,7 +31,39 @@ export const setupPanAndZoom = (
     });
 
     // Add zooming with mouse wheel + shift key
-    chartGroup.on('wheel', (event) => {
+    chartGroup.on('wheel', (event: WheelEvent) => {
+        
+        // horizontal scrolling through the timeline
+        if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+            event.preventDefault();
+            event.stopPropagation();
+            originalStartDateTime = unprocessedStartDateTime;
+            originalEndDateTime = unprocessedEndDateTime;
+            const newStartDateTime = new Date(originalStartDateTime.getTime() + event.deltaX * 50000);
+            const newEndDateTime = new Date(originalEndDateTime.getTime() + event.deltaX * 50000);
+            
+            // Store the new dates for the end listener
+            scrollData.lastDates = { start: newStartDateTime, end: newEndDateTime };
+            
+            // Clear any existing timeout
+            if (scrollData.timeout) {
+                clearTimeout(scrollData.timeout);
+            }
+            
+            // Update immediately without fetch
+            changeStartAndEndDateTimeWithoutFetch(newStartDateTime, newEndDateTime);
+            
+            // Set a timeout to call the version with fetch when scrolling ends
+            scrollData.timeout = setTimeout(() => {
+                if (scrollData.lastDates) {
+                    changeStartAndEndDateTime(scrollData.lastDates.start, scrollData.lastDates.end);
+                    scrollData.lastDates = null;
+                }
+                scrollData.timeout = null;
+            }, 150); // 150ms delay after scrolling stops
+            
+            return;
+        }
 
         if (!event.shiftKey) return;
 
