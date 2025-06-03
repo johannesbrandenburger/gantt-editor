@@ -58,4 +58,5 @@
 </template>
 
 <script setup lang="ts">
+import GanttEditorComponent from '@/components/GanttEditorComponent.vue';
 </script>

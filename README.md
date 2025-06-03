@@ -17,6 +17,9 @@ npm install d3; npm install --save-dev @types/d3
 - use as in `src/pages/index.vue` (generates variable number of allocations)
 - or as in this small example (easier to understand)
 ```vue
+<script setup lang="ts">
+import GanttEditorComponent from '@/components/GanttEditorComponent.vue'; // adjust the path to your project structure
+</script>
 <template>
     <div style="height: 100vh; width: 100%; margin: 0 auto;">
         <GanttEditorComponent
