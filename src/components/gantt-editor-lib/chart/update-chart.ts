@@ -837,7 +837,7 @@ export function updateChart(
 
         slotsUpdate.select(".slot-resize-handle-left")
             .style("display", d => (d.isStartInView && !updateChartProps.isReadOnly) ? null : "none")
-            .attr("x", d => 0)
+            .attr("x", d => -4)
             .attr("y", d => 0)
             .attr("height", d => d.height)
             .style("opacity", 0)
@@ -845,7 +845,7 @@ export function updateChart(
 
         slotsUpdate.select(".slot-resize-handle-right")
             .style("display", d => (d.isEndInView && !updateChartProps.isReadOnly) ? null : "none")
-            .attr("x", d => 0 + d.width - 8)
+            .attr("x", d => 0 + d.width - 4)
             .attr("y", d => 0)
             .attr("height", d => d.height)
             .style("opacity", 0)

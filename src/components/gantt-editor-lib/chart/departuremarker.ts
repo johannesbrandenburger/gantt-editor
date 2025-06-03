@@ -107,7 +107,7 @@ export const updateDepartureMarker = (
     departureMarkerHoverArea.enter()
         .append("rect")
         .attr("class", "departure-marker-hover-area")
-        .attr("fill", "transparent")
+        .attr("fill", "#1f77b4")
         .attr("opacity", 0)
         .on("mousemove", (event, d) => {
             tooltip
@@ -122,8 +122,8 @@ export const updateDepartureMarker = (
         .merge(departureMarkerHoverArea)
         .transition()
         .duration(ANIMATION_DURATION)
-        .attr("x", d => Math.min(d.x1, d.x2))
-        .attr("width", d => Math.abs(d.x2 - d.x1))
+        .attr("x", d => d.x2 < d.x1 ? d.x2 + 4 : d.x1 + 4)
+        .attr("width", d => d.x2 < d.x1 ? d.x1 - d.x2 - 8 : d.x2 - d.x1) // leave a little space for the resize handle
         .attr("y", d => d.lineY)
         .attr("height", d => d.lineHeight)
         .attr("opacity", 1);
