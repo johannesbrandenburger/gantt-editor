@@ -1,3 +1,38 @@
+export type GanttEditorSlot = {
+  id: string,
+  group: string, // flightId
+  displayName: string,
+  openTime: Date,
+  closeTime: Date,
+  destinationId: string,
+  additionalData?: string,
+  hoverData?: string,
+  deadline?: Date,
+  deadlineHoverData?: string,
+  readOnly?: boolean,
+  color?: string
+};
+export type GanttEditorDestination = {
+  id: string,
+  displayName: string,
+  active: boolean,
+  groupId: string
+};
+export type GanttEditorDestinationGroup = {
+  id: string,
+  displayName: string,
+  heightPortion: number
+};
+export type GanttEditorMarkedRegion = {
+  startTime: Date,
+  endTime: Date,
+  destinationId: string
+};
+export type GanttEditorSuggestion = {
+  slotId: string,
+  alternativeDestinationId: string
+};
+
 export type GanttEditorSlotWithUiAttributes = GanttEditorSlot & {
     isConflict?: boolean;
     isCopied?: boolean;
@@ -174,39 +209,3 @@ export interface EventChartDefinitions {
         order?: number;
     };
 }
-
-
-export type GanttEditorSlot = {
-  id: string,
-  group: string, // flightId
-  displayName: string,
-  openTime: Date,
-  closeTime: Date,
-  destinationId: string,
-  additionalData?: string,
-  hoverData?: string,
-  deadline?: Date,
-  deadlineHoverData?: string,
-  readOnly?: boolean,
-  color?: string
-};
-export type GanttEditorDestination = {
-  id: string,
-  displayName: string,
-  active: boolean,
-  groupId: string
-};
-export type GanttEditorDestinationGroup = {
-  id: string,
-  displayName: string,
-  heightPortion: number
-};
-export type GanttEditorMarkedRegion = {
-  startTime: Date,
-  endTime: Date,
-  destinationId: string
-};
-export type GanttEditorSuggestion = {
-  slotId: string,
-  alternativeDestinationId: string
-};

@@ -296,24 +296,20 @@ watch(
   }
 );
 
+const reziseWindow = () => {
+  triggerUpdate();
+};
 onMounted(() => {
   setTimeout(async () => {
 
     clipboardController = { update: updateClipboard };
     updateClipboard();
 
-    const reziseWindow = () => {
-      triggerUpdate();
-    };
     window.addEventListener("resize", reziseWindow);
-
-    onBeforeUnmount(() => {
-      window.removeEventListener("resize", reziseWindow);
-    });
 
     triggerUpdate();
 
-  }, 10);
+  }, 5);
 });
 
 onBeforeUnmount(() => {
@@ -323,6 +319,7 @@ onBeforeUnmount(() => {
       d3.select(ganttRefs.value[group.id]).selectAll("*").remove();
     }
   });
+  window.removeEventListener("resize", reziseWindow);
 });
 
 </script>
