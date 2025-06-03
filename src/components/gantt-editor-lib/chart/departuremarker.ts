@@ -107,7 +107,7 @@ export const updateDepartureMarker = (
     departureMarkerHoverArea.enter()
         .append("rect")
         .attr("class", "departure-marker-hover-area")
-        .attr("fill", "#1f77b4")
+        .attr("fill", "transparent")
         .attr("opacity", 0)
         .on("mousemove", (event, d) => {
             tooltip
