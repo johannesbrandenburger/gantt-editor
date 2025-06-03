@@ -32,51 +32,48 @@ export function updateAxis(
         .selectAll('text')
         .attr('transform', 'translate(0, 6)');
 
-    // xAxisGroup.select('.grid')
-    //     .transition()
-    //     .duration(animationDuration)
-    //     .attr('opacity', 0.1)
-    //     // @ts-ignore
-    //     .call(d3.axisBottom(xScale).tickSize(fullChartHeight).tickFormat('') as any);
-
-    let clearClipboardButton = xAxisGroup.select<SVGGElement>('.clear-clipboard-button');
-    if (clearClipboardButton.empty()) {
-        clearClipboardButton = xAxisGroup.append("g").attr("class", "clear-clipboard-button")
-            .attr("transform", `translate(-190,-30)`)
-            .attr("display", "none")
-            .attr("style", "cursor: pointer;")
-            .attr("pointer-events", "all")
-
-        clearClipboardButton.append("rect")
-            .attr("width", 100)
-            .attr("height", 30)
-            .attr("rx", 1)
-            .attr("ry", 1)
-            .attr("fill", "#f0f0f0")
-            .on("click", () => {
-                clearClipboard();
-            })
-
-        clearClipboardButton.append("text")
-            .attr("fill", "black")
-            .text("Clear Clipboard")
-            .attr("x", 50)
-            .attr("y", 15)
-            .attr("text-anchor", "middle")
-            .attr("dominant-baseline", "middle")
-            .attr("font-size", "12px")
-            .attr("font-weight", "bold")
-
-        clearClipboardButton.on("click", () => {
-            clearClipboard();
-        })
-    }
-
-    // show the button if the clipboard is not empty
     const clipboard = JSON.parse(localStorage.getItem("pointerClipboard") || "[]");
     if (clipboard.length > 0) {
-        clearClipboardButton.attr("display", "block");
+
+        let clearClipboardButton = xAxisGroup.select<SVGGElement>('.clear-clipboard-button');
+        if (clearClipboardButton.empty()) {
+            clearClipboardButton = xAxisGroup.append("g").attr("class", "clear-clipboard-button")
+                .attr("transform", `translate(-190,-30)`)
+                .attr("style", "cursor: pointer;")
+                .attr("pointer-events", "all")
+
+            clearClipboardButton.append("rect")
+                .attr("width", 100)
+                .attr("height", 30)
+                .attr("rx", 1)
+                .attr("ry", 1)
+                .attr("fill", "#f0f0f0")
+                .on("click", function (event, d) {
+                    clearClipboard();
+                })
+
+            clearClipboardButton.append("text")
+                .attr("fill", "black")
+                .text("Clear Clipboard")
+                .attr("x", 50)
+                .attr("y", 15)
+                .attr("text-anchor", "middle")
+                .attr("dominant-baseline", "middle")
+                .attr("font-size", "12px")
+                .attr("font-weight", "bold")
+
+            clearClipboardButton.on("click", () => {
+                clearClipboard();
+            })
+            clearClipboardButton.on("mouseover", () => {
+                clearClipboardButton.select("rect").attr("fill", "#e0e0e0");
+            });
+            clearClipboardButton.on("mouseout", () => {
+                clearClipboardButton.select("rect").attr("fill", "#f0f0f0");
+            });
+        }
     } else {
-        clearClipboardButton.attr("display", "none");
+        xAxisGroup.select<SVGGElement>('.clear-clipboard-button').remove();
     }
+
 }

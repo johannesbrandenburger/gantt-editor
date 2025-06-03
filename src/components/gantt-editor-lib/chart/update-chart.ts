@@ -402,7 +402,6 @@ export function updateChart(
         markIntervalOnDestination(topic, timeInterval);
     }
 
-
     const clearClipboard = () => {
         console.log("Clearing clipboard");
         localStorage.setItem("pointerClipboard", "[]");
@@ -421,8 +420,7 @@ export function updateChart(
             });
             topic.rows = topic.rows.filter((row) => row.slots.length > 0);
         });
-
-        updateChart(xAxisSvgRef, data, destinationData, [], windowWidth, startDateTime, endDateTime, onItemChanged, onChangeStartAndEndDateTime, settings, clipboardUpdate, openAllocationDetails, updateChartProps);
+        updateChart(xAxisSvgRef, data, destinationData, processedData, windowWidth, startDateTime, endDateTime, onItemChanged, onChangeStartAndEndDateTime, settings, clipboardUpdate, openAllocationDetails, updateChartProps);
     }
 
     updateAxis(
