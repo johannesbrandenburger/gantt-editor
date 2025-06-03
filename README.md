@@ -61,7 +61,7 @@ import GanttEditorComponent from '@/components/GanttEditorComponent.vue'; // adj
 
             @onChangeStartAndEndTime="(newStartTime, newEndTime) => console.log(`onChangeStartAndEndTime(${newStartTime}, ${newEndTime})`)"
             @onChangeDestinationId="(slotId, newDestinationId) => console.log(`onChangeDestinationId(${slotId}, ${newDestinationId})`)"
-            @onChangeSlotTime="(slotId, newOpenTime, newCloseTime) => console.log(`onChangeSlotTime(${slotId}, ${newOpenTime}, ${newCloseT})`)"
+            @onChangeSlotTime="(slotId, newOpenTime, newCloseTime) => console.log(`onChangeSlotTime(${slotId}, ${newOpenTime}, ${newCloseTime})`)"
             @onClickOnSlot="(slotId) => console.log(`onClickOnSlot(${slotId})`)"
             @onHoverOnSlot="(slotId) => console.log(`onHoverOnSlot(${slotId})`)"
             @onDoubleClickOnSlot="(slotId) => console.log(`onDoubleClickOnSlot(${slotId})`)"

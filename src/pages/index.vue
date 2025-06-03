@@ -102,7 +102,7 @@ const generateSlots = (count: number) => {
     
     return Array.from({ length: count }, (_, index) => {
         const slotStart = generateRandomTime(dayStart, dayEnd);
-        const slotEnd = new Date(slotStart.getTime() + Math.random() * 3 * 60 * 60 * 1000); // Random duration up to 3 hours
+        const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000 + Math.random() * 2.5 * 60 * 60 * 1000); // 30 minutes to 3 hours duration
         
         // Ensure slot doesn't exceed day end
         if (slotEnd > dayEnd) {
