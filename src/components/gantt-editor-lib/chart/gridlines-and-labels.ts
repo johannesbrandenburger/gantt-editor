@@ -41,6 +41,58 @@ export function updateGridlinesAndLabels(
         .attr('opacity', 0)
         .remove();
 
+    // Update slot names below topic labels
+    const slotNameLabels = group
+        .selectAll<SVGForeignObjectElement, { id: string; x: number; y: number; slotNames: string[]; isCollapsed: boolean }>(`.topic-slot-names`)
+        .data(topicLabelsDefinition.map(d => ({
+            id: `${d.id}-slot-names`,
+            x: d.x,
+            y: d.y + 1,
+            slotNames: d.slotNames,
+            isCollapsed: d.isCollapsed
+        })), d => d.id);
+    
+    const slotNameLabelsEnter = slotNameLabels
+        .enter()
+        .append('foreignObject')
+        .attr('class', 'topic-slot-names')
+        .attr('width', 180)
+        .attr('height', 60)
+        .attr('opacity', 0)
+        .attr('x', d => d.x)
+        .attr('y', d => d.y);
+        
+    slotNameLabelsEnter
+        .append('xhtml:div')
+        .style('font-size', '10px')
+        .style('color', '#666')
+        .style('line-height', '1.2')
+        .style('word-wrap', 'break-word')
+        .style('overflow-wrap', 'break-word')
+        .style('max-width', '180px');
+    
+    const slotNameLabelsUpdate = slotNameLabelsEnter.merge(slotNameLabels);
+    
+    // Update content first (before transition)
+    slotNameLabelsUpdate.select('div')
+        .html((d: { id: string; x: number; y: number; slotNames: string[]; isCollapsed: boolean }) => 
+            d.slotNames.length > 0 ? d.slotNames.join(', ') : '');
+    
+    // Then apply transition
+    slotNameLabelsUpdate
+        .transition()
+        .duration(animationDuration)
+        .attr('x', d => d.x)
+        .attr('y', d => d.y)
+        .attr('opacity', d => d.isCollapsed ? 0 : 1);
+    
+    slotNameLabels
+        .exit()
+        .transition()
+        .duration(animationDuration)
+        .attr('opacity', 0)
+        .remove();
+
     const rowLabels = group
         .selectAll<SVGTextElement, RowLabel>(`.row-label`)
         .data(rowLabelsDefinition, d => d.id);

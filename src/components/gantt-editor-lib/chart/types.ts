@@ -109,6 +109,7 @@ export interface TopicLabel {
     id: string;
     isInactive: boolean;
     isCollapsed: boolean;
+    slotNames: string[];
 }
 
 export interface RowLabel {

@@ -200,6 +200,11 @@ export function updateChart(
 
         topic.yStart = currentY;
         defs.horizontalGridlinesDefinitions.push({ y: currentY, id: `gridline-${topic.id}` });
+        
+        const slotNames = topic.rows.flatMap(row => 
+            row.slots.map(slot => slot.displayName)
+        );
+        
         defs.topicLabelsDefinition.push({
             x: -margin.left + 10,
             y: currentY + yScale.step() - (yScale.bandwidth() / 2),
@@ -207,6 +212,7 @@ export function updateChart(
             id: `${topic.name}`,
             isInactive: topic.isInactive,
             isCollapsed: topic.isCollapsed,
+            slotNames: slotNames,
         });
 
         if (topic.rows.length === 0) {
