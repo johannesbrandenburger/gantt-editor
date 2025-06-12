@@ -340,10 +340,14 @@ export function updateChart(
 
         if (width <= 0) return; // No visible interval
         let yStart = topic?.yStart || 0;
-        let yEnd = topic?.yEnd || 100 // TODO: dynamic
-
-        const group = topic ? groupMap.get(topic.groupId) : groupMap.get(groupMap.keys().next().value!);
+        
+        const groupId = topic ? topic.groupId : groupMap.keys().next().value; // if no topic, use the first group (TODO: mabe all groups later)
+        if (!groupId) return;
+        const group = groupMap.get(groupId);
         if (!group) return;
+        
+        // topic?.yEnd or the maximum yEnd of all topics in the group
+        let yEnd = topic?.yEnd || Math.max(...processedData.filter(t => t.groupId === groupId).map(t => t.yEnd));
 
         group.append("rect")
             .attr("class", "interval-marker")
@@ -690,7 +694,7 @@ export function updateChart(
 
 
         // Hover delay mechanism
-        let hoverTimeout: number | null = null;
+        let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
         const HOVER_DELAY = 500;
 
         // Update the slots section to include both drag and resize

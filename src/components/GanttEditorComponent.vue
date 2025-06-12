@@ -1,6 +1,17 @@
 <template>
   <div ref="chartContainerRef" class="chart-container" @mousemove="updateCursorPosition" @mouseenter="onMouseEnter"
     @mouseleave="onMouseLeave">
+    
+    <!-- Top content slot (e.g., for LoadChart) -->
+    <div v-if="$slots['top-content'] || topContentHeight" class="top-content-container" 
+         :style="{ height: currentTopContentHeight + 'px' }">
+      <slot name="top-content"></slot>
+    </div>
+    
+    <!-- Resize handle for top content -->
+    <div v-if="$slots['top-content'] || topContentHeight" class="resize-handle" 
+         @mousedown="startTopContentResize($event)"></div>
+    
     <div class="x-axis-container">
       <svg ref="xAxisRef"></svg>
     </div>
@@ -39,23 +50,33 @@ interface GanttEditorProps {
   destinations: Array<GanttEditorDestination>,
   destinationGroups: Array<GanttEditorDestinationGroup>,
   suggestions: Array<GanttEditorSuggestion>,
-  markedRegions: Array<GanttEditorMarkedRegion>,
-  isReadOnly: boolean
+  markedRegion: GanttEditorMarkedRegion | null,
+  isReadOnly: boolean,
+  topContentHeight?: number
 }
 interface GanttEditorEmits {
   onChangeStartAndEndTime: [Date, Date],
-  onChangeDestinationId: [string, string],
+  onChangeDestinationId: [string, string, boolean],
   onChangeSlotTime: [string, Date, Date],
   onClickOnSlot: [string],
   onHoverOnSlot: [string],
   onDoubleClickOnSlot: [string],
-  onContextClickOnSlot: [string]
+  onContextClickOnSlot: [string],
+  onTopContentHeightChange: [number]
 }
 
 const props = defineProps<GanttEditorProps>();
 const emit = defineEmits<GanttEditorEmits>();
 const chartContainerRef = ref<HTMLElement | null>(null);
 const xAxisRef = ref<SVGSVGElement | null>(null);
+const containerHeight = ref(0);
+
+// Top content resizing state
+const currentTopContentHeight = computed(() => {
+  return props.topContentHeight || 0;
+});
+const isResizingTopContent = ref(false);
+const topContentStartY = ref(0);
 
 const isResizing = ref(false);
 const resizingElement = ref<string | null>(null);
@@ -64,7 +85,16 @@ const currentHeightPortions = ref<Map<string, number>>(new Map<string, number>()
 props.destinationGroups.forEach((group) => {
   currentHeightPortions.value.set(group.id, group.heightPortion);
 });
-const outerComponentHeight = computed(() => (chartContainerRef.value?.clientHeight || 0) - 50 - 3 * (props.destinationGroups.length - 1));
+
+const outerComponentHeight = computed(() => {
+  let baseHeight = containerHeight.value - 60 - 3 * (props.destinationGroups.length - 1);
+  
+  if (props.topContentHeight || currentTopContentHeight.value) {
+    baseHeight -= currentTopContentHeight.value + 3; // 3px for resize handle
+  }
+  
+  return baseHeight;
+});
 const heightMap = computed(() => {
   const map = new Map<string, number>();
   props.destinationGroups.forEach((group) => {
@@ -148,6 +178,39 @@ const stopResize = () => {
   document.removeEventListener('mouseup', stopResize);
 };
 
+const startTopContentResize = (e: MouseEvent) => {
+  isResizingTopContent.value = true;
+  topContentStartY.value = e.clientY;
+
+  document.addEventListener('mousemove', handleTopContentResize);
+  document.addEventListener('mouseup', stopTopContentResize);
+  e.preventDefault();
+};
+
+// Handle top content resize during mouse movement
+const handleTopContentResize = (e: MouseEvent) => {
+  if (!isResizingTopContent.value) return;
+
+  const deltaY = e.clientY - topContentStartY.value;
+  let newHeight = currentTopContentHeight.value + deltaY;
+
+  // min height constraint
+  if (newHeight < 10) newHeight = 10;
+  topContentStartY.value = e.clientY;
+
+  emit("onTopContentHeightChange", newHeight);
+  triggerUpdate();
+};
+
+const stopTopContentResize = () => {
+  if (isResizingTopContent.value) {
+    isResizingTopContent.value = false;
+    triggerUpdate();
+  }
+  document.removeEventListener('mousemove', handleTopContentResize);
+  document.removeEventListener('mouseup', stopTopContentResize);
+};
+
 const cursorPosition = ref({ x: 0, y: 0 });
 const showClipboard = ref(false);
 const clipboardItems = ref<GanttEditorSlot[]>([]);
@@ -183,6 +246,7 @@ const onMouseLeave = () => {
 };
 
 let clipboardController: { update: () => void } | null = null;
+let resizeObserver: ResizeObserver | null = null;
 
 const triggerUpdate = () => {
   if (
@@ -216,7 +280,7 @@ const triggerUpdate = () => {
       props.endTime,
       (item: { id: string; [key: string]: any }, wasSuggestion?: boolean) => {
         if (item.destinationId) {
-          emit("onChangeDestinationId", item.id, item.destinationId);
+          emit("onChangeDestinationId", item.id, item.destinationId, wasSuggestion ? true : false);
         } else {
           emit("onChangeSlotTime", item.id, item.openTime, item.closeTime);
         }
@@ -230,8 +294,18 @@ const triggerUpdate = () => {
       clipboardController.update,
       (allocationId: string) => { emit("onClickOnSlot", allocationId); },
       {
-        markedRegion: null,
-        suggestions: [],
+        markedRegion: props.markedRegion ? {
+          timeInterval: {
+            start: props.markedRegion.startTime.getTime(),
+            end: props.markedRegion.endTime.getTime()
+          },
+          destinationId: props.markedRegion.destinationId,
+        } : null,
+        suggestions: props.suggestions.map((suggestion) => ({
+          id: suggestion.slotId,
+          alternativeDestination: suggestion.alternativeDestinationId,
+          alternativeDestinationDisplayName: suggestion.alternativeDestinationDisplayName || suggestion.alternativeDestinationId,
+        })),
         destinationGroups: props.destinationGroups,
         heights: heightMap.value,
         svgRefs: svgRefs,
@@ -284,7 +358,7 @@ watch(
   }
 );
 watch(
-  () => props.markedRegions,
+  () => props.markedRegion,
   () => {
     triggerUpdate();
   }
@@ -294,6 +368,14 @@ watch(
   () => {
     triggerUpdate();
   }
+);
+
+watch(
+  () => heightMap.value,
+  () => {
+    triggerUpdate();
+  },
+  { deep: true }
 );
 
 const reziseWindow = () => {
@@ -306,6 +388,16 @@ onMounted(() => {
     updateClipboard();
 
     window.addEventListener("resize", reziseWindow);
+
+    if (chartContainerRef.value) {
+      containerHeight.value = chartContainerRef.value.clientHeight;
+      resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          containerHeight.value = entry.contentRect.height;
+        }
+      });
+      resizeObserver.observe(chartContainerRef.value);
+    }
 
     triggerUpdate();
 
@@ -320,6 +412,11 @@ onBeforeUnmount(() => {
     }
   });
   window.removeEventListener("resize", reziseWindow);
+
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
 });
 
 </script>
@@ -366,6 +463,12 @@ onBeforeUnmount(() => {
 
 .resize-handle:active {
   background-color: #6200ee;
+}
+
+.top-content-container {
+  width: 100%;
+  overflow: hidden;
+  background-color: white;
 }
 
 .topic-label,

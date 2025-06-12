@@ -88,8 +88,10 @@ export const setupPanAndZoom = (
         const mouseOffset = (mouseTime.getTime() - unprocessedStartDateTime.getTime()) / timeRange;
 
         const newTimeRange = timeRange * zoomFactor;
-        const newStartDateTime = new Date(mouseTime.getTime() - (newTimeRange * mouseOffset));
-        const newEndDateTime = new Date(newStartDateTime.getTime() + newTimeRange);
+        const maxTimeRange = 4 * 24 * 60 * 60 * 1000;
+        const constrainedTimeRange = Math.min(newTimeRange, maxTimeRange);
+        const newStartDateTime = new Date(mouseTime.getTime() - (constrainedTimeRange * mouseOffset));
+        const newEndDateTime = new Date(newStartDateTime.getTime() + constrainedTimeRange);
 
         // Update chart with new time range
         changeStartAndEndDateTime(newStartDateTime, newEndDateTime);
