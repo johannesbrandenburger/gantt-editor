@@ -1,6 +1,17 @@
 <template>
   <div ref="chartContainerRef" class="chart-container" @mousemove="updateCursorPosition" @mouseenter="onMouseEnter"
     @mouseleave="onMouseLeave">
+    
+    <!-- Top content slot (e.g., for LoadChart) -->
+    <div v-if="$slots['top-content'] || topContentHeight" class="top-content-container" 
+         :style="{ height: currentTopContentHeight + 'px' }">
+      <slot name="top-content"></slot>
+    </div>
+    
+    <!-- Resize handle for top content -->
+    <div v-if="$slots['top-content'] || topContentHeight" class="resize-handle" 
+         @mousedown="startTopContentResize($event)"></div>
+    
     <div class="x-axis-container">
       <svg ref="xAxisRef"></svg>
     </div>
@@ -40,7 +51,8 @@ interface GanttEditorProps {
   destinationGroups: Array<GanttEditorDestinationGroup>,
   suggestions: Array<GanttEditorSuggestion>,
   markedRegions: Array<GanttEditorMarkedRegion>,
-  isReadOnly: boolean
+  isReadOnly: boolean,
+  topContentHeight?: number
 }
 interface GanttEditorEmits {
   onChangeStartAndEndTime: [Date, Date],
@@ -49,13 +61,21 @@ interface GanttEditorEmits {
   onClickOnSlot: [string],
   onHoverOnSlot: [string],
   onDoubleClickOnSlot: [string],
-  onContextClickOnSlot: [string]
+  onContextClickOnSlot: [string],
+  onTopContentHeightChange: [number]
 }
 
 const props = defineProps<GanttEditorProps>();
 const emit = defineEmits<GanttEditorEmits>();
 const chartContainerRef = ref<HTMLElement | null>(null);
 const xAxisRef = ref<SVGSVGElement | null>(null);
+
+// Top content resizing state
+const currentTopContentHeight = computed(() => {
+  return props.topContentHeight || 0;
+});
+const isResizingTopContent = ref(false);
+const topContentStartY = ref(0);
 
 const isResizing = ref(false);
 const resizingElement = ref<string | null>(null);
@@ -64,7 +84,17 @@ const currentHeightPortions = ref<Map<string, number>>(new Map<string, number>()
 props.destinationGroups.forEach((group) => {
   currentHeightPortions.value.set(group.id, group.heightPortion);
 });
-const outerComponentHeight = computed(() => (chartContainerRef.value?.clientHeight || 0) - 50 - 3 * (props.destinationGroups.length - 1));
+
+const outerComponentHeight = computed(() => {
+  let baseHeight = (chartContainerRef.value?.clientHeight || 0) - 60 - 3 * (props.destinationGroups.length - 1);
+  
+  if (props.topContentHeight || currentTopContentHeight.value) {
+    baseHeight -= currentTopContentHeight.value + 3; // 3px for resize handle
+  }
+  console.log(`outerComponentHeight-- baseHeight: ${baseHeight}, currentTopContentHeight: ${currentTopContentHeight.value}, props.topContentHeight: ${props.topContentHeight}`);
+  
+  return baseHeight;
+});
 const heightMap = computed(() => {
   const map = new Map<string, number>();
   props.destinationGroups.forEach((group) => {
@@ -146,6 +176,39 @@ const stopResize = () => {
   }
   document.removeEventListener('mousemove', handleResize);
   document.removeEventListener('mouseup', stopResize);
+};
+
+const startTopContentResize = (e: MouseEvent) => {
+  isResizingTopContent.value = true;
+  topContentStartY.value = e.clientY;
+
+  document.addEventListener('mousemove', handleTopContentResize);
+  document.addEventListener('mouseup', stopTopContentResize);
+  e.preventDefault();
+};
+
+// Handle top content resize during mouse movement
+const handleTopContentResize = (e: MouseEvent) => {
+  if (!isResizingTopContent.value) return;
+
+  const deltaY = e.clientY - topContentStartY.value;
+  let newHeight = currentTopContentHeight.value + deltaY;
+
+  // min height constraint
+  if (newHeight < 10) newHeight = 10;
+  topContentStartY.value = e.clientY;
+
+  emit("onTopContentHeightChange", newHeight);
+  triggerUpdate();
+};
+
+const stopTopContentResize = () => {
+  if (isResizingTopContent.value) {
+    isResizingTopContent.value = false;
+    triggerUpdate();
+  }
+  document.removeEventListener('mousemove', handleTopContentResize);
+  document.removeEventListener('mouseup', stopTopContentResize);
 };
 
 const cursorPosition = ref({ x: 0, y: 0 });
@@ -366,6 +429,12 @@ onBeforeUnmount(() => {
 
 .resize-handle:active {
   background-color: #6200ee;
+}
+
+.top-content-container {
+  width: 100%;
+  overflow: hidden;
+  background-color: white;
 }
 
 .topic-label,

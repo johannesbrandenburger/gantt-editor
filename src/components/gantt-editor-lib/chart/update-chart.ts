@@ -690,7 +690,7 @@ export function updateChart(
 
 
         // Hover delay mechanism
-        let hoverTimeout: number | null = null;
+        let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
         const HOVER_DELAY = 500;
 
         // Update the slots section to include both drag and resize
