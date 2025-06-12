@@ -53,7 +53,7 @@
                 :destinations="destinations"
                 :destinationGroups="destinationGroups"
                 :suggestions="suggestions"
-                :markedRegions="markedRegions"
+                :markedRegion="null"
                 @onChangeStartAndEndTime="handleChangeStartAndEndTime"
                 @onChangeDestinationId="handleChangeDestinationId"
                 @onChangeSlotTime="handleChangeSlotTime"
