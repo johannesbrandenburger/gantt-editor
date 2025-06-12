@@ -1,35 +1,65 @@
 <template>
-  <div ref="chartContainerRef" class="chart-container" @mousemove="updateCursorPosition" @mouseenter="onMouseEnter"
-    @mouseleave="onMouseLeave">
-    
+  <div
+    ref="chartContainerRef"
+    class="chart-container"
+    @mousemove="updateCursorPosition"
+    @mouseenter="onMouseEnter"
+    @mouseleave="onMouseLeave"
+  >
+
     <!-- Top content slot (e.g., for LoadChart) -->
-    <div v-if="$slots['top-content'] || topContentHeight" class="top-content-container" 
-         :style="{ height: currentTopContentHeight + 'px' }">
+    <div
+      v-if="$slots['top-content'] || topContentPortion"
+      class="top-content-container"
+      :style="{ height: currentTopContentHeight + 'px' }"
+    >
       <slot name="top-content"></slot>
     </div>
-    
+
     <!-- Resize handle for top content -->
-    <div v-if="$slots['top-content'] || topContentHeight" class="resize-handle" 
-         @mousedown="startTopContentResize($event)"></div>
-    
+    <div
+      v-if="$slots['top-content'] || topContentPortion"
+      class="resize-handle"
+      @mousedown="startTopContentResize($event)"
+    ></div>
+
     <div class="x-axis-container">
       <svg ref="xAxisRef"></svg>
     </div>
-    <template v-for="(group, index) in props.destinationGroups" :key="index">
-      <div :class="`gantt-container`" :id="`${group.id}-gantt-container`"
-        :style="{ height: heightMap.get(group.id) + 'px' }">
+    <template
+      v-for="(group, index) in props.destinationGroups"
+      :key="index"
+    >
+      <div
+        :class="`gantt-container`"
+        :id="`${group.id}-gantt-container`"
+        :style="{ height: heightMap.get(group.id) + 'px' }"
+      >
         <svg :ref="el => { if (el) ganttRefs[group.id] = el as SVGSVGElement }"></svg>
       </div>
-      <div class="resize-handle" @mousedown="startResize($event, group.id)"
-        v-if="index < props.destinationGroups.length - 1"></div>
+      <div
+        class="resize-handle"
+        @mousedown="startResize($event, group.id)"
+        v-if="index < props.destinationGroups.length - 1"
+      ></div>
     </template>
 
-    <div v-if="clipboardItems.length && showClipboard" class="pointer-clipboard" :style="{
-      top: `${cursorPosition.y + 15}px`,
-      left: `${cursorPosition.x + 15}px`
-    }">
-      <v-chip v-for="(item, index) in clipboardItems" :key="index" color="primary" size="x-small" class="m-1"
-        prepend-icon="mdi-pin">
+    <div
+      v-if="clipboardItems.length && showClipboard"
+      class="pointer-clipboard"
+      :style="{
+        top: `${cursorPosition.y + 15}px`,
+        left: `${cursorPosition.x + 15}px`
+      }"
+    >
+      <v-chip
+        v-for="(item, index) in clipboardItems"
+        :key="index"
+        color="primary"
+        size="x-small"
+        class="m-1"
+        prepend-icon="mdi-pin"
+      >
         {{ getClipboardItemName(item) }}
       </v-chip>
     </div>
@@ -52,7 +82,7 @@ interface GanttEditorProps {
   suggestions: Array<GanttEditorSuggestion>,
   markedRegion: GanttEditorMarkedRegion | null,
   isReadOnly: boolean,
-  topContentHeight?: number
+  topContentPortion?: number
 }
 interface GanttEditorEmits {
   onChangeStartAndEndTime: [Date, Date],
@@ -62,7 +92,7 @@ interface GanttEditorEmits {
   onHoverOnSlot: [string],
   onDoubleClickOnSlot: [string],
   onContextClickOnSlot: [string],
-  onTopContentHeightChange: [number]
+  onTopContentPortionChange: [number]
 }
 
 const props = defineProps<GanttEditorProps>();
@@ -72,9 +102,7 @@ const xAxisRef = ref<SVGSVGElement | null>(null);
 const containerHeight = ref(0);
 
 // Top content resizing state
-const currentTopContentHeight = computed(() => {
-  return props.topContentHeight || 0;
-});
+const currentTopContentPortion = ref(props.topContentPortion || 0);
 const isResizingTopContent = ref(false);
 const topContentStartY = ref(0);
 
@@ -86,15 +114,18 @@ props.destinationGroups.forEach((group) => {
   currentHeightPortions.value.set(group.id, group.heightPortion);
 });
 
-const outerComponentHeight = computed(() => {
-  let baseHeight = containerHeight.value - 60 - 3 * (props.destinationGroups.length - 1);
-  
-  if (props.topContentHeight || currentTopContentHeight.value) {
-    baseHeight -= currentTopContentHeight.value + 3; // 3px for resize handle
-  }
-  
-  return baseHeight;
+const totalContentHeight = computed(() => {
+  return containerHeight.value - 3 * (props.destinationGroups.length - 1) - (currentTopContentPortion.value > 0 ? 3 : 0); // subtract resize handle heights
 });
+
+const currentTopContentHeight = computed(() => {
+  return totalContentHeight.value * currentTopContentPortion.value;
+});
+
+const outerComponentHeight = computed(() => {
+  return totalContentHeight.value * (1 - currentTopContentPortion.value);
+});
+
 const heightMap = computed(() => {
   const map = new Map<string, number>();
   props.destinationGroups.forEach((group) => {
@@ -192,13 +223,17 @@ const handleTopContentResize = (e: MouseEvent) => {
   if (!isResizingTopContent.value) return;
 
   const deltaY = e.clientY - topContentStartY.value;
-  let newHeight = currentTopContentHeight.value + deltaY;
+  const portionDelta = deltaY / totalContentHeight.value;
+  let newPortion = currentTopContentPortion.value + portionDelta;
 
-  // min height constraint
-  if (newHeight < 10) newHeight = 10;
+  // min and max portion constraints
+  if (newPortion < 0.01) newPortion = 0.01; // minimum 1%
+  if (newPortion > 0.99) newPortion = 0.99; // maximum 99%
+
+  currentTopContentPortion.value = newPortion;
   topContentStartY.value = e.clientY;
 
-  emit("onTopContentHeightChange", newHeight);
+  emit("onTopContentPortionChange", newPortion);
   triggerUpdate();
 };
 
@@ -278,7 +313,7 @@ const triggerUpdate = () => {
       window.innerWidth,
       props.startTime,
       props.endTime,
-      (item: { id: string; [key: string]: any }, wasSuggestion?: boolean) => {
+      (item: { id: string;[key: string]: any }, wasSuggestion?: boolean) => {
         if (item.destinationId) {
           emit("onChangeDestinationId", item.id, item.destinationId, wasSuggestion ? true : false);
         } else {
@@ -367,6 +402,15 @@ watch(
   () => props.isReadOnly,
   () => {
     triggerUpdate();
+  }
+);
+
+watch(
+  () => props.topContentPortion,
+  (newPortion) => {
+    if (newPortion !== undefined) {
+      currentTopContentPortion.value = newPortion;
+    }
   }
 );
 
