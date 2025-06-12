@@ -10,40 +10,6 @@
 
     -->
     <div style="height: 100vh; width: 100%; margin: 0 auto; display: flex; flex-direction: column;">
-        <div style="padding: 10px; background: #f5f5f5; border-bottom: 1px solid #ddd; flex-shrink: 0; display: flex; align-items: center; gap: 10px;">
-            <button 
-                @click="toggleReadOnly"
-                :style="{
-                    padding: '8px 16px',
-                    borderRadius: '4px',
-                    border: '1px solid #ccc',
-                    background: isReadOnly ? '#e74c3c' : '#27ae60',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontWeight: 'bold'
-                }"
-            >
-                {{ isReadOnly ? '🔒 Read-Only Mode' : '✏️ Editable Mode' }}
-            </button>            
-            <div 
-                v-if="eventMessage"
-                :style="{
-                    padding: '6px 12px',
-                    backgroundColor: '#333',
-                    color: 'white',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                    maxWidth: '300px',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    animation: 'fadeIn 0.3s ease-in-out'
-                }"
-            >
-                {{ eventMessage }}
-            </div>
-        </div>
-        
         <div style="flex: 1; overflow: hidden;">
             <GanttEditorComponent
                 :isReadOnly="isReadOnly"
@@ -61,14 +27,63 @@
                 @onHoverOnSlot="handleHoverOnSlot"
                 @onDoubleClickOnSlot="handleDoubleClickOnSlot"
                 @onContextClickOnSlot="handleContextClickOnSlot"
-            />
+                :topContentPortion="topContentPortion"
+                @onTopContentPortionChange="newPortion => topContentPortion = newPortion"
+            >
+                <template #top-content v-if="topContentPortion > 0">
+                    <div
+                        style="padding: 10px; background: #f5f5f5; border-bottom: 1px solid #ddd; flex-shrink: 0; display: flex; align-items: center; gap: 10px; height: 100%;">
+                        <button
+                            @click="toggleReadOnly"
+                            :style="{
+                                padding: '8px 16px',
+                                borderRadius: '4px',
+                                border: '1px solid #ccc',
+                                background: isReadOnly ? '#e74c3c' : '#27ae60',
+                                color: 'white',
+                                cursor: 'pointer',
+                                fontWeight: 'bold'
+                            }"
+                        >
+                            {{ isReadOnly ? '🔒 Read-Only Mode' : '✏️ Editable Mode' }}
+                        </button>
+                        <div
+                            v-if="eventMessage"
+                            :style="{
+                                padding: '6px 12px',
+                                backgroundColor: '#333',
+                                color: 'white',
+                                borderRadius: '4px',
+                                fontSize: '14px',
+                                maxWidth: '300px',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                animation: 'fadeIn 0.3s ease-in-out'
+                            }"
+                        >
+                            {{ eventMessage }}
+                        </div>
+                    </div>
+                </template>
+            </GanttEditorComponent>
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import type { GanttEditorSlot } from '../components/gantt-editor-lib/chart/types';
+
+const topContentPortion = ref(0.1); // 20% of total height for top content
+onMounted(() => {
+    window.addEventListener("keydown", (event) => {
+        if (event.key === "t") {
+            // toggle top content visibility
+            topContentPortion.value = topContentPortion.value === 0 ? 0.1 : 0;
+        }
+    });
+});
 
 // Configurable parameters
 const numberOfSlots = ref(100);
@@ -99,19 +114,19 @@ const generateSlots = (count: number) => {
     const dayStart = new Date('2025-01-01T00:00:00Z');
     const dayEnd = new Date('2025-01-01T23:59:59Z');
     const colors = ['#738732', '#ffcd50', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd'];
-    
+
     return Array.from({ length: count }, (_, index) => {
         const slotStart = generateRandomTime(dayStart, dayEnd);
         const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000 + Math.random() * 2.5 * 60 * 60 * 1000); // 30 minutes to 3 hours duration
-        
+
         // Ensure slot doesn't exceed day end
         if (slotEnd > dayEnd) {
             slotEnd.setTime(dayEnd.getTime());
         }
-        
+
         const destinationIndex = Math.floor(Math.random() * 20) + 1;
         const flightNumber = `FL${String(index + 1).padStart(4, '0')}`;
-        
+
         const departureTime = new Date(slotEnd.getTime() + 60 * 60 * 1000); // 1 hour after close time
 
         return {
@@ -174,9 +189,9 @@ const handleChangeDestinationId = (slotId: string, destinationId: string) => {
     const slotIndex = slots.value.findIndex(slot => slot.id === slotId);
     if (slotIndex !== -1 && !slots.value[slotIndex].readOnly) {
         // Create a new copy of the array with the modified object
-        slots.value = slots.value.map((slot, index) => 
-            index === slotIndex && !slot.readOnly 
-                ? { ...slot, destinationId } 
+        slots.value = slots.value.map((slot, index) =>
+            index === slotIndex && !slot.readOnly
+                ? { ...slot, destinationId }
                 : slot
         );
         showEventMessage(`📦 Moved ${slotId} to ${destinationId}`);
@@ -216,7 +231,14 @@ const handleContextClickOnSlot = (slotId: string) => {
 
 <style scoped>
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-5px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 </style>
