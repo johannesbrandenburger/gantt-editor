@@ -69,6 +69,7 @@ const props = defineProps<GanttEditorProps>();
 const emit = defineEmits<GanttEditorEmits>();
 const chartContainerRef = ref<HTMLElement | null>(null);
 const xAxisRef = ref<SVGSVGElement | null>(null);
+const containerHeight = ref(0);
 
 // Top content resizing state
 const currentTopContentHeight = computed(() => {
@@ -86,12 +87,12 @@ props.destinationGroups.forEach((group) => {
 });
 
 const outerComponentHeight = computed(() => {
-  let baseHeight = (chartContainerRef.value?.clientHeight || 0) - 60 - 3 * (props.destinationGroups.length - 1);
+  let baseHeight = containerHeight.value - 60 - 3 * (props.destinationGroups.length - 1);
   
   if (props.topContentHeight || currentTopContentHeight.value) {
     baseHeight -= currentTopContentHeight.value + 3; // 3px for resize handle
   }
-  console.log(`outerComponentHeight-- baseHeight: ${baseHeight}, currentTopContentHeight: ${currentTopContentHeight.value}, props.topContentHeight: ${props.topContentHeight}`);
+  console.log(`outerComponentHeight-- baseHeight: ${baseHeight}, currentTopContentHeight: ${currentTopContentHeight.value}, props.topContentHeight: ${props.topContentHeight}, containerHeight: ${containerHeight.value}`);
   
   return baseHeight;
 });
@@ -246,6 +247,7 @@ const onMouseLeave = () => {
 };
 
 let clipboardController: { update: () => void } | null = null;
+let resizeObserver: ResizeObserver | null = null;
 
 const triggerUpdate = () => {
   if (
@@ -359,6 +361,14 @@ watch(
   }
 );
 
+watch(
+  () => heightMap.value,
+  () => {
+    triggerUpdate();
+  },
+  { deep: true }
+);
+
 const reziseWindow = () => {
   triggerUpdate();
 };
@@ -369,6 +379,16 @@ onMounted(() => {
     updateClipboard();
 
     window.addEventListener("resize", reziseWindow);
+
+    if (chartContainerRef.value) {
+      containerHeight.value = chartContainerRef.value.clientHeight;
+      resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          containerHeight.value = entry.contentRect.height;
+        }
+      });
+      resizeObserver.observe(chartContainerRef.value);
+    }
 
     triggerUpdate();
 
@@ -383,6 +403,11 @@ onBeforeUnmount(() => {
     }
   });
   window.removeEventListener("resize", reziseWindow);
+
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
 });
 
 </script>
