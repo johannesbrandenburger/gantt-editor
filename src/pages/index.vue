@@ -7,67 +7,67 @@
         - destinations (e.g. sortation chutes) on the y-axis
         - slots (e.g. flights) are rendered as bars
         - slots can be resized at its ends and moved by pin and paste
-
     -->
-    <div style="height: 100vh; width: 100%; margin: 0 auto; display: flex; flex-direction: column;">
-        <div style="flex: 1; overflow: hidden;">
-            <GanttEditorComponent
-                :isReadOnly="isReadOnly"
-                :startTime="startTime"
-                :endTime="endTime"
-                :slots="slots"
-                :destinations="destinations"
-                :destinationGroups="destinationGroups"
-                :suggestions="suggestions"
-                :markedRegion="null"
-                @onChangeStartAndEndTime="handleChangeStartAndEndTime"
-                @onChangeDestinationId="handleChangeDestinationId"
-                @onChangeSlotTime="handleChangeSlotTime"
-                @onClickOnSlot="handleClickOnSlot"
-                @onHoverOnSlot="handleHoverOnSlot"
-                @onDoubleClickOnSlot="handleDoubleClickOnSlot"
-                @onContextClickOnSlot="handleContextClickOnSlot"
-                :topContentPortion="topContentPortion"
-                @onTopContentPortionChange="newPortion => topContentPortion = newPortion"
+    <div style="height: 100vh; width: 100%;">
+        <GanttEditorComponent
+            :isReadOnly="isReadOnly"
+            :startTime="startTime"
+            :endTime="endTime"
+            :slots="slots"
+            :destinations="destinations"
+            :destinationGroups="destinationGroups"
+            :suggestions="suggestions"
+            :markedRegion="null"
+            @onChangeStartAndEndTime="handleChangeStartAndEndTime"
+            @onChangeDestinationId="handleChangeDestinationId"
+            @onChangeSlotTime="handleChangeSlotTime"
+            @onClickOnSlot="handleClickOnSlot"
+            @onHoverOnSlot="handleHoverOnSlot"
+            @onDoubleClickOnSlot="handleDoubleClickOnSlot"
+            @onContextClickOnSlot="handleContextClickOnSlot"
+            :topContentPortion="topContentPortion"
+            @onTopContentPortionChange="newPortion => topContentPortion = newPortion"
+        >
+            <template
+                #top-content
+                v-if="topContentPortion > 0"
             >
-                <template #top-content v-if="topContentPortion > 0">
+                <div
+                    style="padding: 10px; background: #f5f5f5; border-bottom: 1px solid #ddd; flex-shrink: 0; display: flex; align-items: center; gap: 10px; height: 100%;">
+                    <button
+                        @click="toggleReadOnly"
+                        :style="{
+                            padding: '8px 16px',
+                            borderRadius: '4px',
+                            border: '1px solid #ccc',
+                            background: isReadOnly ? '#e74c3c' : '#27ae60',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontWeight: 'bold'
+                        }"
+                    >
+                        {{ isReadOnly ? '🔒 Read-Only Mode' : '✏️ Editable Mode' }}
+                    </button>
                     <div
-                        style="padding: 10px; background: #f5f5f5; border-bottom: 1px solid #ddd; flex-shrink: 0; display: flex; align-items: center; gap: 10px; height: 100%;">
-                        <button
-                            @click="toggleReadOnly"
-                            :style="{
-                                padding: '8px 16px',
-                                borderRadius: '4px',
-                                border: '1px solid #ccc',
-                                background: isReadOnly ? '#e74c3c' : '#27ae60',
-                                color: 'white',
-                                cursor: 'pointer',
-                                fontWeight: 'bold'
-                            }"
-                        >
-                            {{ isReadOnly ? '🔒 Read-Only Mode' : '✏️ Editable Mode' }}
-                        </button>
-                        <div
-                            v-if="eventMessage"
-                            :style="{
-                                padding: '6px 12px',
-                                backgroundColor: '#333',
-                                color: 'white',
-                                borderRadius: '4px',
-                                fontSize: '14px',
-                                maxWidth: '300px',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                animation: 'fadeIn 0.3s ease-in-out'
-                            }"
-                        >
-                            {{ eventMessage }}
-                        </div>
+                        v-if="eventMessage"
+                        :style="{
+                            padding: '6px 12px',
+                            backgroundColor: '#333',
+                            color: 'white',
+                            borderRadius: '4px',
+                            fontSize: '14px',
+                            maxWidth: '300px',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            animation: 'fadeIn 0.3s ease-in-out'
+                        }"
+                    >
+                        {{ eventMessage }}
                     </div>
-                </template>
-            </GanttEditorComponent>
-        </div>
+                </div>
+            </template>
+        </GanttEditorComponent>
     </div>
 </template>
 

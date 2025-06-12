@@ -42,9 +42,7 @@ import GanttEditorComponent from '@/components/GanttEditorComponent.vue';
                 { id: 'allocated', displayName: 'Allocated Chutes', heightPortion: 0.8 }, // group for allocated chutes
                 { id: 'unallocated', displayName: 'Unallocated Chute', heightPortion: 0.2 } // group for dummy unallocated chute
             ]"
-            :markedRegions="[
-                // optional regions to mark on the timeline (e.g. to show problems)
-            ]"
+            :markedRegion="null /* optional marked region to highlight a specific time range */"
             :suggestions="[
                 // optional suggestions for the user to see and apply
             ]"
