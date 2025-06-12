@@ -167,9 +167,6 @@ const destinationGroups = reactive([
 // Suggestions - empty for generated data
 const suggestions = reactive([]);
 
-// Marked regions - empty for generated data
-const markedRegions = reactive([]);
-
 // Event handlers that mutate state
 const toggleReadOnly = () => {
     isReadOnly.value = !isReadOnly.value;
