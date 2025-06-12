@@ -26,7 +26,7 @@ export type GanttEditorDestinationGroup = {
 export type GanttEditorMarkedRegion = {
   startTime: Date,
   endTime: Date,
-  destinationId: string
+  destinationId: string | "multiple"
 };
 export type GanttEditorSuggestion = {
   slotId: string,

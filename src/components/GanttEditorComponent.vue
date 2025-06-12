@@ -50,7 +50,7 @@ interface GanttEditorProps {
   destinations: Array<GanttEditorDestination>,
   destinationGroups: Array<GanttEditorDestinationGroup>,
   suggestions: Array<GanttEditorSuggestion>,
-  markedRegions: Array<GanttEditorMarkedRegion>,
+  markedRegion: GanttEditorMarkedRegion | null,
   isReadOnly: boolean,
   topContentHeight?: number
 }
@@ -92,7 +92,6 @@ const outerComponentHeight = computed(() => {
   if (props.topContentHeight || currentTopContentHeight.value) {
     baseHeight -= currentTopContentHeight.value + 3; // 3px for resize handle
   }
-  console.log(`outerComponentHeight-- baseHeight: ${baseHeight}, currentTopContentHeight: ${currentTopContentHeight.value}, props.topContentHeight: ${props.topContentHeight}, containerHeight: ${containerHeight.value}`);
   
   return baseHeight;
 });
@@ -295,7 +294,13 @@ const triggerUpdate = () => {
       clipboardController.update,
       (allocationId: string) => { emit("onClickOnSlot", allocationId); },
       {
-        markedRegion: null,
+        markedRegion: props.markedRegion ? {
+          timeInterval: {
+            start: props.markedRegion.startTime.getTime(),
+            end: props.markedRegion.endTime.getTime()
+          },
+          destinationId: props.markedRegion.destinationId,
+        } : null,
         suggestions: [],
         destinationGroups: props.destinationGroups,
         heights: heightMap.value,
@@ -349,7 +354,7 @@ watch(
   }
 );
 watch(
-  () => props.markedRegions,
+  () => props.markedRegion,
   () => {
     triggerUpdate();
   }
