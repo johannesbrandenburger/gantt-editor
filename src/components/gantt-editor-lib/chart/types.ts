@@ -30,7 +30,8 @@ export type GanttEditorMarkedRegion = {
 };
 export type GanttEditorSuggestion = {
   slotId: string,
-  alternativeDestinationId: string
+  alternativeDestinationId: string,
+  alternativeDestinationDisplayName?: string,
 };
 
 export type GanttEditorSlotWithUiAttributes = GanttEditorSlot & {

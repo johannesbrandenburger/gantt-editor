@@ -56,7 +56,7 @@ interface GanttEditorProps {
 }
 interface GanttEditorEmits {
   onChangeStartAndEndTime: [Date, Date],
-  onChangeDestinationId: [string, string],
+  onChangeDestinationId: [string, string, boolean],
   onChangeSlotTime: [string, Date, Date],
   onClickOnSlot: [string],
   onHoverOnSlot: [string],
@@ -280,7 +280,7 @@ const triggerUpdate = () => {
       props.endTime,
       (item: { id: string; [key: string]: any }, wasSuggestion?: boolean) => {
         if (item.destinationId) {
-          emit("onChangeDestinationId", item.id, item.destinationId);
+          emit("onChangeDestinationId", item.id, item.destinationId, wasSuggestion ? true : false);
         } else {
           emit("onChangeSlotTime", item.id, item.openTime, item.closeTime);
         }
@@ -301,7 +301,11 @@ const triggerUpdate = () => {
           },
           destinationId: props.markedRegion.destinationId,
         } : null,
-        suggestions: [],
+        suggestions: props.suggestions.map((suggestion) => ({
+          id: suggestion.slotId,
+          alternativeDestination: suggestion.alternativeDestinationId,
+          alternativeDestinationDisplayName: suggestion.alternativeDestinationDisplayName || suggestion.alternativeDestinationId,
+        })),
         destinationGroups: props.destinationGroups,
         heights: heightMap.value,
         svgRefs: svgRefs,
