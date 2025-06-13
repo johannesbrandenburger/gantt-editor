@@ -92,7 +92,7 @@ interface GanttEditorEmits {
   onHoverOnSlot: [string],
   onDoubleClickOnSlot: [string],
   onContextClickOnSlot: [string],
-  onTopContentPortionChange: [number]
+  onTopContentPortionChange: [number, number] // [newPortion, newAbsoluteHeight]
 }
 
 const props = defineProps<GanttEditorProps>();
@@ -125,6 +125,13 @@ const currentTopContentHeight = computed(() => {
 const outerComponentHeight = computed(() => {
   return totalContentHeight.value * (1 - currentTopContentPortion.value);
 });
+
+watch(
+  () => currentTopContentHeight.value,
+  (newHeight) => {
+    emit("onTopContentPortionChange", currentTopContentPortion.value, newHeight);
+  }
+);
 
 const heightMap = computed(() => {
   const map = new Map<string, number>();
@@ -233,7 +240,7 @@ const handleTopContentResize = (e: MouseEvent) => {
   currentTopContentPortion.value = newPortion;
   topContentStartY.value = e.clientY;
 
-  emit("onTopContentPortionChange", newPortion);
+  emit("onTopContentPortionChange", newPortion, totalContentHeight.value * newPortion);
   triggerUpdate();
 };
 
