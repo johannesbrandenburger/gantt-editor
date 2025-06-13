@@ -26,7 +26,7 @@
             @onDoubleClickOnSlot="handleDoubleClickOnSlot"
             @onContextClickOnSlot="handleContextClickOnSlot"
             :topContentPortion="topContentPortion"
-            @onTopContentPortionChange="newPortion => topContentPortion = newPortion"
+            @onTopContentPortionChange="(newPortion, newHeight) => topContentPortion = newPortion"
         >
             <template
                 #top-content
