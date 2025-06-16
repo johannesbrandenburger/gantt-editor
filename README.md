@@ -52,9 +52,7 @@ import GanttEditorComponent from '@/components/GanttEditorComponent.vue'; // adj
                 { id: 'allocated', displayName: 'Allocated Chutes', heightPortion: 0.8 }, // group for allocated chutes
                 { id: 'unallocated', displayName: 'Unallocated Chute', heightPortion: 0.2 } // group for dummy unallocated chute
             ]"
-            :markedRegions="[
-                // optional regions to mark on the timeline (e.g. to show problems)
-            ]"
+            :markedRegion="null /* optional marked region to highlight a specific time range */"
             :suggestions="[
                 // optional suggestions for the user to see and apply
             ]"
@@ -82,7 +80,7 @@ export type GanttEditorSlot = {
   destinationId: string, // destination/chute id it is allocated to
   deadline?: Date, // departure time of the flight
   deadlineHoverData?: string, // shows the user the exact departure time on hover
-  color?: string // color for the allocation bar, should show the status of the allocation
+  color?: string // color for the allocation bar, should show the status of the allocation (if not set, the a state color is computed (see `src/components/gantt-editor-lib/helpers.ts: mapSlotToStateColor`))
 };
 export type GanttEditorDestination = {
   id: string, // unique id for the destination/chute
@@ -98,7 +96,7 @@ export type GanttEditorDestinationGroup = {
 export type GanttEditorMarkedRegion = {
   startTime: Date, // start time of the marked region
   endTime: Date, // end time of the marked region
-  destinationId: string // destination/chute id where the marked region is displayed (y-axis)
+  destinationId: string | "multiple" // destination/chute id where the marked region is displayed (y-axis), "multiple" if it is not bound to a specific destination
 };
 export type GanttEditorSuggestion = {
   slotId: string, // slot id the suggestion is for
