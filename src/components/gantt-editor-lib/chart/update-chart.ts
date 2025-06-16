@@ -244,9 +244,14 @@ export function updateChart(
 
                 if (slotWidth <= 0) return;
 
-                // for now, the state color is either "opened" or "conflict"
-                let slotColor = mapSlotToStateColor(slot)
-                slotColor = slot.isPreview ? "url(#diagonal-stripe-2)" : slotColor;
+                // slot color given by parents or default to state color
+                let slotColor = slot.color;
+                if (slotColor === undefined || slotColor === null) {
+                    slotColor = mapSlotToStateColor(slot);
+                }
+                if (slot.isPreview) {
+                    slotColor = "url(#diagonal-stripe-2)";
+                }
                 const slotText = slot.displayName;
                 const x = isStartInView ? xScale(openTime) : 0;
                 const x2 = isEndInView ? xScale(closeTime) : width;
