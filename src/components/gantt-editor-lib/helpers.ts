@@ -166,12 +166,9 @@ export function mapSlotToStateColor(slot: GanttEditorSlotWithUiAttributes) {
 
   const currentTime = new Date().getTime();
   const openTime = new Date(slot.openTime).getTime();
-  const closeTime = new Date(slot.closeTime).getTime();
-  if (currentTime < closeTime && currentTime > openTime) {
+  
+  if (currentTime > openTime) {
     return mapSlotStateToColor("opened");
   }
-  if (currentTime > openTime) {
-    return mapSlotStateToColor("not-opened");
-  }
-  return mapSlotStateToColor("inactive");
+  return mapSlotStateToColor("not-opened");
 }
