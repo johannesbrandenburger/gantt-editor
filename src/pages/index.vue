@@ -87,10 +87,11 @@ onMounted(() => {
 
 // Configurable parameters
 const numberOfSlots = ref(100);
+const numberOfDestinations = ref(20);
 
 // Define reactive state
-const startTime = ref(new Date('2025-01-01T00:00:00Z'));
-const endTime = ref(new Date('2025-01-02T00:00:00Z'));
+const startTime = ref(new Date('2025-06-26T00:00:00Z'));
+const endTime = ref(new Date('2025-06-26T23:59:59Z'));
 const isReadOnly = ref(false);
 const eventMessage = ref('');
 
@@ -111,11 +112,11 @@ const generateRandomTime = (dayStart: Date, dayEnd: Date): Date => {
 
 // Function to generate slots
 const generateSlots = (count: number) => {
-    const dayStart = new Date('2025-01-01T00:00:00Z');
-    const dayEnd = new Date('2025-01-01T23:59:59Z');
-    const colors = ['#738732', '#ffcd50', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd'];
+    const dayStart = new Date('2025-06-26T00:00:00Z');
+    const dayEnd = new Date('2025-06-26T23:59:59Z');
+    const mockColors = ['#738732', '#ffcd50', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd'];
 
-    return Array.from({ length: count }, (_, index) => {
+    const unallocatedSlots =  Array.from({ length: count }, (_, index) => {
         const slotStart = generateRandomTime(dayStart, dayEnd);
         const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000 + Math.random() * 2.5 * 60 * 60 * 1000); // 30 minutes to 3 hours duration
 
@@ -124,7 +125,7 @@ const generateSlots = (count: number) => {
             slotEnd.setTime(dayEnd.getTime());
         }
 
-        const destinationIndex = Math.floor(Math.random() * 20) + 1;
+        const destinationIndex = 0;
         const flightNumber = `FL${String(index + 1).padStart(4, '0')}`;
 
         const departureTime = new Date(slotEnd.getTime() + 60 * 60 * 1000); // 1 hour after close time
@@ -135,13 +136,22 @@ const generateSlots = (count: number) => {
             group: flightNumber,
             openTime: slotStart,
             closeTime: slotEnd,
-            destinationId: `mup-${destinationIndex}`,
             hoverData: `Flight ${flightNumber}: Auto-generated slot`,
             deadline: departureTime,
             deadlineHoverData: '🛫 Departure: ' + departureTime.toLocaleString(),
-            color: colors[index % colors.length],
+            // color: mockColors[index % mockColors.length], // leave color generation to the component
         };
     });
+
+    // allocate in order of opentime
+    const slots: GanttEditorSlot[] = unallocatedSlots
+        .sort((a, b) => a.openTime.getTime() - b.openTime.getTime())
+        .map((slot, index) => ({
+            ...slot,
+            destinationId: `mup-${index % numberOfDestinations.value}`, // distribute across destinations
+        }));
+
+    return slots;
 };
 
 // Slots (main data)
@@ -149,7 +159,7 @@ const slots = ref<GanttEditorSlot[]>(generateSlots(numberOfSlots.value));
 
 // Destinations - 20 destinations in allocated group
 const destinations = reactive([
-    ...Array.from({ length: 20 }, (_, i) => ({
+    ...Array.from({ length: numberOfDestinations.value }, (_, i) => ({
         id: `mup-${i + 1}`,
         displayName: `MUP ${i + 1}`,
         active: true,
@@ -193,6 +203,7 @@ const handleChangeDestinationId = (slotId: string, destinationId: string) => {
         );
         showEventMessage(`📦 Moved ${slotId} to ${destinationId}`);
     }
+    slots.value = [...slots.value]; // Trigger reactivity
 };
 
 const handleChangeSlotTime = (slotId: string, openTime: Date, closeTime: Date) => {
@@ -203,6 +214,7 @@ const handleChangeSlotTime = (slotId: string, openTime: Date, closeTime: Date) =
         slotToUpdate.closeTime = closeTime;
         showEventMessage(`⏰ Resized ${slotId} (${openTime.toLocaleTimeString()} - ${closeTime.toLocaleTimeString()})`);
     }
+    slots.value = [...slots.value]; // Trigger reactivity
 };
 
 const handleClickOnSlot = (slotId: string) => {
