@@ -595,7 +595,7 @@ export function updateChart(
     });
 
     const addSlotToClipboard = (slotData: GanttEditorSlot) => {
-        if (updateChartProps.isReadOnly || !slotData) return;
+        if (updateChartProps.isReadOnly || !slotData || slotData.readOnly) return;
         const pointerClipboard = JSON.parse(localStorage.getItem("pointerClipboard") || "[]");
         let isCopied = false;
         if (pointerClipboard.find((slot: GanttEditorSlot) => slot.id === slotData?.id)) {
@@ -631,7 +631,7 @@ export function updateChart(
                 const x = slot.x; const x2 = slot.x + slot.width; const y = slot.y; const y2 = slot.y + slot.height;
                 const xIsMatching = selection[0][0] <= x && x2 <= selection[1][0];
                 const yIsMatching = selection[0][1] <= y && y2 <= selection[1][1];
-                return xIsMatching && yIsMatching;
+                return xIsMatching && yIsMatching && !slot.slotData.readOnly;
             });
             slots.forEach((slot) => {
                 addSlotToClipboard(slot.slotData);
@@ -728,19 +728,21 @@ export function updateChart(
             .on("mousemove", function () {
             })
             .on("click", function (event, d) {
-                if (updateChartProps.isReadOnly) return;
-                // console.log("Clicked on slot", d.slotData);
+
                 const slotData = data.find(slot => slot.id === d.slotData.id);
                 if (!slotData) return;
 
+                if (!updateChartProps.isReadOnly && !d.slotData.readOnly) {
+                    const pointerClipboard = JSON.parse(localStorage.getItem("pointerClipboard") || "[]");
+                    const multipleSelect = (event.ctrlKey || event.metaKey)
+                    if (pointerClipboard.length === 0 || multipleSelect) {
+                        addSlotToClipboard(slotData);
+                    } else {
+                        moveClipboardToTopic(slotData.destinationId);
+                    }
+                };
+
                 // only add it to the clipboard if the clipboard is empty or the control key is pressed
-                const pointerClipboard = JSON.parse(localStorage.getItem("pointerClipboard") || "[]");
-                const multipleSelect = (event.ctrlKey || event.metaKey)
-                if (pointerClipboard.length === 0 || multipleSelect) {
-                    addSlotToClipboard(slotData);
-                } else {
-                    moveClipboardToTopic(slotData.destinationId);
-                }
                 openAllocationDetails(d.slotData.id);
             })
             .on("dblclick", function (event, d) {
@@ -765,6 +767,7 @@ export function updateChart(
         }
 
         const draggingLeft = (event: d3.D3DragEvent<Element, any, any>, d: SlotDefinition): void => {
+            if (d.slotData.readOnly) return;
             const dx = d.dragStartX ? (event.x - d.dragStartX) : 0;
             d.originalX = d.originalX || d.x;
             d.originalWidth = d.originalWidth || d.width;
@@ -782,6 +785,7 @@ export function updateChart(
         }
 
         const draggingRight = (event: d3.D3DragEvent<Element, any, any>, d: SlotDefinition): void => {
+            if (d.slotData.readOnly) return;
             const dx = d.dragStartX ? (event.x - d.dragStartX) : 0;
             d.originalWidth = d.originalWidth || d.width;
             d.newX = d.originalX;
@@ -797,6 +801,7 @@ export function updateChart(
         }
 
         const dragLeftRightEnd = (event: d3.D3DragEvent<Element, any, any>, d: SlotDefinition): void => {
+            if (d.slotData.readOnly) return;
             const slot = d3.select<SVGGElement, SlotDefinition>(d.element.parentNode);
             slot.select('.slot-box').attr('transform', `translate(0,0)`);
             d.newX = d.newX || d.x;
@@ -850,7 +855,7 @@ export function updateChart(
             .style("color", "white");
 
         slotsUpdate.select(".slot-resize-handle-left")
-            .style("display", d => (d.isStartInView && !updateChartProps.isReadOnly) ? null : "none")
+            .style("display", d => (d.isStartInView && !d.slotData.readOnly && !updateChartProps.isReadOnly) ? null : "none")
             .attr("x", d => -4)
             .attr("y", d => 0)
             .attr("height", d => d.height)
@@ -858,7 +863,7 @@ export function updateChart(
             .call(updateChartProps.isReadOnly ? function () { } : dragResizeHandleLeft as any);
 
         slotsUpdate.select(".slot-resize-handle-right")
-            .style("display", d => (d.isEndInView && !updateChartProps.isReadOnly) ? null : "none")
+            .style("display", d => (d.isEndInView && !d.slotData.readOnly && !updateChartProps.isReadOnly) ? null : "none")
             .attr("x", d => 0 + d.width - 4)
             .attr("y", d => 0)
             .attr("height", d => d.height)
