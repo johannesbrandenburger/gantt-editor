@@ -1,4 +1,5 @@
 import * as d3 from "d3";
+import type { GanttEditorXAxisOptions } from "./types";
 
 export function updateAxis(
     xAxisGroup: d3.Selection<SVGGElement, unknown, null, undefined>,
@@ -6,20 +7,43 @@ export function updateAxis(
     xScale: d3.ScaleTime<number, number, never>,
     fullChartHeight: number,
     clearClipboard: () => void,
+    xAxisOptions?: GanttEditorXAxisOptions,
 ) {
-    // Update x-axis and gridlines on x-axis SVG
-    xAxisGroup.select('.x-axis')
-        .transition()
-        .duration(animationDuration)
-        .call(d3.axisTop(xScale)
-            .tickFormat(d3.timeFormat('%H:%M') as any) as any);
 
-    xAxisGroup.select('.x-axis-date')
-        .transition()
-        .duration(animationDuration)
-        .call(d3.axisTop(xScale)
-            .ticks(d3.timeDay.every(1))
-            .tickFormat(d3.timeFormat('%d.%m.') as any) as any)
+    const timeFormatter = (domainValue: Date | d3.NumberValue): string => {
+        if (domainValue instanceof Date) {
+            return d3.timeFormat('%H:%M')(domainValue);
+        }
+        return '';
+    };
+
+    const dateFormatter = (domainValue: Date | d3.NumberValue): string => {
+        if (domainValue instanceof Date) {
+            return d3.timeFormat('%d.%m.')(domainValue);
+        }
+        return '';
+    };
+
+    let xAxisUpperTickFormat: (domainValue: Date | d3.NumberValue) => string = xAxisOptions?.upper?.tickFormat || dateFormatter;
+    let xAxisLowerTickFormat: (domainValue: Date | d3.NumberValue) => string = xAxisOptions?.lower?.tickFormat || timeFormatter;
+
+    const dateAxisSelection = xAxisGroup.select<SVGGElement>('.x-axis-date');
+    const dateAxis = d3.axisTop(xScale).tickFormat(xAxisUpperTickFormat)
+    if (xAxisOptions?.upper?.ticks) {
+        dateAxis.ticks(xAxisOptions?.upper?.ticks);
+    } else {
+        dateAxis.ticks(d3.timeDay.every(1));
+    }
+    dateAxisSelection.call(dateAxis);
+
+    const timeAxisSelection = xAxisGroup.select<SVGGElement>('.x-axis');
+    const timeAxis = d3.axisTop(xScale).tickFormat(xAxisLowerTickFormat);
+    if (xAxisOptions?.lower?.ticks) {
+        timeAxis.ticks(xAxisOptions?.lower?.ticks);
+    } else {
+        // nothing: default ticks will be used
+    }
+    timeAxisSelection.call(timeAxis);
 
     // not show the domain line
     xAxisGroup.select('.x-axis-date')

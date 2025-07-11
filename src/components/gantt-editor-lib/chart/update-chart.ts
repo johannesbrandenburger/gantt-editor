@@ -7,7 +7,7 @@ import { updateGridlinesAndLabels } from './gridlines-and-labels';
 import { updateDepartureMarker } from './departuremarker';
 import { updateWeekdays } from './weekdays';
 import { setupPanAndZoom } from './setup-pan-zoom';
-import type { Topic, ProcessedData, Settings, SlotText, SlotDefinition, TranslateFunction, DisplayFunction, TopicLabel, RowLabel, DepartureMarker, ChartDefinition, ProgressChartDefinition, EventDot, EventChartDefinitions, SuggestionDefinition, GanttEditorSlotWithUiAttributes } from './types';
+import type { Topic, ProcessedData, Settings, SlotText, SlotDefinition, TranslateFunction, DisplayFunction, TopicLabel, RowLabel, DepartureMarker, ChartDefinition, ProgressChartDefinition, EventDot, EventChartDefinitions, SuggestionDefinition, GanttEditorSlotWithUiAttributes, GanttEditorXAxisOptions } from './types';
 import { updateAxis } from './axis';
 import { addSvgDefs } from './svg-defs';
 import { setupCurrentTime } from './current-time';
@@ -24,7 +24,7 @@ export function updateChart(
     windowWidth: number,
     startDateTime: Date,
     endDateTime: Date,
-    onItemChanged: (item: { id: string; [key: string]: any }, wasSuggestion?: boolean) => void,
+    onItemChanged: (item: { id: string;[key: string]: any }, wasSuggestion?: boolean) => void,
     onChangeStartAndEndDateTime: (start: Date, end: Date) => void,
     settings: any,
     clipboardUpdate: () => void,
@@ -43,6 +43,7 @@ export function updateChart(
         onHoverOnSlot?: (slotId: string) => void;
         onDoubleClickOnSlot?: (slotId: string) => void;
         onContextClickOnSlot?: (slotId: string) => void;
+        xAxisOptions?: GanttEditorXAxisOptions
     },
     animationDuration: number = 200,
 ): void {
@@ -200,11 +201,11 @@ export function updateChart(
 
         topic.yStart = currentY;
         defs.horizontalGridlinesDefinitions.push({ y: currentY, id: `gridline-${topic.id}` });
-        
-        const slotNames = topic.rows.flatMap(row => 
+
+        const slotNames = topic.rows.flatMap(row =>
             row.slots.map(slot => slot.displayName)
         );
-        
+
         defs.topicLabelsDefinition.push({
             x: -margin.left + 10,
             y: currentY + yScale.step() - (yScale.bandwidth() / 2),
@@ -345,12 +346,12 @@ export function updateChart(
 
         if (width <= 0) return; // No visible interval
         let yStart = topic?.yStart || 0;
-        
+
         const groupId = topic ? topic.groupId : groupMap.keys().next().value; // if no topic, use the first group (TODO: mabe all groups later)
         if (!groupId) return;
         const group = groupMap.get(groupId);
         if (!group) return;
-        
+
         // topic?.yEnd or the maximum yEnd of all topics in the group
         let yEnd = topic?.yEnd || Math.max(...processedData.filter(t => t.groupId === groupId).map(t => t.yEnd));
 
@@ -443,7 +444,8 @@ export function updateChart(
         animationDuration,
         xScale,
         0,
-        clearClipboard
+        clearClipboard,
+        updateChartProps.xAxisOptions
     )
 
     groupMap.forEach((group, groupId) => {
@@ -708,7 +710,7 @@ export function updateChart(
                 if (hoverTimeout) {
                     clearTimeout(hoverTimeout);
                 }
-                
+
                 // Set a new timeout for the hover event
                 hoverTimeout = setTimeout(() => {
                     if (updateChartProps.onHoverOnSlot) {
@@ -853,7 +855,7 @@ export function updateChart(
             .attr("y", d => 0)
             .attr("height", d => d.height)
             .style("opacity", 0)
-            .call(updateChartProps.isReadOnly ? function() {} : dragResizeHandleLeft as any);
+            .call(updateChartProps.isReadOnly ? function () { } : dragResizeHandleLeft as any);
 
         slotsUpdate.select(".slot-resize-handle-right")
             .style("display", d => (d.isEndInView && !updateChartProps.isReadOnly) ? null : "none")
@@ -861,7 +863,7 @@ export function updateChart(
             .attr("y", d => 0)
             .attr("height", d => d.height)
             .style("opacity", 0)
-            .call(updateChartProps.isReadOnly ? function() {} : dragResizeHandleRight as any);
+            .call(updateChartProps.isReadOnly ? function () { } : dragResizeHandleRight as any);
 
         // Remove old slots
         slots.exit()

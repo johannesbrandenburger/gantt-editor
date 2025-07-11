@@ -64,6 +64,9 @@ import GanttEditorComponent from '@/components/GanttEditorComponent.vue'; // adj
             @onHoverOnSlot="(slotId) => console.log(`onHoverOnSlot(${slotId})`)"
             @onDoubleClickOnSlot="(slotId) => console.log(`onDoubleClickOnSlot(${slotId})`)"
             @onContextClickOnSlot="(slotId) => console.log(`onContextClickOnSlot(${slotId})`)"
+            :x-axis-options="{
+              // optional x-axis options to customize the axis ticks and formats
+            } as GanttEditorXAxisOptions"
         />
     </div>
 </template>
@@ -101,5 +104,15 @@ export type GanttEditorMarkedRegion = {
 export type GanttEditorSuggestion = {
   slotId: string, // slot id the suggestion is for
   alternativeDestinationId: string, // alternative destination/chute id the suggestion is for
+};
+export type GanttEditorXAxisOptions = {
+  upper?: {
+      tickFormat?: (domainValue: Date | d3.NumberValue) => string;
+      ticks?: d3.TimeInterval;
+  };
+  lower?: {
+      tickFormat?: (domainValue: Date | d3.NumberValue) => string;
+      ticks?: d3.TimeInterval;
+  };
 };
 ```

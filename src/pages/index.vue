@@ -27,6 +27,26 @@
             @onContextClickOnSlot="handleContextClickOnSlot"
             :topContentPortion="topContentPortion"
             @onTopContentPortionChange="(newPortion, newHeight) => topContentPortion = newPortion"
+            :x-axis-options="{
+                upper: {
+                    tickFormat: (domainValue: Date | d3.NumberValue) => {
+                        if (domainValue instanceof Date) {
+                            return domainValue.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                        }
+                        return new Date(domainValue as number).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    },
+                    ticks: d3.timeHour.every(3) || undefined // every 3 hours
+                },
+                lower: {
+                    tickFormat: (domainValue: Date | d3.NumberValue) => {
+                        if (domainValue instanceof Date) {
+                            return domainValue.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        }
+                        return new Date(domainValue as number).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    },
+                    ticks: d3.timeHour.every(1) || undefined // every hour
+                }
+            }"
         >
             <template
                 #top-content
@@ -73,6 +93,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import * as d3 from 'd3';
 import type { GanttEditorSlot } from '../components/gantt-editor-lib/chart/types';
 
 const topContentPortion = ref(0.1); // 20% of total height for top content

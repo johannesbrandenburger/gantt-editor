@@ -1,37 +1,37 @@
 export type GanttEditorSlot = {
-  id: string,
-  group: string, // flightId
-  displayName: string,
-  openTime: Date,
-  closeTime: Date,
-  destinationId: string,
-  additionalData?: string,
-  hoverData?: string,
-  deadline?: Date,
-  deadlineHoverData?: string,
-  readOnly?: boolean,
-  color?: string
+    id: string,
+    group: string, // flightId
+    displayName: string,
+    openTime: Date,
+    closeTime: Date,
+    destinationId: string,
+    additionalData?: string,
+    hoverData?: string,
+    deadline?: Date,
+    deadlineHoverData?: string,
+    readOnly?: boolean,
+    color?: string
 };
 export type GanttEditorDestination = {
-  id: string,
-  displayName: string,
-  active: boolean,
-  groupId: string
+    id: string,
+    displayName: string,
+    active: boolean,
+    groupId: string
 };
 export type GanttEditorDestinationGroup = {
-  id: string,
-  displayName: string,
-  heightPortion: number
+    id: string,
+    displayName: string,
+    heightPortion: number
 };
 export type GanttEditorMarkedRegion = {
-  startTime: Date,
-  endTime: Date,
-  destinationId: string | "multiple"
+    startTime: Date,
+    endTime: Date,
+    destinationId: string | "multiple"
 };
 export type GanttEditorSuggestion = {
-  slotId: string,
-  alternativeDestinationId: string,
-  alternativeDestinationDisplayName?: string,
+    slotId: string,
+    alternativeDestinationId: string,
+    alternativeDestinationDisplayName?: string,
 };
 
 export type GanttEditorSlotWithUiAttributes = GanttEditorSlot & {
@@ -39,6 +39,17 @@ export type GanttEditorSlotWithUiAttributes = GanttEditorSlot & {
     isCopied?: boolean;
     isPreview?: boolean;
 }
+
+export type GanttEditorXAxisOptions = {
+    upper?: {
+        tickFormat?: (domainValue: Date | d3.NumberValue) => string;
+        ticks?: d3.TimeInterval;
+    };
+    lower?: {
+        tickFormat?: (domainValue: Date | d3.NumberValue) => string;
+        ticks?: d3.TimeInterval;
+    };
+};
 
 export interface Topic {
     name: string;

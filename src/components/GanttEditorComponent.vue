@@ -70,7 +70,7 @@
 <script setup lang="ts">
 import * as d3 from "d3";
 import { updateChart } from "./gantt-editor-lib/chart/update-chart";
-import type { GanttEditorDestination, GanttEditorSlot, GanttEditorDestinationGroup, GanttEditorSuggestion, GanttEditorMarkedRegion, Settings } from "./gantt-editor-lib/chart/types";
+import type { GanttEditorDestination, GanttEditorSlot, GanttEditorDestinationGroup, GanttEditorSuggestion, GanttEditorMarkedRegion, Settings, GanttEditorXAxisOptions } from "./gantt-editor-lib/chart/types";
 import { ref, computed, watch, onMounted, onBeforeUnmount, defineProps, defineEmits } from "vue";
 
 interface GanttEditorProps {
@@ -82,8 +82,10 @@ interface GanttEditorProps {
   suggestions: Array<GanttEditorSuggestion>,
   markedRegion: GanttEditorMarkedRegion | null,
   isReadOnly: boolean,
-  topContentPortion?: number
+  topContentPortion?: number,
+  xAxisOptions?: GanttEditorXAxisOptions
 }
+
 interface GanttEditorEmits {
   onChangeStartAndEndTime: [Date, Date],
   onChangeDestinationId: [string, string, boolean],
@@ -354,7 +356,8 @@ const triggerUpdate = () => {
         isReadOnly: props.isReadOnly,
         onHoverOnSlot: (allocationId: string) => { emit("onHoverOnSlot", allocationId); },
         onDoubleClickOnSlot: (allocationId: string) => { emit("onDoubleClickOnSlot", allocationId); },
-        onContextClickOnSlot: (allocationId: string) => { emit("onContextClickOnSlot", allocationId); }
+        onContextClickOnSlot: (allocationId: string) => { emit("onContextClickOnSlot", allocationId); },
+        xAxisOptions: props.xAxisOptions,
       }
     );
   }
