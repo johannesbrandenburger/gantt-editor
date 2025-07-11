@@ -14,9 +14,11 @@ export const setupPanAndZoom = (
     let originalStartDateTime: Date;
     let originalEndDateTime: Date;
     let isPanning = false;
+
     
     // Store timeout and scroll data on the chartGroup to persist across renders
-    const chartGroupNode = chartGroup.node() as any;
+    type timeOut = ReturnType<typeof setTimeout>;
+    const chartGroupNode = chartGroup.node() as SVGGElement & { _horizontalScrollData?: { timeout: timeOut | null; lastDates: { start: Date; end: Date } | null } };
     if (!chartGroupNode._horizontalScrollData) {
         chartGroupNode._horizontalScrollData = {
             timeout: null,
@@ -65,7 +67,16 @@ export const setupPanAndZoom = (
             return;
         }
 
-        if (!event.shiftKey) return;
+        // Detect trackpad vs mouse wheel
+        // Trackpads typically have smaller deltaY values and support fractional values
+        const isTrackpad = Math.abs(event.deltaY) < 100 && event.deltaY % 1 !== 0;
+        
+        // Allow zooming with:
+        // - Trackpad + ctrlKey (pinch gesture) OR just trackpad vertical scroll
+        // - Mouse wheel + shift key (existing behavior)
+        const shouldZoom = (isTrackpad && (event.ctrlKey || Math.abs(event.deltaY) > 0)) || (!isTrackpad && event.shiftKey);
+        
+        if (!shouldZoom) return;
 
         event.preventDefault();
 
