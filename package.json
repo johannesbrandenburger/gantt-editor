@@ -1,6 +1,6 @@
 {
   "name": "@pf/gantt-editor-vue-component",
-  "private": true,
+  "private": false,
   "type": "module",
   "version": "0.0.0",
   "scripts": {
