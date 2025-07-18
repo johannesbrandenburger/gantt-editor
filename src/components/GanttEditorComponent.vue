@@ -307,9 +307,9 @@ const triggerUpdate = () => {
       }
     });
 
-    updateChart(
-      xAxisRef.value,
-      props.slots.map((slot) => ({
+    updateChart({
+      xAxisSvgRef: xAxisRef.value,
+      data: props.slots.map((slot) => ({
         ...slot,
         destination: {
           id: slot.destinationId,
@@ -317,49 +317,47 @@ const triggerUpdate = () => {
           active: true,
         },
       })),
-      props.destinations,
-      [],
-      window.innerWidth,
-      props.startTime,
-      props.endTime,
-      (item: { id: string;[key: string]: any }, wasSuggestion?: boolean) => {
+      destinationData: props.destinations,
+      processedData: [],
+      windowWidth: window.innerWidth,
+      startDateTime: props.startTime,
+      endDateTime: props.endTime,
+      onItemChanged: (item: { id: string;[key: string]: any }, wasSuggestion?: boolean) => {
         if (item.destinationId) {
           emit("onChangeDestinationId", item.id, item.destinationId, wasSuggestion ? true : false);
         } else {
           emit("onChangeSlotTime", item.id, item.openTime, item.closeTime);
         }
       },
-      (start: Date, end: Date) => {
+      onChangeStartAndEndDateTime: (start: Date, end: Date) => {
         emit("onChangeStartAndEndTime", start, end);
       },
-      {
+      settings: {
         compactView: false,
       } as Settings,
-      clipboardController.update,
-      (allocationId: string) => { emit("onClickOnSlot", allocationId); },
-      {
-        markedRegion: props.markedRegion ? {
-          timeInterval: {
-            start: props.markedRegion.startTime.getTime(),
-            end: props.markedRegion.endTime.getTime()
-          },
-          destinationId: props.markedRegion.destinationId,
-        } : null,
-        suggestions: props.suggestions.map((suggestion) => ({
-          id: suggestion.slotId,
-          alternativeDestination: suggestion.alternativeDestinationId,
-          alternativeDestinationDisplayName: suggestion.alternativeDestinationDisplayName || suggestion.alternativeDestinationId,
-        })),
-        destinationGroups: props.destinationGroups,
-        heights: heightMap.value,
-        svgRefs: svgRefs,
-        isReadOnly: props.isReadOnly,
-        onHoverOnSlot: (allocationId: string) => { emit("onHoverOnSlot", allocationId); },
-        onDoubleClickOnSlot: (allocationId: string) => { emit("onDoubleClickOnSlot", allocationId); },
-        onContextClickOnSlot: (allocationId: string) => { emit("onContextClickOnSlot", allocationId); },
-        xAxisOptions: props.xAxisOptions,
-      }
-    );
+      clipboardUpdate: clipboardController.update,
+      openAllocationDetails: (allocationId: string) => { emit("onClickOnSlot", allocationId); },
+      markedRegion: props.markedRegion ? {
+        timeInterval: {
+          start: props.markedRegion.startTime.getTime(),
+          end: props.markedRegion.endTime.getTime()
+        },
+        destinationId: props.markedRegion.destinationId,
+      } : null,
+      suggestions: props.suggestions.map((suggestion) => ({
+        id: suggestion.slotId,
+        alternativeDestination: suggestion.alternativeDestinationId,
+        alternativeDestinationDisplayName: suggestion.alternativeDestinationDisplayName || suggestion.alternativeDestinationId,
+      })),
+      destinationGroups: props.destinationGroups,
+      heights: heightMap.value,
+      svgRefs: svgRefs,
+      isReadOnly: props.isReadOnly,
+      onHoverOnSlot: (allocationId: string) => { emit("onHoverOnSlot", allocationId); },
+      onDoubleClickOnSlot: (allocationId: string) => { emit("onDoubleClickOnSlot", allocationId); },
+      onContextClickOnSlot: (allocationId: string) => { emit("onContextClickOnSlot", allocationId); },
+      xAxisOptions: props.xAxisOptions,
+    });
   }
 };
 

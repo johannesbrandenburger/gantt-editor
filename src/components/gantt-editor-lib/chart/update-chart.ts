@@ -17,19 +17,20 @@ import type { GanttEditorDestination, GanttEditorDestinationGroup, GanttEditorSl
 
 // NOTE: this is still prototype code and not really ready for production use
 export function updateChart(
-    xAxisSvgRef: SVGElement,
-    data: Array<GanttEditorSlotWithUiAttributes>,
-    destinationData: Array<GanttEditorDestination>,
-    processedData: Topic[],
-    windowWidth: number,
-    startDateTime: Date,
-    endDateTime: Date,
-    onItemChanged: (item: { id: string;[key: string]: any }, wasSuggestion?: boolean) => void,
-    onChangeStartAndEndDateTime: (start: Date, end: Date) => void,
-    settings: any,
-    clipboardUpdate: () => void,
-    openAllocationDetails: (allocationId: string) => void,
-    updateChartProps: { // TODO: move all parameters to this object
+    updateChartProps: {
+        xAxisSvgRef: SVGElement,
+        data: Array<GanttEditorSlotWithUiAttributes>,
+        destinationData: Array<GanttEditorDestination>,
+        processedData: Topic[],
+        windowWidth: number,
+        startDateTime: Date,
+        endDateTime: Date,
+        onItemChanged: (item: { id: string;[key: string]: any }, wasSuggestion?: boolean) => void,
+        onChangeStartAndEndDateTime: (start: Date, end: Date) => void,
+        settings: any,
+        clipboardUpdate: () => void,
+        openAllocationDetails: (allocationId: string) => void,
+        animationDuration?: number,
         markedRegion: { destinationId: string; timeInterval: { start: number; end: number } } | null;
         suggestions: {
             id: string;
@@ -45,10 +46,25 @@ export function updateChart(
         onContextClickOnSlot?: (slotId: string) => void;
         xAxisOptions?: GanttEditorXAxisOptions
     },
-    animationDuration: number = 200,
 ): void {
 
     const svgs = new Map<string, d3.Selection<SVGElement, unknown, null, undefined>>();
+    let {
+        xAxisSvgRef,
+        data,
+        destinationData,
+        processedData,
+        windowWidth,
+        startDateTime,
+        endDateTime,
+        onItemChanged,
+        onChangeStartAndEndDateTime,
+        settings,
+        clipboardUpdate,
+        openAllocationDetails,
+        markedRegion,
+    } = updateChartProps;
+    let animationDuration = updateChartProps.animationDuration === undefined ? 200 : updateChartProps.animationDuration;
 
     settings = {
         groupBy: "destinationId" as keyof NonNullable<GanttEditorSlotWithUiAttributes>,
@@ -158,11 +174,11 @@ export function updateChart(
     }
 
     const changeStartAndEndDateTime = (newStartDateTime: Date, newEndDateTime: Date): void => {
-        updateChart(xAxisSvgRef, data, destinationData, processedData, windowWidth, newStartDateTime, newEndDateTime, onItemChanged, onChangeStartAndEndDateTime, settings, clipboardUpdate, openAllocationDetails, updateChartProps, 0);
+        updateChart({ ...updateChartProps, startDateTime: newStartDateTime, endDateTime: newEndDateTime, animationDuration: 0 });
         onChangeStartAndEndDateTime(newStartDateTime, newEndDateTime);
     }
     const changeStartAndEndDateTimeWithoutFetch = (newStartDateTime: Date, newEndDateTime: Date): void => {
-        updateChart(xAxisSvgRef, data, destinationData, processedData, windowWidth, newStartDateTime, newEndDateTime, onItemChanged, onChangeStartAndEndDateTime, settings, clipboardUpdate, openAllocationDetails, updateChartProps, 0);
+        updateChart({ ...updateChartProps, startDateTime: newStartDateTime, endDateTime: newEndDateTime, animationDuration: 0 });
     }
     let hideCurrentTime = (startDateTime > currentDateTime || endDateTime < currentDateTime);
 
@@ -436,7 +452,8 @@ export function updateChart(
             });
             topic.rows = topic.rows.filter((row) => row.slots.length > 0);
         });
-        updateChart(xAxisSvgRef, data, destinationData, processedData, windowWidth, startDateTime, endDateTime, onItemChanged, onChangeStartAndEndDateTime, settings, clipboardUpdate, openAllocationDetails, updateChartProps);
+        // updateChart(xAxisSvgRef, data, destinationData, processedData, windowWidth, startDateTime, endDateTime, onItemChanged, onChangeStartAndEndDateTime, settings, clipboardUpdate, openAllocationDetails, updateChartProps);
+        updateChart({ ...updateChartProps, processedData }); // TODO: processedData not needed
     }
 
     updateAxis(
@@ -478,7 +495,7 @@ export function updateChart(
             onItemChanged({ id: slotData.id, [settings.groupBy]: topicId });
         });
         localStorage.setItem("pointerClipboard", "[]");
-        updateChart(xAxisSvgRef, data, destinationData, [], windowWidth, startDateTime, endDateTime, onItemChanged, onChangeStartAndEndDateTime, settings, clipboardUpdate, openAllocationDetails, updateChartProps);
+        updateChart({ ...updateChartProps, processedData: [] })
         clipboardUpdate();
     }
 
@@ -490,7 +507,7 @@ export function updateChart(
             collapsedTopics.push(topicId);
         }
         localStorage.setItem("collapsedTopics", JSON.stringify(collapsedTopics));
-        updateChart(xAxisSvgRef, data, destinationData, [], windowWidth, startDateTime, endDateTime, onItemChanged, onChangeStartAndEndDateTime, settings, clipboardUpdate, openAllocationDetails, updateChartProps);
+        updateChart({ ...updateChartProps, processedData: [] })
     };
 
     const previewClipboardPaste = (topicId: string) => {
@@ -529,8 +546,7 @@ export function updateChart(
         });
 
         // update the chart with the preview data
-        updateChart(xAxisSvgRef, data, destinationData, processedDataWithPreview, windowWidth, startDateTime, endDateTime, onItemChanged, onChangeStartAndEndDateTime, settings, clipboardUpdate, openAllocationDetails, updateChartProps);
-
+        updateChart({ ...updateChartProps, processedData: processedDataWithPreview });
     };
 
     const updateTopicAreas = (
@@ -619,7 +635,7 @@ export function updateChart(
                 })
             })
         })
-        updateChart(xAxisSvgRef, data, destinationData, processedData, windowWidth, startDateTime, endDateTime, onItemChanged, onChangeStartAndEndDateTime, settings, clipboardUpdate, openAllocationDetails, updateChartProps);
+        updateChart(updateChartProps);
     }
 
     const onSelectedSomethingWrapper = (def: GroupDefs) => {
@@ -816,7 +832,7 @@ export function updateChart(
             slotData.openTime = d.slotData.openTime;
             slotData.closeTime = d.slotData.closeTime;
             onItemChanged({ id: slotData.id, openTime: slotData.openTime, closeTime: slotData.closeTime });
-            updateChart(xAxisSvgRef, data, destinationData, [], windowWidth, startDateTime, endDateTime, onItemChanged, onChangeStartAndEndDateTime, settings, clipboardUpdate, openAllocationDetails, updateChartProps, 0);
+            updateChart({ ...updateChartProps, processedData: [], animationDuration: 0 })
         }
         const dragResizeHandleLeft = d3.drag<Element, SlotDefinition, any>()
             .on('start', function (event, d) { d.element = this; dragStartLeftRight(event, d) })
@@ -884,7 +900,7 @@ export function updateChart(
         const suggestion = updateChartProps.suggestions.find(s => s.id === slotId);
         if (!slotData || !suggestion) return;
         slotData.destinationId = suggestion.alternativeDestination;
-        updateChart(xAxisSvgRef, data, destinationData, [], windowWidth, startDateTime, endDateTime, onItemChanged, onChangeStartAndEndDateTime, settings, clipboardUpdate, openAllocationDetails, updateChartProps);
+        updateChart({...updateChartProps, processedData: []})
         onItemChanged({ id: slotData.id, [settings.groupBy]: suggestion.alternativeDestination }, true);
     }
 

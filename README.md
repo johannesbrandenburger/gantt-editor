@@ -83,6 +83,7 @@ export type GanttEditorSlot = {
   destinationId: string, // destination/chute id it is allocated to
   deadline?: Date, // departure time of the flight
   deadlineHoverData?: string, // shows the user the exact departure time on hover
+  readOnly?: boolean, // disable editing of the slot (no resize, no drag)
   color?: string // color for the allocation bar, should show the status of the allocation (if not set, the a state color is computed (see `src/components/gantt-editor-lib/helpers.ts: mapSlotToStateColor`))
 };
 export type GanttEditorDestination = {
@@ -104,15 +105,16 @@ export type GanttEditorMarkedRegion = {
 export type GanttEditorSuggestion = {
   slotId: string, // slot id the suggestion is for
   alternativeDestinationId: string, // alternative destination/chute id the suggestion is for
+  alternativeDestinationDisplayName?: string, // optional display name for the alternative destination/chute
 };
 export type GanttEditorXAxisOptions = {
   upper?: {
-      tickFormat?: (domainValue: Date | d3.NumberValue) => string;
-      ticks?: d3.TimeInterval;
+    tickFormat?: (domainValue: Date | d3.NumberValue) => string;
+    ticks?: d3.TimeInterval;
   };
   lower?: {
-      tickFormat?: (domainValue: Date | d3.NumberValue) => string;
-      ticks?: d3.TimeInterval;
+    tickFormat?: (domainValue: Date | d3.NumberValue) => string;
+    ticks?: d3.TimeInterval;
   };
 };
 ```
