@@ -1,5 +1,5 @@
 {
-  "name": "gantt-editor-vue-component",
+  "name": "@pf/gantt-editor-vue-component",
   "private": true,
   "type": "module",
   "version": "0.0.0",
