@@ -1,3 +1,7 @@
+default:
+  tags:
+    - pf-nbg
+
 image: node:22
 
 stages:
@@ -12,7 +16,6 @@ build:
   artifacts:
     paths:
       - dist/
-
 
 publish:
   image: node:latest
