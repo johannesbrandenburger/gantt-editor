@@ -1,6 +1,23 @@
 # Gantt Editor Vue Component
 
-## Usage Example
+## Install via Gitlab Package Registry
+
+- create a `.npmrc` file in your project root with the following content:
+```bash
+@pf:registry=https://code.siemens-logistics.com/api/v4/projects/671/packages/npm/
+//code.siemens-logistics.com/api/v4/projects/671/packages/npm/:_authToken=${GITLAP_ACCESS_TOKEN}
+```
+- create a Gitlab access token [here](https://code.siemens-logistics.com/pf/products/bagiq/hlc-ui-components/gantt-editor-vue-component/-/settings/access_tokens) (see [Gitlab Docs](https://docs.gitlab.com/user/packages/npm_registry/#authenticate-to-the-package-registry))
+  - Role: Developer
+  - Scopes: `read_api`
+
+- run the following command to install the package:
+```bash
+GITLAP_ACCESS_TOKEN=<your-gitlab-access-token> npm install @pf/gantt-editor-vue-component@latest
+```
+  - run the same command to update the package later on
+
+## Install Manually
 
 - install d3 
 ```bash
@@ -14,11 +31,15 @@ npm install d3; npm install --save-dev @types/d3
     - gantt-editor-lib/*
 ```
 
+## Usage Example
+
 - use as in `src/pages/index.vue` (generates variable number of allocations)
 - or as in this small example (easier to understand)
 ```vue
 <script setup lang="ts">
 import GanttEditorComponent from '@/components/GanttEditorComponent.vue'; // adjust the path to your project structure
+// OR:
+import GanttEditorComponent from '@pf/gantt-editor-vue-component'; // if you installed the package from the registry
 </script>
 <template>
     <div style="height: 100vh; width: 100%; margin: 0 auto;">
