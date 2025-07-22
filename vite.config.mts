@@ -40,6 +40,25 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    lib: {
+      entry: 'src/index.ts',
+      name: 'GanttEditorVueComponent',
+      fileName: (format) => `gantt-editor-vue-component.${format}.js`,
+      formats: ['es', 'umd']
+    },
+    rollupOptions: {
+      external: ['vue', 'vuetify', 'd3'],
+      output: {
+        globals: {
+          vue: 'Vue',
+          vuetify: 'Vuetify',
+          d3: 'D3'
+        },
+        exports: 'named'
+      }
+    }
+  },
   optimizeDeps: {
     exclude: [
       'vuetify',
