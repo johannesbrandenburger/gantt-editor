@@ -4,10 +4,10 @@
 
 - create a `.npmrc` file in your project root with the following content:
 ```bash
-@pf:registry=https://code.siemens-logistics.com/api/v4/projects/671/packages/npm/
-//code.siemens-logistics.com/api/v4/projects/671/packages/npm/:_authToken=${GITLAP_ACCESS_TOKEN}
+@pf:registry=https://code.oair.io/api/v4/projects/671/packages/npm/
+//code.oair.io/api/v4/projects/671/packages/npm/:_authToken=${GITLAP_ACCESS_TOKEN}
 ```
-- create a Gitlab access token [here](https://code.siemens-logistics.com/pf/products/bagiq/hlc-ui-components/gantt-editor-vue-component/-/settings/access_tokens) (see [Gitlab Docs](https://docs.gitlab.com/user/packages/npm_registry/#authenticate-to-the-package-registry))
+- create a Gitlab access token [here](https://code.oair.io/pf/products/bagiq/hlc-ui-components/gantt-editor-vue-component/-/settings/access_tokens) (see [Gitlab Docs](https://docs.gitlab.com/user/packages/npm_registry/#authenticate-to-the-package-registry))
   - Role: Developer
   - Scopes: `read_api`
 
