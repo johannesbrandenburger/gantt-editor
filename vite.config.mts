@@ -57,7 +57,8 @@ export default defineConfig({
           vuetify: 'Vuetify',
           d3: 'D3'
         },
-        exports: 'named'
+        exports: 'named',
+        assetFileNames: 'style.css',
       }
     }
   },
