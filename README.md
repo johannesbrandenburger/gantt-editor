@@ -40,6 +40,7 @@ npm install d3; npm install --save-dev @types/d3
 import GanttEditorComponent from '@/components/GanttEditorComponent.vue'; // adjust the path to your project structure
 // OR:
 import GanttEditorComponent from '@pf/gantt-editor-vue-component'; // if you installed the package from the registry
+import "@pf/gantt-editor-vue-component/style.css"; // NOTE: this is only needed when installed from the registry
 </script>
 <template>
     <div style="height: 100vh; width: 100%; margin: 0 auto;">
