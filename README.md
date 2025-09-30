@@ -87,7 +87,7 @@ import GanttEditorComponent from '@pf/gantt-editor-vue-component'; // if you ins
             @onContextClickOnSlot="(slotId) => console.log(`onContextClickOnSlot(${slotId})`)"
             :x-axis-options="{
               // optional x-axis options to customize the axis ticks and formats
-            } as GanttEditorXAxisOptions"
+            }"
         />
     </div>
 </template>
