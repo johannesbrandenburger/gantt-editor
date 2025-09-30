@@ -2,7 +2,7 @@
   "name": "@pf/gantt-editor-vue-component",
   "private": false,
   "type": "module",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "main": "./dist/gantt-editor-vue-component.umd.js",
   "module": "./dist/gantt-editor-vue-component.es.js",
   "types": "./src/index.ts",
@@ -11,7 +11,8 @@
       "types": "./src/index.ts",
       "import": "./dist/gantt-editor-vue-component.es.js",
       "require": "./dist/gantt-editor-vue-component.umd.js"
-    }
+    },
+    "./dist/gantt-editor-vue-component.css": "./dist/gantt-editor-vue-component.css"
   },
   "files": [
     "dist",
