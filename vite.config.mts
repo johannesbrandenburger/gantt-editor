@@ -47,6 +47,8 @@ export default defineConfig({
       fileName: (format) => `gantt-editor-vue-component.${format}.js`,
       formats: ['es', 'umd']
     },
+    cssCodeSplit: false, 
+    assetsDir: '',
     rollupOptions: {
       external: ['vue', 'vuetify', 'd3'],
       output: {
