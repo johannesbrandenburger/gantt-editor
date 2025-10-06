@@ -26,7 +26,7 @@
             @onDoubleClickOnSlot="handleDoubleClickOnSlot"
             @onContextClickOnSlot="handleContextClickOnSlot"
             :topContentPortion="topContentPortion"
-            @onTopContentPortionChange="(newPortion, newHeight) => topContentPortion = newPortion"
+            @onTopContentPortionChange="(newPortion: number, newHeight: number) => topContentPortion = newPortion"
             :x-axis-options="{
                 upper: {
                     tickFormat: (domainValue: Date | d3.NumberValue) => {

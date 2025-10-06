@@ -60,7 +60,8 @@ export default defineConfig({
         exports: 'named',
         assetFileNames: 'style.css',
       }
-    }
+    },
+    emitAssets: true,
   },
   optimizeDeps: {
     exclude: [
