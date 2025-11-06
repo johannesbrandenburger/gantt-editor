@@ -140,3 +140,16 @@ export type GanttEditorXAxisOptions = {
   };
 };
 ```
+
+## Shortcuts
+
+- pressing "S" lets the user **select multiple slots** (brush) - NOTE: this might change in the future
+- to **move on the timeline** (horizontal scroll)
+  - drag with mousewheel pressed
+  - drag with right click pressed
+  - simple horizontal scroll (e.g. on a trackpad, currently only supported in chrome-based browsers)
+- to **move up and down** (vertical scroll)
+  - simple vertical scroll (mousewheel/trackpad)
+- cmd/ctrl + click on **multiple slots selects** them one at a time
+- **zoom in and out** by shift + scroll (mousewheel/trackpad)
+- **clear clipboard** by pressing escape
