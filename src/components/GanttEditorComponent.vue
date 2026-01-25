@@ -71,7 +71,7 @@
 import * as d3 from "d3";
 import { updateChart } from "./gantt-editor-lib/chart/update-chart";
 import type { GanttEditorDestination, GanttEditorSlot, GanttEditorDestinationGroup, GanttEditorSuggestion, GanttEditorMarkedRegion, Settings, GanttEditorXAxisOptions } from "./gantt-editor-lib/chart/types";
-import { ref, computed, watch, onMounted, onBeforeUnmount, defineProps, defineEmits } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 
 interface GanttEditorProps {
   startTime: Date,
