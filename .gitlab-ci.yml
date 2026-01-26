@@ -20,10 +20,9 @@ build:
 
 test:
   stage: test
-  image: ${CI_REGISTRY}/pf/products/openair/templates/base-images:oa-cli-1-0-0-playwrite-latest
+  image: mcr.microsoft.com/playwright:v1.58.0-jammy
   script:
     - npm ci
-    - npx -y playwright install --with-deps
     - npm run test:e2e
 
 publish:
