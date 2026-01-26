@@ -23,6 +23,7 @@ test:
   image: ${CI_REGISTRY}/pf/products/openair/templates/base-images:oa-cli-1-0-0-playwrite-latest
   script:
     - npm ci
+    - npx -y playwright install --with-deps
     - npm run test:e2e
 
 publish:
