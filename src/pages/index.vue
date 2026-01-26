@@ -111,8 +111,8 @@ const numberOfSlots = ref(100);
 const numberOfDestinations = ref(20);
 
 // Define reactive state
-const startTime = ref(new Date('2025-06-26T00:00:00Z'));
-const endTime = ref(new Date('2025-06-26T23:59:59Z'));
+const startTime = ref(new Date(new Date().setHours(0, 0, 0, 0))); // today at 00:00
+const endTime = ref(new Date(new Date().setHours(23, 59, 59, 999))); // today at 23:59
 const isReadOnly = ref(false);
 const eventMessage = ref('');
 
@@ -133,13 +133,13 @@ const generateRandomTime = (dayStart: Date, dayEnd: Date): Date => {
 
 // Function to generate slots
 const generateSlots = (count: number) => {
-    const dayStart = new Date('2025-06-26T00:00:00Z');
-    const dayEnd = new Date('2025-06-26T23:59:59Z');
+    const dayStart = new Date(startTime.value);
+    const dayEnd = new Date(endTime.value);
     const mockColors = ['#738732', '#ffcd50', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd'];
 
     const unallocatedSlots =  Array.from({ length: count }, (_, index) => {
         const slotStart = generateRandomTime(dayStart, dayEnd);
-        const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000 + Math.random() * 2.5 * 60 * 60 * 1000); // 30 minutes to 3 hours duration
+        const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000 + Math.random() * 2 * 60 * 60 * 1000); // 60 minutes to 3 hours duration
 
         // Ensure slot doesn't exceed day end
         if (slotEnd > dayEnd) {

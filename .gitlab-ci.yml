@@ -6,6 +6,7 @@ image: node:22
 
 stages:
   - build
+  - test
   - publish
 
 build:
@@ -16,6 +17,13 @@ build:
   artifacts:
     paths:
       - dist/
+
+test:
+  stage: test
+  image: ${CI_REGISTRY}/pf/products/openair/templates/base-images:oa-cli-1-0-0-playwrite-latest
+  script:
+    - npm ci
+    - npm run test:e2e
 
 publish:
   image: node:latest
