@@ -289,6 +289,17 @@ const onMouseLeave = () => {
   showClipboard.value = false;
 };
 
+/**
+ * Programmatically clears the clipboard.
+ * This can be called from the parent component via ref.
+ */
+const clearClipboard = () => {
+  console.log("Clearing clipboard programmatically");
+  localStorage.setItem("pointerClipboard", "[]");
+  updateClipboard();
+  triggerUpdate();
+};
+
 let clipboardController: { update: () => void } | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
@@ -469,6 +480,11 @@ onBeforeUnmount(() => {
     resizeObserver.disconnect();
     resizeObserver = null;
   }
+});
+
+// Expose methods that can be called from the parent component via ref
+defineExpose({
+  clearClipboard,
 });
 
 </script>

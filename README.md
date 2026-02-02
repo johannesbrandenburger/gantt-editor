@@ -154,3 +154,29 @@ export type GanttEditorXAxisOptions = {
 - cmd/ctrl + click on **multiple slots selects** them one at a time
 - **zoom in and out** by shift + scroll (mousewheel/trackpad)
 - **clear clipboard** by pressing escape
+
+## Exposed Methods
+
+The component exposes methods that can be called programmatically via a template ref:
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue';
+import GanttEditorComponent from '@pf/gantt-editor-vue-component';
+
+const ganttEditorRef = ref<InstanceType<typeof GanttEditorComponent> | null>(null);
+
+// Clear the clipboard programmatically
+const handleClearClipboard = () => {
+  ganttEditorRef.value?.clearClipboard();
+};
+</script>
+<template>
+  <GanttEditorComponent ref="ganttEditorRef" ... />
+  <button @click="handleClearClipboard">Clear Clipboard</button>
+</template>
+```
+
+### Available Methods
+
+- `clearClipboard()`: Clears all slots from the clipboard programmatically. This is useful when you need to reset the clipboard state from external controls or based on application logic.

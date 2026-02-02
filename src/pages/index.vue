@@ -10,6 +10,7 @@
     -->
     <div style="height: 100vh; width: 100%;">
         <GanttEditorComponent
+            ref="ganttEditorRef"
             :isReadOnly="isReadOnly"
             :startTime="startTime"
             :endTime="endTime"
@@ -68,6 +69,21 @@
                     >
                         {{ isReadOnly ? '🔒 Read-Only Mode' : '✏️ Editable Mode' }}
                     </button>
+                    <button
+                        @click="handleClearClipboard"
+                        data-testid="clear-clipboard-button"
+                        :style="{
+                            padding: '8px 16px',
+                            borderRadius: '4px',
+                            border: '1px solid #ccc',
+                            background: '#3498db',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontWeight: 'bold'
+                        }"
+                    >
+                        🗑️ Clear Clipboard
+                    </button>
                     <div
                         v-if="eventMessage"
                         :style="{
@@ -95,6 +111,10 @@
 import { ref, reactive, onMounted } from 'vue';
 import * as d3 from 'd3';
 import type { GanttEditorSlot } from '../components/gantt-editor-lib/chart/types';
+import GanttEditorComponent from '../components/GanttEditorComponent.vue';
+
+// Ref to the Gantt Editor component for programmatic access
+const ganttEditorRef = ref<InstanceType<typeof GanttEditorComponent> | null>(null);
 
 const topContentPortion = ref(0.1); // 20% of total height for top content
 onMounted(() => {
@@ -122,6 +142,14 @@ const showEventMessage = (message: string, duration = 3000) => {
     setTimeout(() => {
         eventMessage.value = '';
     }, duration);
+};
+
+// Function to programmatically clear the clipboard via the component ref
+const handleClearClipboard = () => {
+    if (ganttEditorRef.value) {
+        ganttEditorRef.value.clearClipboard();
+        showEventMessage('🗑️ Clipboard cleared programmatically');
+    }
 };
 
 // Function to generate random time within the day
