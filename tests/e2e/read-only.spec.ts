@@ -34,7 +34,7 @@ test.describe('Read-Only Mode', () => {
     const slotGroup = page.locator('svg g.slot-group').first();
     const slotBox = await slotGroup.boundingBox();
     expect(slotBox).not.toBeNull();
-    
+
     // Hover over the slot to make resize handles visible
     await slotGroup.hover();
     await page.waitForTimeout(200);
@@ -51,7 +51,7 @@ test.describe('Read-Only Mode', () => {
     // Get the slot width after attempted resize
     const newBox = await slotGroup.boundingBox();
     expect(newBox).not.toBeNull();
-    
+
     // Width should be unchanged (resize blocked in read-only mode)
     expect(newBox!.width).toBeCloseTo(slotBox!.width, 0);
   });
@@ -74,5 +74,33 @@ test.describe('Read-Only Mode', () => {
       const chips = await clipboard.locator('.v-chip').count();
       expect(chips).toBe(0);
     }
+  });
+
+  test('Clipboard clears when switching to read-only mode', async ({ page }) => {
+    await page.goto('/');
+    await waitForChartLoad(page);
+
+    // Start in editable mode and click on a slot to add to clipboard
+    await clickSlot(page, 0);
+    await page.waitForTimeout(100);
+
+    // Move mouse over the chart to show clipboard
+    const chartContainer = page.locator('.chart-container');
+    await chartContainer.hover();
+    await page.waitForTimeout(100);
+
+    // Verify clipboard has items
+    const clipboard = page.locator('.pointer-clipboard');
+    await expect(clipboard).toBeVisible();
+    const chipsBeforeToggle = await clipboard.locator('.v-chip').count();
+    expect(chipsBeforeToggle).toBeGreaterThan(0);
+
+    // Switch to read-only mode
+    await switchToReadOnlyMode(page);
+    await page.waitForTimeout(100);
+
+    // Verify clipboard is empty
+    const chipsAfterToggle = await clipboard.locator('.v-chip').count();
+    expect(chipsAfterToggle).toBe(0);
   });
 });

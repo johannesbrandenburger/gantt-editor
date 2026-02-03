@@ -22,3 +22,9 @@ pnpm-debug.log*
 *.sw?
 playwright-report
 test-results
+
+# Playwright
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

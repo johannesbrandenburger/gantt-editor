@@ -419,7 +419,10 @@ watch(
 );
 watch(
   () => props.isReadOnly,
-  () => {
+  (newValue) => {
+    if (newValue) {
+      clearClipboard();
+    }
     triggerUpdate();
   }
 );

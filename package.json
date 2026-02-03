@@ -2,7 +2,7 @@
   "name": "@pf/gantt-editor-vue-component",
   "private": false,
   "type": "module",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "main": "./dist/gantt-editor-vue-component.umd.js",
   "module": "./dist/gantt-editor-vue-component.es.js",
   "types": "./dist/index.d.ts",
@@ -36,7 +36,7 @@
     "vuetify": "^3.8.1"
   },
   "devDependencies": {
-    "@playwright/test": "1.58.0",
+    "@playwright/test": "^1.58.1",
     "@tsconfig/node22": "^22.0.0",
     "@types/d3": "^7.4.3",
     "@types/node": "^22.9.0",
