@@ -43,7 +43,11 @@ export const updateSuggestionButtons = (
         .attr("dominant-baseline", "middle")
         .style("cursor", "pointer")
         .style("fill", "#f0ad4e")
-        .text("💡")
+        .text("💡");
+
+    // Rebind event handlers on the merged selection (enter + update) so that
+    // reused elements always use the latest applySuggestion closure and data.
+    buttons.merge(buttonsEnter)
         .on("click", (event, d) => {
             event.stopPropagation();
             tooltip.style("visibility", "hidden");
@@ -64,9 +68,7 @@ export const updateSuggestionButtons = (
         .on("mouseout", (event, d) => {
             tooltip.style("visibility", "hidden");
             d3.select(event.currentTarget).transition().duration(100).attr("font-size", "18px");
-        });
-
-    buttons.merge(buttonsEnter)
+        })
         .transition()
         .duration(ANIMATION_DURATION)
         .attr("opacity", 1)
