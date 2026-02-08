@@ -18,7 +18,7 @@
             :destinations="destinations"
             :destinationGroups="destinationGroups"
             :suggestions="suggestions"
-            :markedRegion="null"
+            :markedRegion="markedRegion"
             @onChangeStartAndEndTime="handleChangeStartAndEndTime"
             @onChangeDestinationId="handleChangeDestinationId"
             @onChangeSlotTime="handleChangeSlotTime"
@@ -70,6 +70,36 @@
                         {{ isReadOnly ? '🔒 Read-Only Mode' : '✏️ Editable Mode' }}
                     </button>
                     <button
+                        @click="toggleMarkedRegion"
+                        data-testid="toggle-marked-region-button"
+                        :style="{
+                            padding: '8px 16px',
+                            borderRadius: '4px',
+                            border: '1px solid #ccc',
+                            background: markedRegion ? '#e67e22' : '#95a5a6',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontWeight: 'bold'
+                        }"
+                    >
+                        🔲 {{ markedRegion ? 'Disable' : 'Enable' }} Marked Region
+                    </button>
+                    <button
+                        @click="toggleMarkedRegionMultiple"
+                        data-testid="toggle-marked-region-multiple-button"
+                        :style="{
+                            padding: '8px 16px',
+                            borderRadius: '4px',
+                            border: '1px solid #ccc',
+                            background: markedRegion ? '#e67e22' : '#95a5a6',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontWeight: 'bold'
+                        }"
+                    >
+                        🔲 {{ markedRegion ? 'Disable' : 'Enable' }} Marked Region (Multiple)
+                    </button>
+                    <button
                         @click="handleClearClipboard"
                         data-testid="clear-clipboard-button"
                         :style="{
@@ -108,7 +138,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import * as d3 from 'd3';
 import type { GanttEditorSlot } from '../components/gantt-editor-lib/chart/types';
 import GanttEditorComponent from '../components/GanttEditorComponent.vue';
@@ -223,8 +253,63 @@ const destinationGroups = reactive([
     { id: 'unallocated', displayName: 'UNALLOCATED', heightPortion: 0.1 },
 ]);
 
-// Suggestions - empty for generated data
-const suggestions = reactive([]);
+// Suggestions: suggest moving the first 3 slots to alternative destinations
+const suggestions = computed(() => {
+    return slots.value.slice(0, 3).map((slot, i) => {
+        // Find a different destination for the suggestion
+        const currentDestIndex = parseInt(slot.destinationId.replace('mup-', ''), 10);
+        const altDestIndex = ((currentDestIndex || 1) % numberOfDestinations.value) + 1;
+        return {
+            slotId: slot.id,
+            alternativeDestinationId: `mup-${altDestIndex}`,
+            alternativeDestinationDisplayName: `MUP ${altDestIndex}`,
+        };
+    });
+});
+
+// Marked region state (toggleable for testing)
+const markedRegion = ref<{ startTime: Date; endTime: Date; destinationId: string | 'multiple' } | null>(null);
+
+const toggleMarkedRegion = () => {
+    if (markedRegion.value) {
+        markedRegion.value = null;
+        console.log('Marked region disabled');
+        showEventMessage('🔲 Marked region disabled');
+    } else {
+        // Mark the middle 4 hours of the day on the first destination
+        const regionStart = new Date(startTime.value);
+        regionStart.setHours(10, 0, 0, 0);
+        const regionEnd = new Date(startTime.value);
+        regionEnd.setHours(14, 0, 0, 0);
+        markedRegion.value = {
+            startTime: regionStart,
+            endTime: regionEnd,
+            destinationId: 'mup-1',
+        };
+        console.log('Marked region enabled', markedRegion.value);
+        showEventMessage('🔲 Marked region enabled on MUP 1 (10:00-14:00)');
+    }
+};
+
+const toggleMarkedRegionMultiple = () => {
+    if (markedRegion.value) {
+        markedRegion.value = null;
+        console.log('Marked region disabled');
+        showEventMessage('🔲 Marked region disabled');
+    } else {
+        const regionStart = new Date(startTime.value);
+        regionStart.setHours(10, 0, 0, 0);
+        const regionEnd = new Date(startTime.value);
+        regionEnd.setHours(14, 0, 0, 0);
+        markedRegion.value = {
+            startTime: regionStart,
+            endTime: regionEnd,
+            destinationId: 'multiple',
+        };
+        console.log('Marked region enabled multiple', markedRegion.value);
+        showEventMessage('🔲 Marked region (multiple) enabled (10:00-14:00)');
+    }
+};
 
 // Event handlers that mutate state
 const toggleReadOnly = () => {
@@ -240,7 +325,11 @@ const handleChangeStartAndEndTime = (newStartTime: Date, newEndTime: Date) => {
     showEventMessage(`📅 Time window: ${newStartTime.toLocaleDateString()} - ${newEndTime.toLocaleDateString()}`);
 };
 
-const handleChangeDestinationId = (slotId: string, destinationId: string) => {
+const handleChangeDestinationId = (slotId: string, destinationId: string, wasSuggestion?: boolean) => {
+    if (wasSuggestion) {
+        console.log('Callback: Applied suggestion for slot', slotId, 'to', destinationId);
+        showEventMessage(`💡 Applied suggestion: ${slotId} → ${destinationId}`);
+    }
     console.log('Callback: Moved slot to different destination', slotId, destinationId);
     const slotIndex = slots.value.findIndex(slot => slot.id === slotId);
     if (slotIndex !== -1 && !slots.value[slotIndex].readOnly) {
