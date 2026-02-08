@@ -44,7 +44,8 @@ export function updateChart(
         onHoverOnSlot?: (slotId: string) => void;
         onDoubleClickOnSlot?: (slotId: string) => void;
         onContextClickOnSlot?: (slotId: string) => void;
-        xAxisOptions?: GanttEditorXAxisOptions
+        xAxisOptions?: GanttEditorXAxisOptions;
+        lazyRendering?: boolean;
     },
 ): void {
 
@@ -676,7 +677,8 @@ export function updateChart(
         const slotsEnter = slots.enter()
             .append("g")
             .attr("class", "slot-group")
-            .attr("opacity", 0)
+            .attr("opacity", 1)
+            .attr("transform", d => `translate(${d.x},${d.y})`)
             .attr("pointer-events", d => d.slotData.isPreview ? "none" : null);
 
         slotsEnter.append("path")
@@ -887,11 +889,7 @@ export function updateChart(
             .call(updateChartProps.isReadOnly ? function () { } : dragResizeHandleRight as any);
 
         // Remove old slots
-        slots.exit()
-            .transition()
-            .duration(animationDuration)
-            .attr("opacity", 0)
-            .remove();
+        slots.exit().remove();
     }
 
     const applySuggestion = (slotId: string) => {
@@ -904,11 +902,88 @@ export function updateChart(
         onItemChanged({ id: slotData.id, [settings.groupBy]: suggestion.alternativeDestination }, true);
     }
 
+    // Lazy rendering: only render vertically visible slots for better performance
+    const lazyRenderingEnabled = updateChartProps.lazyRendering === true;
+
     groupMap.forEach((group, groupId) => {
         const defs = groupDefsMap.get(groupId)!;
-        updateSlots(group, defs.slotDefinition, yScaleMap.get(groupId)!);
-        updateDepartureMarker(group, defs.departureMarkerDefinition, animationDuration, textSize);
-        updateSuggestionButtons(group, defs.suggestionDefinition, animationDuration, textSize, applySuggestion);
+        const yScale = yScaleMap.get(groupId)!;
+        const container = containerMap.get(groupId);
+
+        if (lazyRenderingEnabled && container) {
+            // Filter items to only include those within the visible scroll viewport
+            const filterVisible = <T extends { y: number }>(
+                items: T[],
+                scrollTop: number,
+                viewHeight: number,
+                buffer: number,
+                getHeight: (item: T) => number
+            ): T[] => {
+                return items.filter(item => {
+                    const itemBottom = item.y + getHeight(item);
+                    return itemBottom > scrollTop - buffer && item.y < scrollTop + viewHeight + buffer;
+                });
+            };
+
+            const renderVisibleSlots = (anim: number = 0) => {
+                const scrollTop = container.scrollTop;
+                const viewHeight = container.clientHeight;
+                const buffer = 500; // 500px buffer above and below viewport
+
+                const visibleSlots = filterVisible(
+                    defs.slotDefinition, scrollTop, viewHeight, buffer,
+                    (s) => s.height
+                );
+                const visibleDepartures = defs.departureMarkerDefinition.filter(d => {
+                    const top = d.lineY;
+                    const bottom = d.lineY + d.lineHeight;
+                    return bottom > scrollTop - buffer && top < scrollTop + viewHeight + buffer;
+                });
+                const visibleSuggestions = filterVisible(
+                    defs.suggestionDefinition, scrollTop, viewHeight, buffer,
+                    () => 20
+                );
+
+                updateSlots(group, visibleSlots, yScale);
+                updateDepartureMarker(group, visibleDepartures, anim, textSize);
+                updateSuggestionButtons(group, visibleSuggestions, anim, textSize, applySuggestion);
+            };
+
+            // Initial render of visible slots
+            renderVisibleSlots(animationDuration);
+
+            // Set up throttled scroll listener using requestAnimationFrame
+            type ContainerWithLazy = HTMLElement & {
+                _lazyScrollHandler?: EventListener;
+                _lazyRafId?: number;
+            };
+            const containerNode = container as ContainerWithLazy;
+            if (containerNode._lazyScrollHandler) {
+                container.removeEventListener('scroll', containerNode._lazyScrollHandler);
+            }
+            const scrollHandler = () => {
+                if (containerNode._lazyRafId) cancelAnimationFrame(containerNode._lazyRafId);
+                containerNode._lazyRafId = requestAnimationFrame(() => renderVisibleSlots(0));
+            };
+            containerNode._lazyScrollHandler = scrollHandler;
+            container.addEventListener('scroll', scrollHandler, { passive: true });
+        } else {
+            // Standard rendering: render all slots at once
+            updateSlots(group, defs.slotDefinition, yScale);
+            updateDepartureMarker(group, defs.departureMarkerDefinition, animationDuration, textSize);
+            updateSuggestionButtons(group, defs.suggestionDefinition, animationDuration, textSize, applySuggestion);
+
+            // Clean up any existing lazy scroll listeners
+            if (container) {
+                type ContainerWithLazy = HTMLElement & { _lazyScrollHandler?: EventListener };
+                const containerNode = container as ContainerWithLazy;
+                if (containerNode._lazyScrollHandler) {
+                    container.removeEventListener('scroll', containerNode._lazyScrollHandler);
+                    containerNode._lazyScrollHandler = undefined;
+                }
+            }
+        }
+
         setupPanAndZoom(
             group,
             xScale,
@@ -919,7 +994,7 @@ export function updateChart(
             changeStartAndEndDateTime,
             changeStartAndEndDateTimeWithoutFetch
         );
-        updateWeekdays(group, startDateTime, endDateTime, xScale, yScaleMap.get(groupId)!.height, settings);
+        updateWeekdays(group, startDateTime, endDateTime, xScale, yScale.height, settings);
     });
     (() => {
         const firstGroup = groupMap.get(groupMap.keys().next().value!);

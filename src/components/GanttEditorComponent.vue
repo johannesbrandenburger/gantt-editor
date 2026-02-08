@@ -2,6 +2,7 @@
   <div
     ref="chartContainerRef"
     class="chart-container"
+    :data-lazy-rendering="props.lazyRendering === true"
     @mousemove="updateCursorPosition"
     @mouseenter="onMouseEnter"
     @mouseleave="onMouseLeave"
@@ -83,7 +84,8 @@ interface GanttEditorProps {
   markedRegion: GanttEditorMarkedRegion | null,
   isReadOnly: boolean,
   topContentPortion?: number,
-  xAxisOptions?: GanttEditorXAxisOptions
+  xAxisOptions?: GanttEditorXAxisOptions,
+  lazyRendering?: boolean
 }
 
 interface GanttEditorEmits {
@@ -368,6 +370,7 @@ const triggerUpdate = () => {
       onDoubleClickOnSlot: (allocationId: string) => { emit("onDoubleClickOnSlot", allocationId); },
       onContextClickOnSlot: (allocationId: string) => { emit("onContextClickOnSlot", allocationId); },
       xAxisOptions: props.xAxisOptions,
+      lazyRendering: props.lazyRendering,
     });
   }
 };
@@ -428,6 +431,13 @@ watch(
 );
 
 watch(
+  () => props.lazyRendering,
+  () => {
+    triggerUpdate();
+  }
+);
+
+watch(
   () => props.topContentPortion,
   (newPortion) => {
     if (newPortion !== undefined) {
@@ -475,6 +485,11 @@ onBeforeUnmount(() => {
   props.destinationGroups.forEach((group) => {
     if (ganttRefs.value[group.id]) {
       d3.select(ganttRefs.value[group.id]).selectAll("*").remove();
+    }
+    // Clean up lazy rendering scroll listeners
+    const container = document.getElementById(`${group.id}-gantt-container`) as HTMLElement & { _lazyScrollHandler?: EventListener };
+    if (container?._lazyScrollHandler) {
+      container.removeEventListener('scroll', container._lazyScrollHandler);
     }
   });
   window.removeEventListener("resize", reziseWindow);
