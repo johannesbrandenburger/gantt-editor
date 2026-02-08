@@ -2,7 +2,7 @@
   "name": "@pf/gantt-editor-vue-component",
   "private": false,
   "type": "module",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "main": "./dist/gantt-editor-vue-component.umd.js",
   "module": "./dist/gantt-editor-vue-component.es.js",
   "types": "./dist/index.d.ts",

@@ -72,9 +72,11 @@ export const setupPanAndZoom = (
         const isTrackpad = Math.abs(event.deltaY) < 100 && event.deltaY % 1 !== 0;
         
         // Allow zooming with:
-        // - Trackpad + ctrlKey (pinch gesture) OR just trackpad vertical scroll
+        // - Trackpad pinch gesture (browsers set ctrlKey=true for pinch-to-zoom)
         // - Mouse wheel + shift key (existing behavior)
-        const shouldZoom = (isTrackpad && (event.ctrlKey || Math.abs(event.deltaY) > 0)) || (!isTrackpad && event.shiftKey);
+        // Note: Regular trackpad vertical scrolling should NOT trigger zoom,
+        // it should bubble up to allow the container to scroll through slots.
+        const shouldZoom = (isTrackpad && event.ctrlKey) || (!isTrackpad && event.shiftKey);
         
         if (!shouldZoom) return;
 
