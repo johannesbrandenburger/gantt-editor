@@ -130,10 +130,16 @@ const outerComponentHeight = computed(() => {
   return totalContentHeight.value * (1 - currentTopContentPortion.value);
 });
 
+// Track whether the component has fully initialized to avoid spurious emits
+const isInitialized = ref(false);
+
 watch(
   () => currentTopContentHeight.value,
   (newHeight) => {
-    emit("onTopContentPortionChange", currentTopContentPortion.value, newHeight);
+    // Only emit after the component has mounted and been measured
+    if (isInitialized.value) {
+      emit("onTopContentPortionChange", currentTopContentPortion.value, newHeight);
+    }
   }
 );
 
@@ -182,20 +188,17 @@ const handleResize = (e: MouseEvent) => {
   const portionDelta = deltaY / outerComponentHeight.value;
 
   // Calculate new portions
+  const totalPortion = currentPortion + nextPortion;
   let newCurrentPortion = currentPortion + portionDelta;
   let newNextPortion = nextPortion - portionDelta;
 
-  // Enforce minimum portion constraints
+  // Enforce minimum portion constraints (clamp then derive the other)
   if (newCurrentPortion < minHeightPortion) {
-    const adjustment = minHeightPortion - newCurrentPortion;
     newCurrentPortion = minHeightPortion;
-    newNextPortion -= adjustment;
-  }
-
-  if (newNextPortion < minHeightPortion) {
-    const adjustment = minHeightPortion - newNextPortion;
+    newNextPortion = totalPortion - minHeightPortion;
+  } else if (newNextPortion < minHeightPortion) {
     newNextPortion = minHeightPortion;
-    newCurrentPortion -= adjustment;
+    newCurrentPortion = totalPortion - minHeightPortion;
   }
 
   // Update height portions
@@ -477,6 +480,8 @@ onMounted(() => {
 
     triggerUpdate();
 
+    // Mark initialization complete so watchers can start emitting
+    isInitialized.value = true;
   }, 5);
 });
 
@@ -493,6 +498,15 @@ onBeforeUnmount(() => {
     }
   });
   window.removeEventListener("resize", reziseWindow);
+
+  // Clean up tooltip DOM elements appended to body
+  d3.select("body").selectAll(".departure-marker-tooltip").remove();
+  d3.select("body").selectAll(".suggestion-tooltip").remove();
+
+  // Clean up namespaced body event listeners
+  d3.select("body").on("keydown.ganttBrush", null);
+  d3.select("body").on("keyup.ganttBrush", null);
+  d3.select(document).on("keydown.clearClipboard", null);
 
   if (resizeObserver) {
     resizeObserver.disconnect();

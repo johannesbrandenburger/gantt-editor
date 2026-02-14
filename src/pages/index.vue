@@ -227,7 +227,7 @@ const generateSlots = (count: number) => {
         .sort((a, b) => a.openTime.getTime() - b.openTime.getTime())
         .map((slot, index) => ({
             ...slot,
-            destinationId: `mup-${index % numberOfDestinations.value}`, // distribute across destinations
+            destinationId: `mup-${(index % numberOfDestinations.value) + 1}`, // distribute across destinations (IDs start at 1)
         }));
 
     return slots;

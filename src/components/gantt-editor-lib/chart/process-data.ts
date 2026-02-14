@@ -112,8 +112,11 @@ export function processData(
     });
 
     // check for conflicting slots (different slots are on the same chute at the same time) -> mark them with .isConflict = true
-    // console.time("update-chart: check for conflicting slots");
+    // Avoid mutating the original slot objects from props — create shallow copies first
     processedData.forEach(topic => {
+        topic.rows.forEach(row => {
+            row.slots = row.slots.map(slot => ({ ...slot }));
+        });
         const allSlots = topic.rows.flatMap(row => row.slots);
         allSlots.forEach(slot => {
             slot.isConflict = allSlots.some(s => (

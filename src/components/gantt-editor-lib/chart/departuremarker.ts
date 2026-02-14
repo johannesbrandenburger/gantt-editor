@@ -140,7 +140,7 @@ export const updateDepartureMarker = (
         .transition()
         .duration(ANIMATION_DURATION)
         .attr("x", d => d.x2 < d.x1 ? d.x2 + 4 : d.x1 + 4)
-        .attr("width", d => d.x2 < d.x1 ? d.x1 - d.x2 - 8 : d.x2 - d.x1) // leave a little space for the resize handle
+        .attr("width", d => Math.max(0, d.x2 < d.x1 ? d.x1 - d.x2 - 8 : d.x2 - d.x1)) // leave a little space for the resize handle, clamp to 0
         .attr("y", d => d.lineY)
         .attr("height", d => d.lineHeight)
         .attr("opacity", 1);

@@ -425,14 +425,17 @@ export function updateChart(
 
     if (updateChartProps.markedRegion) {
         const { destinationId, timeInterval } = updateChartProps.markedRegion;
-        if (!destinationId || !timeInterval) return;
-        if (destinationId === "multiple") {
-            markIntervalComplete(timeInterval);
+        if (destinationId && timeInterval) {
+            if (destinationId === "multiple") {
+                markIntervalComplete(timeInterval);
+            } else {
+                const topic = processedData.find(t => t.id === destinationId);
+                if (topic) {
+                    scrollToDestination(topic);
+                    markIntervalOnDestination(topic, timeInterval);
+                }
+            }
         }
-        const topic = processedData.find(t => t.id === destinationId);
-        if (!topic) return;
-        scrollToDestination(topic);
-        markIntervalOnDestination(topic, timeInterval);
     }
 
     const clearClipboard = () => {
@@ -446,6 +449,8 @@ export function updateChart(
                 })
             })
         })
+        // Also clear isCopied on original data items so it persists through processData
+        data.forEach(d => { d.isCopied = false; });
         // remove the preview slots
         processedData.forEach(topic => {
             topic.rows.forEach((row) => {
@@ -590,21 +595,16 @@ export function updateChart(
     }
 
     // s is pressed, bring the brush to the front
-    d3.select("body").on("keydown", function (event: KeyboardEvent) {
+    // Use namespaced events so each call replaces the previous handler rather than stacking
+    d3.select("body").on("keydown.ganttBrush", function (event: KeyboardEvent) {
         if (event.key === "s") {
-            console.log("Bring brush to front");
-            // allocatedGroup.select(".brush-group").raise();
-            // unallocatedGroup.select(".brush-group").raise();
             groupMap.forEach((group) => {
                 group.select(".brush-group").raise();
             });
         }
     });
-    d3.select("body").on("keyup", function (event) {
+    d3.select("body").on("keyup.ganttBrush", function (event: KeyboardEvent) {
         if (event.key === "s") {
-            console.log("Bring brush to back");
-            // allocatedGroup.select(".brush-group").lower();
-            // unallocatedGroup.select(".brush-group").lower();
             groupMap.forEach((group) => {
                 group.select(".brush-group").lower();
             });
@@ -627,6 +627,8 @@ export function updateChart(
         }
         clipboardUpdate();
         // update the chart to display the slots as copied
+        // Set isCopied on both the processedData slots AND the original data items
+        // so the flag persists when processData creates shallow copies
         processedData.forEach(topic => {
             topic.rows.forEach(row => {
                 row.slots.forEach(s => {
@@ -636,6 +638,10 @@ export function updateChart(
                 })
             })
         })
+        const dataItem = data.find(d => d.id === slotData.id);
+        if (dataItem) {
+            dataItem.isCopied = isCopied;
+        }
         updateChart(updateChartProps);
     }
 

@@ -5,8 +5,8 @@ export const setupPanAndZoom = (
     xScale: d3.ScaleTime<number, number, never>,
     width: number,
     margin: { top: number; right: number; bottom: number; left: number; },
-    unprocessedStartDateTime: Date,
-    unprocessedEndDateTime: Date,
+    unprocessedStartDateTimeParam: Date,
+    unprocessedEndDateTimeParam: Date,
     changeStartAndEndDateTime: (startDateTime: Date, endDateTime: Date) => void,
     changeStartAndEndDateTimeWithoutFetch: (startDateTime: Date, endDateTime: Date) => void,
 ) => {
@@ -14,6 +14,14 @@ export const setupPanAndZoom = (
     let originalStartDateTime: Date;
     let originalEndDateTime: Date;
     let isPanning = false;
+
+    // Store current dates on the DOM node so the closure always reads the latest values
+    const node = chartGroup.node() as SVGGElement & { _panZoomDates?: { start: Date; end: Date } };
+    node._panZoomDates = { start: unprocessedStartDateTimeParam, end: unprocessedEndDateTimeParam };
+    const getDates = () => node._panZoomDates!;
+    // Alias for backward compat within this function
+    const unprocessedStartDateTime = getDates().start;
+    const unprocessedEndDateTime = getDates().end;
 
     
     // Store timeout and scroll data on the chartGroup to persist across renders
@@ -39,8 +47,8 @@ export const setupPanAndZoom = (
         if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
             event.preventDefault();
             event.stopPropagation();
-            originalStartDateTime = unprocessedStartDateTime;
-            originalEndDateTime = unprocessedEndDateTime;
+            originalStartDateTime = getDates().start;
+            originalEndDateTime = getDates().end;
             const newStartDateTime = new Date(originalStartDateTime.getTime() + event.deltaX * 50000);
             const newEndDateTime = new Date(originalEndDateTime.getTime() + event.deltaX * 50000);
             
@@ -85,8 +93,9 @@ export const setupPanAndZoom = (
         // Get mouse position relative to chart
         const mouseX = event.clientX - margin.left;
 
-        // Calculate time at mouse position with unprocessedEndDateTime and unprocessedStartDateTime
-        const timeExtent = [unprocessedStartDateTime, unprocessedEndDateTime];
+        // Calculate time at mouse position with current dates (read from stored ref to avoid stale closure)
+        const currentDates = getDates();
+        const timeExtent = [currentDates.start, currentDates.end];
 
         const unprocessedScale = d3.scaleTime()
             .domain(timeExtent)
@@ -97,7 +106,7 @@ export const setupPanAndZoom = (
         const zoomFactor = event.deltaY > 0 ? 1.1 : 0.9;
 
         // Calculate new time range while keeping mouse position fixed
-        const timeRange = unprocessedEndDateTime.getTime() - unprocessedStartDateTime.getTime();
+        const timeRange = currentDates.end.getTime() - currentDates.start.getTime();
         const mouseOffset = (mouseTime.getTime() - unprocessedStartDateTime.getTime()) / timeRange;
 
         const newTimeRange = timeRange * zoomFactor;
@@ -116,8 +125,8 @@ export const setupPanAndZoom = (
             event.preventDefault();
             isPanning = true;
             startPanX = event.clientX;
-            originalStartDateTime = unprocessedStartDateTime;
-            originalEndDateTime = unprocessedEndDateTime;
+            originalStartDateTime = getDates().start;
+            originalEndDateTime = getDates().end;
 
             // Add temporary event listeners for mousemove and mouseup
             const onMouseMove = (event: MouseEvent) => {
