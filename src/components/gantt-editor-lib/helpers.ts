@@ -164,7 +164,7 @@ export function mapSlotToStateColor(slot: GanttEditorSlotWithUiAttributes) {
     return mapSlotStateToColor("conflict");
   }
 
-  const currentTime = new Date().getTime();
+  const currentTime = Date.now();
   const openTime = new Date(slot.openTime).getTime();
   
   if (currentTime > openTime) {

@@ -302,6 +302,7 @@ const clearClipboard = () => {
   console.log("Clearing clipboard programmatically");
   localStorage.setItem("pointerClipboard", "[]");
   updateClipboard();
+  props.slots.forEach(slot => { (slot as any).isCopied = false; });
   triggerUpdate();
 };
 
@@ -325,14 +326,7 @@ const triggerUpdate = () => {
 
     updateChart({
       xAxisSvgRef: xAxisRef.value,
-      data: props.slots.map((slot) => ({
-        ...slot,
-        destination: {
-          id: slot.destinationId,
-          displayName: slot.destinationId,
-          active: true,
-        },
-      })),
+      data: props.slots as any,
       destinationData: props.destinations,
       processedData: [],
       windowWidth: window.innerWidth,
@@ -378,65 +372,44 @@ const triggerUpdate = () => {
   }
 };
 
+// Debounced trigger: when multiple props change in the same tick (e.g.
+// startTime + endTime + slots), we only render once.
+let updateScheduled = false;
+const scheduleTriggerUpdate = () => {
+  if (!updateScheduled) {
+    updateScheduled = true;
+    queueMicrotask(() => {
+      updateScheduled = false;
+      triggerUpdate();
+    });
+  }
+};
+
+// Single consolidated watcher for all chart-affecting props
 watch(
-  () => props.startTime,
+  () => [
+    props.startTime,
+    props.endTime,
+    props.slots,
+    props.destinations,
+    props.destinationGroups,
+    props.suggestions,
+    props.markedRegion,
+    props.lazyRendering,
+  ],
   () => {
-    triggerUpdate();
+    scheduleTriggerUpdate();
   },
   { deep: true }
 );
-watch(
-  () => props.endTime,
-  () => {
-    triggerUpdate();
-  },
-  { deep: true }
-);
-watch(
-  () => props.slots,
-  () => {
-    triggerUpdate();
-  },
-  { deep: true }
-);
-watch(
-  () => props.destinations,
-  () => {
-    triggerUpdate();
-  }
-);
-watch(
-  () => props.destinationGroups,
-  () => {
-    triggerUpdate();
-  }
-);
-watch(
-  () => props.suggestions,
-  () => {
-    triggerUpdate();
-  }
-);
-watch(
-  () => props.markedRegion,
-  () => {
-    triggerUpdate();
-  }
-);
+
 watch(
   () => props.isReadOnly,
   (newValue) => {
     if (newValue) {
       clearClipboard();
     }
-    triggerUpdate();
-  }
-);
-
-watch(
-  () => props.lazyRendering,
-  () => {
-    triggerUpdate();
+    scheduleTriggerUpdate();
   }
 );
 
@@ -449,16 +422,8 @@ watch(
   }
 );
 
-watch(
-  () => heightMap.value,
-  () => {
-    triggerUpdate();
-  },
-  { deep: true }
-);
-
 const reziseWindow = () => {
-  triggerUpdate();
+  scheduleTriggerUpdate();
 };
 onMounted(() => {
   setTimeout(async () => {
@@ -474,6 +439,7 @@ onMounted(() => {
         for (const entry of entries) {
           containerHeight.value = entry.contentRect.height;
         }
+        scheduleTriggerUpdate();
       });
       resizeObserver.observe(chartContainerRef.value);
     }
@@ -489,6 +455,25 @@ onBeforeUnmount(() => {
   d3.select(xAxisRef.value).selectAll("*").remove();
   props.destinationGroups.forEach((group) => {
     if (ganttRefs.value[group.id]) {
+      // Clean up any active pan listeners stored on the chart group DOM node
+      type PanNode = SVGGElement & {
+        _activePanMove?: (e: MouseEvent) => void;
+        _activePanUp?: (e: MouseEvent) => void;
+        _isPanning?: boolean;
+      };
+      const svg = d3.select(ganttRefs.value[group.id]);
+      const chartGroupNode = svg.select(`.${group.id}-group`).node() as PanNode | null;
+      if (chartGroupNode) {
+        if (chartGroupNode._activePanMove) {
+          document.removeEventListener('mousemove', chartGroupNode._activePanMove);
+          chartGroupNode._activePanMove = undefined;
+        }
+        if (chartGroupNode._activePanUp) {
+          document.removeEventListener('mouseup', chartGroupNode._activePanUp);
+          chartGroupNode._activePanUp = undefined;
+        }
+      }
+
       d3.select(ganttRefs.value[group.id]).selectAll("*").remove();
     }
     // Clean up lazy rendering scroll listeners
@@ -600,6 +585,11 @@ defineExpose({
 
 
 /* .attr("class", d => `slot-box ${d.isCopied ? "copied" : ""}`) */
+
+@keyframes interval-marker-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
 
 .slot-box.copied {
   stroke: #000;

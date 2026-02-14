@@ -210,6 +210,12 @@ export function updateChart(
         });
     }
 
+    // Pre-build a Map of suggestion slot IDs for O(1) lookup inside the slot loop
+    const suggestionsMap = new Map<string, { alternativeDestination: string; alternativeDestinationDisplayName: string }>();
+    for (const s of updateChartProps.suggestions) {
+        suggestionsMap.set(s.id, s);
+    }
+
     processedData.forEach((topic, topicIndex) => {
 
         const defs = groupDefsMap.get(topic.groupId)!;
@@ -324,9 +330,10 @@ export function updateChart(
                 }
 
                 // add a suggestion button
-                const alternativeDestinationId = updateChartProps.suggestions.find(s => s.id === slot.id)?.alternativeDestination
+                const suggestion = suggestionsMap.get(slot.id);
+                const alternativeDestinationId = suggestion?.alternativeDestination;
                 if (alternativeDestinationId && !topic.isCollapsed) {
-                    const alternativeDestinationDisplayname = (destinationData.find(d => d.id === alternativeDestinationId)?.displayName || updateChartProps.suggestions.find(s => s.id === slot.id)?.alternativeDestinationDisplayName || alternativeDestinationId)!;
+                    const alternativeDestinationDisplayname = (destinationData.find(d => d.id === alternativeDestinationId)?.displayName || suggestion?.alternativeDestinationDisplayName || alternativeDestinationId)!;
                     defs.suggestionDefinition.push({
                         x: xScale(openTime) - 20,
                         y: y + (0.5 * yScale.gap()),
@@ -384,35 +391,8 @@ export function updateChart(
             .attr("rx", 4)
             .attr("ry", 4)
             .attr("pointer-events", "none") // Allow clicks to pass through
-            .transition()
-            .duration(500)
             .attr("opacity", 0.7)
-            .transition()
-            .duration(500)
-            .attr("opacity", 0.4)
-            .transition()
-            .duration(500)
-            .attr("opacity", 0.7)
-            .on("end", function () {
-                // Add a subtle pulsing effect
-                d3.select(this)
-                    .transition()
-                    .duration(1500)
-                    .attr("opacity", 0.4)
-                    .transition()
-                    .duration(1500)
-                    .attr("opacity", 0.7)
-                    .on("end", function repeat() {
-                        d3.select(this)
-                            .transition()
-                            .duration(1500)
-                            .attr("opacity", 0.4)
-                            .transition()
-                            .duration(1500)
-                            .attr("opacity", 0.7)
-                            .on("end", repeat);
-                    });
-            });
+            .style("animation", "interval-marker-pulse 3s ease-in-out infinite");
     }
 
     const markIntervalComplete = (timeInterval: { start: number; end: number }) => {
@@ -420,7 +400,8 @@ export function updateChart(
     }
 
     groupMap.forEach((group) => {
-        group.selectAll(".interval-marker").remove();
+        // Interrupt any running transitions before removing to prevent leaked callbacks
+        group.selectAll(".interval-marker").interrupt().remove();
     });
 
     if (updateChartProps.markedRegion) {
@@ -516,10 +497,16 @@ export function updateChart(
         updateChart({ ...updateChartProps, processedData: [] })
     };
 
+    // Track which topic is currently being previewed to avoid redundant re-renders
+    let lastPreviewTopicId: string | null = null;
+
     const previewClipboardPaste = (topicId: string) => {
         if (updateChartProps.isReadOnly) return;
         const clipboard = JSON.parse(localStorage.getItem("pointerClipboard") || "[]") as GanttEditorSlot[];
         if (clipboard.length === 0) return;
+        // Skip if we're already showing a preview for this exact topic
+        if (lastPreviewTopicId === topicId) return;
+        lastPreviewTopicId = topicId;
 
         // update the chart with  preview data
         const processedDataWithPreview = processedData.map((topic) => {
@@ -707,19 +694,26 @@ export function updateChart(
             .style("fill", "rgba(255,255,255,0.3)");
 
 
-        // Hover delay mechanism
-        let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
+        // Hover delay mechanism – store on the group node so a fresh updateSlots
+        // call can cancel any pending timeout from the previous call's closure.
+        type GroupWithHover = SVGGElement & { _hoverTimeout?: ReturnType<typeof setTimeout> | null };
+        const groupNode = group.node() as GroupWithHover;
+        // Cancel any pending hover timeout from a previous updateSlots call
+        if (groupNode._hoverTimeout) {
+            clearTimeout(groupNode._hoverTimeout);
+            groupNode._hoverTimeout = null;
+        }
         const HOVER_DELAY = 500;
 
         // Update the slots section to include both drag and resize
         const slotsUpdate = slots.merge(slotsEnter as any)
             .on("mouseover", function (event, d) {
-                if (hoverTimeout) {
-                    clearTimeout(hoverTimeout);
+                if (groupNode._hoverTimeout) {
+                    clearTimeout(groupNode._hoverTimeout);
                 }
 
                 // Set a new timeout for the hover event
-                hoverTimeout = setTimeout(() => {
+                groupNode._hoverTimeout = setTimeout(() => {
                     if (updateChartProps.onHoverOnSlot) {
                         updateChartProps.onHoverOnSlot(d.slotData.id);
                     }
@@ -727,9 +721,9 @@ export function updateChart(
             })
             .on("mouseout", function () {
                 // Clear the timeout when mouse leaves
-                if (hoverTimeout) {
-                    clearTimeout(hoverTimeout);
-                    hoverTimeout = null;
+                if (groupNode._hoverTimeout) {
+                    clearTimeout(groupNode._hoverTimeout);
+                    groupNode._hoverTimeout = null;
                 }
             })
             .on("mousemove", function () {
