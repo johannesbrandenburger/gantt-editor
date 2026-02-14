@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { waitForChartLoad, setupConsoleLogListener, switchToReadOnlyMode } from './helpers';
 
-test.describe('Brush Selection (S-key + Drag)', () => {
+test.describe('Brush Selection (Meta/Ctrl + Drag)', () => {
 
-  test('S-key + drag selects multiple slots within the brush rectangle', async ({ page }) => {
+  test('Meta/Ctrl + drag selects multiple slots within the brush rectangle', async ({ page }) => {
     await page.goto('/');
     await waitForChartLoad(page);
 
@@ -18,8 +18,8 @@ test.describe('Brush Selection (S-key + Drag)', () => {
     const initialCopiedCount = await page.locator('svg path.slot-box.copied').count();
     expect(initialCopiedCount).toBe(0);
 
-    // Hold S key to bring brush to front, then drag a selection rectangle
-    await page.keyboard.down('s');
+    // Hold Meta key to bring brush to front, then drag a selection rectangle
+    await page.keyboard.down('Meta');
     await page.waitForTimeout(200);
 
     if (containerBox) {
@@ -35,7 +35,7 @@ test.describe('Brush Selection (S-key + Drag)', () => {
       await page.mouse.up();
     }
 
-    await page.keyboard.up('s');
+    await page.keyboard.up('Meta');
     await page.waitForTimeout(500);
 
     // Verify that some slots were selected (marked as copied)
@@ -70,8 +70,8 @@ test.describe('Brush Selection (S-key + Drag)', () => {
     const containerBox = await ganttContainer.boundingBox();
     expect(containerBox).not.toBeNull();
 
-    // Hold S key and drag to select
-    await page.keyboard.down('s');
+    // Hold Meta key and drag to select
+    await page.keyboard.down('Meta');
     await page.waitForTimeout(200);
 
     if (containerBox) {
@@ -86,7 +86,7 @@ test.describe('Brush Selection (S-key + Drag)', () => {
       await page.mouse.up();
     }
 
-    await page.keyboard.up('s');
+    await page.keyboard.up('Meta');
     await page.waitForTimeout(500);
 
     // No slots should be copied in read-only mode
@@ -105,8 +105,8 @@ test.describe('Brush Selection (S-key + Drag)', () => {
     const containerBox = await ganttContainer.boundingBox();
     expect(containerBox).not.toBeNull();
 
-    // Hold S key and drag to select a small area to capture at least 1 slot
-    await page.keyboard.down('s');
+    // Hold Meta key and drag to select a small area to capture at least 1 slot
+    await page.keyboard.down('Meta');
     await page.waitForTimeout(200);
 
     if (containerBox) {
@@ -121,7 +121,7 @@ test.describe('Brush Selection (S-key + Drag)', () => {
       await page.mouse.up();
     }
 
-    await page.keyboard.up('s');
+    await page.keyboard.up('Meta');
     await page.waitForTimeout(500);
 
     const copiedSlots = await page.locator('svg path.slot-box.copied').count();
@@ -174,8 +174,8 @@ test.describe('Brush Selection (S-key + Drag)', () => {
     const containerBox = await ganttContainer.boundingBox();
     expect(containerBox).not.toBeNull();
 
-    // Hold S key and drag to select
-    await page.keyboard.down('s');
+    // Hold Meta key and drag to select
+    await page.keyboard.down('Meta');
     await page.waitForTimeout(200);
 
     if (containerBox) {
@@ -190,7 +190,7 @@ test.describe('Brush Selection (S-key + Drag)', () => {
       await page.mouse.up();
     }
 
-    await page.keyboard.up('s');
+    await page.keyboard.up('Meta');
     await page.waitForTimeout(500);
 
     // Verify some slots are selected

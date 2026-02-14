@@ -504,8 +504,6 @@ onBeforeUnmount(() => {
   d3.select("body").selectAll(".suggestion-tooltip").remove();
 
   // Clean up namespaced body event listeners
-  d3.select("body").on("keydown.ganttBrush", null);
-  d3.select("body").on("keyup.ganttBrush", null);
   d3.select(document).on("keydown.clearClipboard", null);
 
   if (resizeObserver) {

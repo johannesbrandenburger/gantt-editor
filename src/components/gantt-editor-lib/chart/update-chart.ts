@@ -594,23 +594,6 @@ export function updateChart(
         topicAreas.exit().remove();
     }
 
-    // s is pressed, bring the brush to the front
-    // Use namespaced events so each call replaces the previous handler rather than stacking
-    d3.select("body").on("keydown.ganttBrush", function (event: KeyboardEvent) {
-        if (event.key === "s") {
-            groupMap.forEach((group) => {
-                group.select(".brush-group").raise();
-            });
-        }
-    });
-    d3.select("body").on("keyup.ganttBrush", function (event: KeyboardEvent) {
-        if (event.key === "s") {
-            groupMap.forEach((group) => {
-                group.select(".brush-group").lower();
-            });
-        }
-    });
-
     const addSlotToClipboard = (slotData: GanttEditorSlot) => {
         if (updateChartProps.isReadOnly || !slotData || slotData.readOnly) return;
         const pointerClipboard = JSON.parse(localStorage.getItem("pointerClipboard") || "[]");
