@@ -73,40 +73,37 @@ test.describe('Clipboard Preview and Floating UI', () => {
 
     // Pin a slot to clipboard
     await clickSlot(page, 0);
-    await page.waitForTimeout(500);
+    await expect(page.locator('svg path.slot-box.copied')).toHaveCount(1);
 
-    // Find a topic area far from the first slot's destination
-    // Use a later topic area to avoid the same destination as the pinned slot
+    const clipboard = await page.evaluate(() => {
+      return JSON.parse(localStorage.getItem('pointerClipboard') || '[]') as Array<{ destinationId: string }>;
+    });
+    expect(clipboard.length).toBeGreaterThan(0);
+    const sourceDestinationId = clipboard[0].destinationId;
+
+    // Find a topic area with a destination id different from the pinned slot destination
     const topicAreas = page.locator('svg .topic-area');
     const topicCount = await topicAreas.count();
-    // Use the last topic area to maximize chance it's a different destination
-    const targetIndex = Math.min(topicCount - 1, 10);
+    let targetIndex = -1;
+    for (let i = 0; i < topicCount; i++) {
+      const topicId = await topicAreas.nth(i).evaluate(el => (el as any).__data__?.id as string | undefined);
+      if (topicId && topicId !== sourceDestinationId) {
+        targetIndex = i;
+        break;
+      }
+    }
+    expect(targetIndex).toBeGreaterThanOrEqual(0);
+
     const targetArea = topicAreas.nth(targetIndex);
     const targetBox = await targetArea.boundingBox();
-
+    expect(targetBox).not.toBeNull();
     if (targetBox) {
-      // Move to the left portion of the topic area (label zone) to avoid
-      // slot elements that might intercept the mouseover event,
-      // but still within the chart area (x >= 0 in chart coordinates)
-      // The topic-area starts at x=-margin.left, so left edge of box + ~210px = just inside chart area
-      await page.mouse.move(targetBox.x + 210, targetBox.y + targetBox.height / 2);
-      await page.waitForTimeout(800);
-
-      // Check for preview slot (preview slots use the diagonal stripe pattern)
-      const previewSlots = await page.evaluate(() => {
-        const slots = document.querySelectorAll('path.slot-box');
-        let previewCount = 0;
-        slots.forEach(slot => {
-          const fill = slot.getAttribute('fill');
-          if (fill && fill.includes('diagonal-stripe')) {
-            previewCount++;
-          }
-        });
-        return previewCount;
-      });
-
-      expect(previewSlots).toBeGreaterThan(0);
+      // Move within the topic-area's left label zone to avoid slot overlays intercepting events.
+      await page.mouse.move(targetBox.x + 20, targetBox.y + targetBox.height / 2);
     }
+
+    const previewSlots = page.locator('svg path.slot-box[fill*="diagonal-stripe-2"]');
+    await expect.poll(async () => await previewSlots.count()).toBeGreaterThan(0);
   });
 
   test('Toggle pin: clicking a pinned slot with Ctrl unpins it', async ({ page }) => {
