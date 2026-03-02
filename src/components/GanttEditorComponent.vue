@@ -71,13 +71,13 @@
 <script setup lang="ts">
 import * as d3 from "d3";
 import { updateChart } from "./gantt-editor-lib/chart/update-chart";
-import type { GanttEditorDestination, GanttEditorSlot, GanttEditorDestinationGroup, GanttEditorSuggestion, GanttEditorMarkedRegion, Settings, GanttEditorXAxisOptions } from "./gantt-editor-lib/chart/types";
+import type { GanttEditorDestination, GanttEditorSlot, GanttEditorDestinationGroup, GanttEditorSuggestion, GanttEditorMarkedRegion, Settings, GanttEditorXAxisOptions, GanttEditorSlotWithUiAttributes } from "./gantt-editor-lib/chart/types";
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 
 interface GanttEditorProps {
   startTime: Date,
   endTime: Date,
-  slots: Array<GanttEditorSlot>,
+  slots: Array<GanttEditorSlotWithUiAttributes>,
   destinations: Array<GanttEditorDestination>,
   destinationGroups: Array<GanttEditorDestinationGroup>,
   suggestions: Array<GanttEditorSuggestion>,
@@ -302,7 +302,7 @@ const clearClipboard = () => {
   console.log("Clearing clipboard programmatically");
   localStorage.setItem("pointerClipboard", "[]");
   updateClipboard();
-  props.slots.forEach(slot => { (slot as any).isCopied = false; });
+  props.slots.forEach(slot => { (slot).isCopied = false; });
   triggerUpdate();
 };
 
@@ -326,7 +326,7 @@ const triggerUpdate = () => {
 
     updateChart({
       xAxisSvgRef: xAxisRef.value,
-      data: props.slots as any,
+      data: props.slots,
       destinationData: props.destinations,
       processedData: [],
       windowWidth: window.innerWidth,
