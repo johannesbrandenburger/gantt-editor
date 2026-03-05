@@ -4,7 +4,7 @@ import { addSlotToRows, processData } from './process-data';
 import { createSlotPath } from './slot-path';
 import { setupBrush } from './setup-brush';
 import { updateGridlinesAndLabels } from './gridlines-and-labels';
-import { updateDepartureMarker } from './departuremarker';
+import { updateDepartureMarker, getSharedHoverTooltip, showSharedHoverTooltip, hideSharedHoverTooltip } from './departuremarker';
 import { updateWeekdays } from './weekdays';
 import { setupPanAndZoom } from './setup-pan-zoom';
 import type { Topic, ProcessedData, Settings, SlotText, SlotDefinition, TranslateFunction, DisplayFunction, TopicLabel, RowLabel, DepartureMarker, ChartDefinition, ProgressChartDefinition, EventDot, EventChartDefinitions, SuggestionDefinition, GanttEditorSlotWithUiAttributes, GanttEditorXAxisOptions } from './types';
@@ -312,7 +312,7 @@ export function updateChart(
                         // check if visible
                         if (!(departureDate < timeExtent[0] || departureDate > timeExtent[1])) {
                             const departureX = xScale(departureDate);
-                            const departureText = slot.deadlineHoverData
+                            const departureText = slot.hoverData
                             defs.departureMarkerDefinition.push({
                                 x1: x + slotWidth,
                                 x2: departureX,
@@ -696,7 +696,10 @@ export function updateChart(
 
         // Hover delay mechanism – store on the group node so a fresh updateSlots
         // call can cancel any pending timeout from the previous call's closure.
-        type GroupWithHover = SVGGElement & { _hoverTimeout?: ReturnType<typeof setTimeout> | null };
+        type GroupWithHover = SVGGElement & {
+            _hoverTimeout?: ReturnType<typeof setTimeout> | null;
+            _isResizingSlot?: boolean;
+        };
         const groupNode = group.node() as GroupWithHover;
         // Cancel any pending hover timeout from a previous updateSlots call
         if (groupNode._hoverTimeout) {
@@ -704,12 +707,28 @@ export function updateChart(
             groupNode._hoverTimeout = null;
         }
         const HOVER_DELAY = 500;
+        const hoverTooltip = getSharedHoverTooltip();
+        const isResizeHandleTarget = (target: EventTarget | null): boolean => {
+            if (!(target instanceof Element)) return false;
+            return target.closest(".slot-resize-handle-left, .slot-resize-handle-right") !== null;
+        };
 
         // Update the slots section to include both drag and resize
         const slotsUpdate = slots.merge(slotsEnter as any)
             .on("mouseover", function (event, d) {
                 if (groupNode._hoverTimeout) {
                     clearTimeout(groupNode._hoverTimeout);
+                }
+
+                if (groupNode._isResizingSlot) {
+                    hideSharedHoverTooltip(hoverTooltip);
+                    return;
+                }
+
+                if (isResizeHandleTarget(event.target)) {
+                    hideSharedHoverTooltip(hoverTooltip);
+                } else {
+                    showSharedHoverTooltip(hoverTooltip, event, d.slotData.hoverData);
                 }
 
                 // Set a new timeout for the hover event
@@ -725,8 +744,21 @@ export function updateChart(
                     clearTimeout(groupNode._hoverTimeout);
                     groupNode._hoverTimeout = null;
                 }
+
+                hideSharedHoverTooltip(hoverTooltip);
             })
-            .on("mousemove", function () {
+            .on("mousemove", function (event, d) {
+                if (groupNode._isResizingSlot) {
+                    hideSharedHoverTooltip(hoverTooltip);
+                    return;
+                }
+
+                if (isResizeHandleTarget(event.target)) {
+                    hideSharedHoverTooltip(hoverTooltip);
+                    return;
+                }
+
+                showSharedHoverTooltip(hoverTooltip, event, d.slotData.hoverData);
             })
             .on("click", function (event, d) {
 
@@ -760,6 +792,12 @@ export function updateChart(
 
         const dragStartLeftRight = (event: d3.D3DragEvent<Element, any, any>, d: SlotDefinition): void => {
             event.sourceEvent.stopPropagation();
+            groupNode._isResizingSlot = true;
+            if (groupNode._hoverTimeout) {
+                clearTimeout(groupNode._hoverTimeout);
+                groupNode._hoverTimeout = null;
+            }
+            hideSharedHoverTooltip(hoverTooltip);
             d.dragStartX = event.x;
             d.originalX = d.x;
             d.originalWidth = d.width;
@@ -802,6 +840,8 @@ export function updateChart(
         }
 
         const dragLeftRightEnd = (event: d3.D3DragEvent<Element, any, any>, d: SlotDefinition): void => {
+            groupNode._isResizingSlot = false;
+            hideSharedHoverTooltip(hoverTooltip);
             if (d.slotData.readOnly) return;
             const slot = d3.select<SVGGElement, SlotDefinition>(d.element.parentNode);
             slot.select('.slot-box').attr('transform', `translate(0,0)`);

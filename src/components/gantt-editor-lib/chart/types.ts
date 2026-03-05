@@ -8,7 +8,6 @@ export type GanttEditorSlot = {
     additionalData?: string,
     hoverData?: string,
     deadline?: Date,
-    deadlineHoverData?: string,
     readOnly?: boolean,
     color?: string
 };
