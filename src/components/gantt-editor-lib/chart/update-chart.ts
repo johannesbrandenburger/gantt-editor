@@ -769,7 +769,7 @@ export function updateChart(
 
         const draggingLeft = (event: d3.D3DragEvent<Element, any, any>, d: SlotDefinition): void => {
             if (d.slotData.readOnly) return;
-            const dx = d.dragStartX ? (event.x - d.dragStartX) : 0;
+            const dx = d.dragStartX !== undefined ? (event.x - d.dragStartX) : 0;
             d.originalX = d.originalX || d.x;
             d.originalWidth = d.originalWidth || d.width;
             d.newX = Math.min(d.originalX + d.originalWidth - 10, d.originalX + dx); // minimum width
@@ -787,7 +787,7 @@ export function updateChart(
 
         const draggingRight = (event: d3.D3DragEvent<Element, any, any>, d: SlotDefinition): void => {
             if (d.slotData.readOnly) return;
-            const dx = d.dragStartX ? (event.x - d.dragStartX) : 0;
+            const dx = d.dragStartX !== undefined ? (event.x - d.dragStartX) : 0;
             d.originalWidth = d.originalWidth || d.width;
             d.newX = d.originalX;
             d.newWidth = Math.max(10, Math.min(width - d.x, d.originalWidth + dx));
