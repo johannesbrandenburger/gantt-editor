@@ -106,7 +106,7 @@ const generateSlots = (count: number): GanttEditorSlot[] => {
             closeTime: new Date(slotEndMs),
             destinationId: `dest-${destIndex}`,
             deadline: new Date(slotEndMs + 60 * 60 * 1000),
-            deadlineHoverData: `🛫 Departure`,
+            hoverData: `🛫 Departure`,
         };
     }).sort((a, b) => a.openTime.getTime() - b.openTime.getTime());
 };

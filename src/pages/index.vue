@@ -215,9 +215,8 @@ const generateSlots = (count: number) => {
             group: flightNumber,
             openTime: slotStart,
             closeTime: slotEnd,
-            hoverData: `Flight ${flightNumber}: Auto-generated slot`,
-            deadline: departureTime,
-            deadlineHoverData: '🛫 Departure: ' + departureTime.toLocaleString(),
+            hoverData: `Flight ${flightNumber}: 🛫 Departure: ${departureTime.toLocaleString()}`,
+            deadline: departureTime
             // color: mockColors[index % mockColors.length], // leave color generation to the component
         };
     });
@@ -227,7 +226,7 @@ const generateSlots = (count: number) => {
         .sort((a, b) => a.openTime.getTime() - b.openTime.getTime())
         .map((slot, index) => ({
             ...slot,
-            destinationId: `mup-${index % numberOfDestinations.value}`, // distribute across destinations
+            destinationId: `mup-${(index % numberOfDestinations.value) + 1}`, // distribute across destinations (IDs start at 1)
         }));
 
     return slots;

@@ -1,18 +1,14 @@
 import * as d3 from "d3";
 import type { DepartureMarker } from "./types";
 
-export const updateDepartureMarker = (
-    chartGroup: d3.Selection<SVGGElement, unknown, null, undefined>,
-    departureMarkerDefinition: DepartureMarker[],
-    ANIMATION_DURATION: number,
-    textSize: (text: string) => { width: number; height: number; }
-) => {
+const SHARED_HOVER_TOOLTIP_CLASS = "departure-marker-tooltip";
 
-    let tooltip = d3.select("body").select<HTMLDivElement>(".departure-marker-tooltip");
+export const getSharedHoverTooltip = () => {
+    let tooltip = d3.select("body").select<HTMLDivElement>(`.${SHARED_HOVER_TOOLTIP_CLASS}`);
     if (tooltip.empty()) {
         tooltip = d3.select("body")
             .append("div")
-            .attr("class", "departure-marker-tooltip")
+            .attr("class", SHARED_HOVER_TOOLTIP_CLASS)
             .style("position", "absolute")
             .style("visibility", "hidden")
             .style("background-color", "white")
@@ -21,8 +17,40 @@ export const updateDepartureMarker = (
             .style("padding", "8px")
             .style("pointer-events", "none")
             .style("z-index", "1000")
-            .style("color", "black")
+            .style("color", "black");
     }
+
+    return tooltip;
+};
+
+export const showSharedHoverTooltip = (
+    tooltip: d3.Selection<HTMLDivElement, unknown, HTMLElement, any>,
+    event: MouseEvent,
+    content?: string
+) => {
+    if (!content) {
+        tooltip.style("visibility", "hidden");
+        return;
+    }
+
+    tooltip
+        .html(content)
+        .style("visibility", "visible")
+        .style("left", `${event.pageX + 10}px`)
+        .style("top", `${event.pageY - 50}px`);
+};
+
+export const hideSharedHoverTooltip = (tooltip: d3.Selection<HTMLDivElement, unknown, HTMLElement, any>) => {
+    tooltip.style("visibility", "hidden");
+};
+
+export const updateDepartureMarker = (
+    chartGroup: d3.Selection<SVGGElement, unknown, null, undefined>,
+    departureMarkerDefinition: DepartureMarker[],
+    ANIMATION_DURATION: number,
+    textSize: (text: string) => { width: number; height: number; }
+) => {
+    const tooltip = getSharedHoverTooltip();
 
     const departureMarkerEndline = chartGroup
         .selectAll<SVGRectElement, DepartureMarker>(".departure-marker-endline")
@@ -34,14 +62,10 @@ export const updateDepartureMarker = (
         .attr("fill", "black")
         .attr("opacity", 0)
         .on("mousemove", (event, d) => {
-            tooltip
-                .html(d.info)
-                .style("visibility", "visible")
-                .style("left", `${event.pageX + 10}px`)
-                .style("top", `${event.pageY - 50}px`);
+            showSharedHoverTooltip(tooltip, event, d.info);
         })
-        .on("mouseout", (event, d) => {
-            tooltip.style("visibility", "hidden");
+        .on("mouseout", () => {
+            hideSharedHoverTooltip(tooltip);
         })
         .attr("x", d => d.x1)
         .attr("width", 2)
@@ -73,14 +97,10 @@ export const updateDepartureMarker = (
         .attr("stroke-dasharray", "3,3")
         .attr("opacity", 0)
         .on("mousemove", (event, d) => {
-            tooltip
-                .html(d.info)
-                .style("visibility", "visible")
-                .style("left", `${event.pageX + 10}px`)
-                .style("top", `${event.pageY - 50}px`);
+            showSharedHoverTooltip(tooltip, event, d.info);
         })
-        .on("mouseout", (event, d) => {
-            tooltip.style("visibility", "hidden");
+        .on("mouseout", () => {
+            hideSharedHoverTooltip(tooltip);
         })
         .attr("x1", d => d.x1)
         .attr("x2", d => d.x1)
@@ -110,14 +130,10 @@ export const updateDepartureMarker = (
         .attr("fill", "transparent")
         .attr("opacity", 0)
         .on("mousemove", (event, d) => {
-            tooltip
-                .html(d.info)
-                .style("visibility", "visible")
-                .style("left", `${event.pageX + 10}px`)
-                .style("top", `${event.pageY - 50}px`);
+            showSharedHoverTooltip(tooltip, event, d.info);
         })
-        .on("mouseout", (event, d) => {
-            tooltip.style("visibility", "hidden");
+        .on("mouseout", () => {
+            hideSharedHoverTooltip(tooltip);
         })
         .on("click", function(event) {
             // Allow click events to pass through by temporarily disabling pointer events
@@ -139,8 +155,10 @@ export const updateDepartureMarker = (
         .merge(departureMarkerHoverArea)
         .transition()
         .duration(ANIMATION_DURATION)
+        // Leave a small margin near the slot resize handle, but cover the full
+        // corridor between slot end and departure marker line.
         .attr("x", d => d.x2 < d.x1 ? d.x2 + 4 : d.x1 + 4)
-        .attr("width", d => d.x2 < d.x1 ? d.x1 - d.x2 - 8 : d.x2 - d.x1) // leave a little space for the resize handle
+        .attr("width", d => Math.max(0, Math.abs(d.x2 - d.x1) - 8))
         .attr("y", d => d.lineY)
         .attr("height", d => d.lineHeight)
         .attr("opacity", 1);

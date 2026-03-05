@@ -57,7 +57,7 @@ import "@pf/gantt-editor-vue-component/style.css"; // NOTE: this is only needed 
                     closeTime: new Date('2025-01-01T12:00:00Z'), // end time of service window
                     destinationId: 'chute-1', // destination/chute id it is allocated to
                     deadline: new Date('2025-01-01T13:00:00Z'), // departure time of the flight
-                    deadlineHoverData: '🛫 Departure: ' + (new Date('2025-01-01T13:00:00Z')).toLocaleString(), // shows the user the exact departure time on hover
+                    hoverData: '🛫 Departure: ' + (new Date('2025-01-01T13:00:00Z')).toLocaleString(), // custom text/html shown in the shared hover popup
                     color: '#3498db', // color for the allocation bar, should show the status of the allocation
                 },
                 // ...
@@ -104,7 +104,7 @@ export type GanttEditorSlot = {
   closeTime: Date, // end time of service window
   destinationId: string, // destination/chute id it is allocated to
   deadline?: Date, // departure time of the flight
-  deadlineHoverData?: string, // shows the user the exact departure time on hover
+  hoverData?: string, // custom text/html shown in the shared hover popup
   readOnly?: boolean, // disable editing of the slot (no resize, no drag)
   color?: string // color for the allocation bar, should show the status of the allocation (if not set, the a state color is computed (see `src/components/gantt-editor-lib/helpers.ts: mapSlotToStateColor`))
 };
@@ -143,7 +143,7 @@ export type GanttEditorXAxisOptions = {
 
 ## Shortcuts
 
-- pressing "S" lets the user **select multiple slots** (brush) - NOTE: this might change in the future
+- holding cmd/ctrl and **dragging** lets the user **select multiple slots** (brush selection)
 - to **move on the timeline** (horizontal scroll)
   - drag with mousewheel pressed
   - drag with right click pressed

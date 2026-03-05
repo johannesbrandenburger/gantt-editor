@@ -5,8 +5,8 @@ export const setupPanAndZoom = (
     xScale: d3.ScaleTime<number, number, never>,
     width: number,
     margin: { top: number; right: number; bottom: number; left: number; },
-    unprocessedStartDateTime: Date,
-    unprocessedEndDateTime: Date,
+    unprocessedStartDateTimeParam: Date,
+    unprocessedEndDateTimeParam: Date,
     changeStartAndEndDateTime: (startDateTime: Date, endDateTime: Date) => void,
     changeStartAndEndDateTimeWithoutFetch: (startDateTime: Date, endDateTime: Date) => void,
 ) => {
@@ -14,6 +14,15 @@ export const setupPanAndZoom = (
     let originalStartDateTime: Date;
     let originalEndDateTime: Date;
     let isPanning = false;
+
+    // Store current dates on the DOM node so the closure always reads the latest values
+    const node = chartGroup.node() as SVGGElement & { _panZoomDates?: { start: Date; end: Date } };
+    node._panZoomDates = { start: unprocessedStartDateTimeParam, end: unprocessedEndDateTimeParam };
+    const getDates = () => node._panZoomDates!;
+    // NOTE: Do NOT capture getDates() into local variables here — the values
+    // would become stale for later event-handler closures.  Always call
+    // getDates() at the point of use so we read the latest dates stored on the
+    // DOM node.
 
     
     // Store timeout and scroll data on the chartGroup to persist across renders
@@ -39,8 +48,8 @@ export const setupPanAndZoom = (
         if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
             event.preventDefault();
             event.stopPropagation();
-            originalStartDateTime = unprocessedStartDateTime;
-            originalEndDateTime = unprocessedEndDateTime;
+            originalStartDateTime = getDates().start;
+            originalEndDateTime = getDates().end;
             const newStartDateTime = new Date(originalStartDateTime.getTime() + event.deltaX * 50000);
             const newEndDateTime = new Date(originalEndDateTime.getTime() + event.deltaX * 50000);
             
@@ -85,8 +94,9 @@ export const setupPanAndZoom = (
         // Get mouse position relative to chart
         const mouseX = event.clientX - margin.left;
 
-        // Calculate time at mouse position with unprocessedEndDateTime and unprocessedStartDateTime
-        const timeExtent = [unprocessedStartDateTime, unprocessedEndDateTime];
+        // Calculate time at mouse position with current dates (read from stored ref to avoid stale closure)
+        const currentDates = getDates();
+        const timeExtent = [currentDates.start, currentDates.end];
 
         const unprocessedScale = d3.scaleTime()
             .domain(timeExtent)
@@ -97,8 +107,8 @@ export const setupPanAndZoom = (
         const zoomFactor = event.deltaY > 0 ? 1.1 : 0.9;
 
         // Calculate new time range while keeping mouse position fixed
-        const timeRange = unprocessedEndDateTime.getTime() - unprocessedStartDateTime.getTime();
-        const mouseOffset = (mouseTime.getTime() - unprocessedStartDateTime.getTime()) / timeRange;
+        const timeRange = currentDates.end.getTime() - currentDates.start.getTime();
+        const mouseOffset = (mouseTime.getTime() - currentDates.start.getTime()) / timeRange;
 
         const newTimeRange = timeRange * zoomFactor;
         const maxTimeRange = 4 * 24 * 60 * 60 * 1000;
@@ -110,14 +120,39 @@ export const setupPanAndZoom = (
         changeStartAndEndDateTime(newStartDateTime, newEndDateTime);
     });
 
+    // Store active pan listeners on the DOM node so they can be cleaned up on
+    // component unmount even if the mouseup never fires.
+    type PanNode = SVGGElement & {
+        _activePanMove?: (e: MouseEvent) => void;
+        _activePanUp?: (e: MouseEvent) => void;
+        _isPanning?: boolean;
+    };
+    const panNode = node as PanNode;
+
+    // Clean up any leftover listeners from a previous setupPanAndZoom call,
+    // but only if no pan is currently in progress. During a pan, the mousemove
+    // handler triggers re-renders which call setupPanAndZoom again — we must
+    // preserve the active listeners so mouseup can fire.
+    if (!panNode._isPanning) {
+        if (panNode._activePanMove) {
+            document.removeEventListener('mousemove', panNode._activePanMove);
+            panNode._activePanMove = undefined;
+        }
+        if (panNode._activePanUp) {
+            document.removeEventListener('mouseup', panNode._activePanUp);
+            panNode._activePanUp = undefined;
+        }
+    }
+
     chartGroup.on('mousedown', (event: MouseEvent) => {
         // Only handle right mouse button or if shift key is pressed
         if (event.button === 2 || event.shiftKey) {
             event.preventDefault();
             isPanning = true;
+            panNode._isPanning = true;
             startPanX = event.clientX;
-            originalStartDateTime = unprocessedStartDateTime;
-            originalEndDateTime = unprocessedEndDateTime;
+            originalStartDateTime = getDates().start;
+            originalEndDateTime = getDates().end;
 
             // Add temporary event listeners for mousemove and mouseup
             const onMouseMove = (event: MouseEvent) => {
@@ -145,8 +180,11 @@ export const setupPanAndZoom = (
             const onMouseUp = (event: MouseEvent) => {
                 if (event.button === 2 || event.shiftKey) {
                     isPanning = false;
+                    panNode._isPanning = false;
                     document.removeEventListener('mousemove', onMouseMove);
                     document.removeEventListener('mouseup', onMouseUp);
+                    panNode._activePanMove = undefined;
+                    panNode._activePanUp = undefined;
 
                     // Only trigger the date change callback if we actually panned
                     if (event.clientX !== startPanX) {
@@ -165,6 +203,9 @@ export const setupPanAndZoom = (
                 }
             };
 
+            // Store references so they can be cleaned up on unmount
+            panNode._activePanMove = onMouseMove;
+            panNode._activePanUp = onMouseUp;
             document.addEventListener('mousemove', onMouseMove);
             document.addEventListener('mouseup', onMouseUp);
         }

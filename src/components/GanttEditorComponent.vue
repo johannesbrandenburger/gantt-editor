@@ -71,13 +71,13 @@
 <script setup lang="ts">
 import * as d3 from "d3";
 import { updateChart } from "./gantt-editor-lib/chart/update-chart";
-import type { GanttEditorDestination, GanttEditorSlot, GanttEditorDestinationGroup, GanttEditorSuggestion, GanttEditorMarkedRegion, Settings, GanttEditorXAxisOptions } from "./gantt-editor-lib/chart/types";
+import type { GanttEditorDestination, GanttEditorSlot, GanttEditorDestinationGroup, GanttEditorSuggestion, GanttEditorMarkedRegion, Settings, GanttEditorXAxisOptions, GanttEditorSlotWithUiAttributes } from "./gantt-editor-lib/chart/types";
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 
 interface GanttEditorProps {
   startTime: Date,
   endTime: Date,
-  slots: Array<GanttEditorSlot>,
+  slots: Array<GanttEditorSlotWithUiAttributes>,
   destinations: Array<GanttEditorDestination>,
   destinationGroups: Array<GanttEditorDestinationGroup>,
   suggestions: Array<GanttEditorSuggestion>,
@@ -130,10 +130,16 @@ const outerComponentHeight = computed(() => {
   return totalContentHeight.value * (1 - currentTopContentPortion.value);
 });
 
+// Track whether the component has fully initialized to avoid spurious emits
+const isInitialized = ref(false);
+
 watch(
   () => currentTopContentHeight.value,
   (newHeight) => {
-    emit("onTopContentPortionChange", currentTopContentPortion.value, newHeight);
+    // Only emit after the component has mounted and been measured
+    if (isInitialized.value) {
+      emit("onTopContentPortionChange", currentTopContentPortion.value, newHeight);
+    }
   }
 );
 
@@ -182,20 +188,17 @@ const handleResize = (e: MouseEvent) => {
   const portionDelta = deltaY / outerComponentHeight.value;
 
   // Calculate new portions
+  const totalPortion = currentPortion + nextPortion;
   let newCurrentPortion = currentPortion + portionDelta;
   let newNextPortion = nextPortion - portionDelta;
 
-  // Enforce minimum portion constraints
+  // Enforce minimum portion constraints (clamp then derive the other)
   if (newCurrentPortion < minHeightPortion) {
-    const adjustment = minHeightPortion - newCurrentPortion;
     newCurrentPortion = minHeightPortion;
-    newNextPortion -= adjustment;
-  }
-
-  if (newNextPortion < minHeightPortion) {
-    const adjustment = minHeightPortion - newNextPortion;
+    newNextPortion = totalPortion - minHeightPortion;
+  } else if (newNextPortion < minHeightPortion) {
     newNextPortion = minHeightPortion;
-    newCurrentPortion -= adjustment;
+    newCurrentPortion = totalPortion - minHeightPortion;
   }
 
   // Update height portions
@@ -299,6 +302,7 @@ const clearClipboard = () => {
   console.log("Clearing clipboard programmatically");
   localStorage.setItem("pointerClipboard", "[]");
   updateClipboard();
+  props.slots.forEach(slot => { (slot).isCopied = false; });
   triggerUpdate();
 };
 
@@ -322,14 +326,7 @@ const triggerUpdate = () => {
 
     updateChart({
       xAxisSvgRef: xAxisRef.value,
-      data: props.slots.map((slot) => ({
-        ...slot,
-        destination: {
-          id: slot.destinationId,
-          displayName: slot.destinationId,
-          active: true,
-        },
-      })),
+      data: props.slots,
       destinationData: props.destinations,
       processedData: [],
       windowWidth: window.innerWidth,
@@ -375,65 +372,44 @@ const triggerUpdate = () => {
   }
 };
 
+// Debounced trigger: when multiple props change in the same tick (e.g.
+// startTime + endTime + slots), we only render once.
+let updateScheduled = false;
+const scheduleTriggerUpdate = () => {
+  if (!updateScheduled) {
+    updateScheduled = true;
+    queueMicrotask(() => {
+      updateScheduled = false;
+      triggerUpdate();
+    });
+  }
+};
+
+// Single consolidated watcher for all chart-affecting props
 watch(
-  () => props.startTime,
+  () => [
+    props.startTime,
+    props.endTime,
+    props.slots,
+    props.destinations,
+    props.destinationGroups,
+    props.suggestions,
+    props.markedRegion,
+    props.lazyRendering,
+  ],
   () => {
-    triggerUpdate();
+    scheduleTriggerUpdate();
   },
   { deep: true }
 );
-watch(
-  () => props.endTime,
-  () => {
-    triggerUpdate();
-  },
-  { deep: true }
-);
-watch(
-  () => props.slots,
-  () => {
-    triggerUpdate();
-  },
-  { deep: true }
-);
-watch(
-  () => props.destinations,
-  () => {
-    triggerUpdate();
-  }
-);
-watch(
-  () => props.destinationGroups,
-  () => {
-    triggerUpdate();
-  }
-);
-watch(
-  () => props.suggestions,
-  () => {
-    triggerUpdate();
-  }
-);
-watch(
-  () => props.markedRegion,
-  () => {
-    triggerUpdate();
-  }
-);
+
 watch(
   () => props.isReadOnly,
   (newValue) => {
     if (newValue) {
       clearClipboard();
     }
-    triggerUpdate();
-  }
-);
-
-watch(
-  () => props.lazyRendering,
-  () => {
-    triggerUpdate();
+    scheduleTriggerUpdate();
   }
 );
 
@@ -446,16 +422,8 @@ watch(
   }
 );
 
-watch(
-  () => heightMap.value,
-  () => {
-    triggerUpdate();
-  },
-  { deep: true }
-);
-
 const reziseWindow = () => {
-  triggerUpdate();
+  scheduleTriggerUpdate();
 };
 onMounted(() => {
   setTimeout(async () => {
@@ -471,12 +439,15 @@ onMounted(() => {
         for (const entry of entries) {
           containerHeight.value = entry.contentRect.height;
         }
+        scheduleTriggerUpdate();
       });
       resizeObserver.observe(chartContainerRef.value);
     }
 
     triggerUpdate();
 
+    // Mark initialization complete so watchers can start emitting
+    isInitialized.value = true;
   }, 5);
 });
 
@@ -484,6 +455,25 @@ onBeforeUnmount(() => {
   d3.select(xAxisRef.value).selectAll("*").remove();
   props.destinationGroups.forEach((group) => {
     if (ganttRefs.value[group.id]) {
+      // Clean up any active pan listeners stored on the chart group DOM node
+      type PanNode = SVGGElement & {
+        _activePanMove?: (e: MouseEvent) => void;
+        _activePanUp?: (e: MouseEvent) => void;
+        _isPanning?: boolean;
+      };
+      const svg = d3.select(ganttRefs.value[group.id]);
+      const chartGroupNode = svg.select(`.${group.id}-group`).node() as PanNode | null;
+      if (chartGroupNode) {
+        if (chartGroupNode._activePanMove) {
+          document.removeEventListener('mousemove', chartGroupNode._activePanMove);
+          chartGroupNode._activePanMove = undefined;
+        }
+        if (chartGroupNode._activePanUp) {
+          document.removeEventListener('mouseup', chartGroupNode._activePanUp);
+          chartGroupNode._activePanUp = undefined;
+        }
+      }
+
       d3.select(ganttRefs.value[group.id]).selectAll("*").remove();
     }
     // Clean up lazy rendering scroll listeners
@@ -493,6 +483,13 @@ onBeforeUnmount(() => {
     }
   });
   window.removeEventListener("resize", reziseWindow);
+
+  // Clean up tooltip DOM elements appended to body
+  d3.select("body").selectAll(".departure-marker-tooltip").remove();
+  d3.select("body").selectAll(".suggestion-tooltip").remove();
+
+  // Clean up namespaced body event listeners
+  d3.select(document).on("keydown.clearClipboard", null);
 
   if (resizeObserver) {
     resizeObserver.disconnect();
@@ -588,6 +585,11 @@ defineExpose({
 
 
 /* .attr("class", d => `slot-box ${d.isCopied ? "copied" : ""}`) */
+
+@keyframes interval-marker-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
 
 .slot-box.copied {
   stroke: #000;

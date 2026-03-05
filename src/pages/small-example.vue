@@ -25,7 +25,7 @@ import GanttEditorComponent from '@/components/GanttEditorComponent.vue';
                     closeTime: new Date('2025-01-01T12:00:00Z'), // end time of service window
                     destinationId: 'chute-1', // destination/chute id
                     deadline: new Date('2025-01-01T13:00:00Z'), // departure time of the flight
-                    deadlineHoverData: '🛫 Departure: ' + (new Date('2025-01-01T13:00:00Z')).toLocaleString(),
+                    hoverData: '🛫 Departure: ' + (new Date('2025-01-01T13:00:00Z')).toLocaleString(),
                     color: '#3498db', // color for the allocation bar
                 },
                 // ...

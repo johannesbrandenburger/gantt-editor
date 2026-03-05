@@ -4,7 +4,7 @@ import { addSlotToRows, processData } from './process-data';
 import { createSlotPath } from './slot-path';
 import { setupBrush } from './setup-brush';
 import { updateGridlinesAndLabels } from './gridlines-and-labels';
-import { updateDepartureMarker } from './departuremarker';
+import { updateDepartureMarker, getSharedHoverTooltip, showSharedHoverTooltip, hideSharedHoverTooltip } from './departuremarker';
 import { updateWeekdays } from './weekdays';
 import { setupPanAndZoom } from './setup-pan-zoom';
 import type { Topic, ProcessedData, Settings, SlotText, SlotDefinition, TranslateFunction, DisplayFunction, TopicLabel, RowLabel, DepartureMarker, ChartDefinition, ProgressChartDefinition, EventDot, EventChartDefinitions, SuggestionDefinition, GanttEditorSlotWithUiAttributes, GanttEditorXAxisOptions } from './types';
@@ -210,6 +210,12 @@ export function updateChart(
         });
     }
 
+    // Pre-build a Map of suggestion slot IDs for O(1) lookup inside the slot loop
+    const suggestionsMap = new Map<string, { alternativeDestination: string; alternativeDestinationDisplayName: string }>();
+    for (const s of updateChartProps.suggestions) {
+        suggestionsMap.set(s.id, s);
+    }
+
     processedData.forEach((topic, topicIndex) => {
 
         const defs = groupDefsMap.get(topic.groupId)!;
@@ -306,7 +312,7 @@ export function updateChart(
                         // check if visible
                         if (!(departureDate < timeExtent[0] || departureDate > timeExtent[1])) {
                             const departureX = xScale(departureDate);
-                            const departureText = slot.deadlineHoverData
+                            const departureText = slot.hoverData
                             defs.departureMarkerDefinition.push({
                                 x1: x + slotWidth,
                                 x2: departureX,
@@ -324,9 +330,10 @@ export function updateChart(
                 }
 
                 // add a suggestion button
-                const alternativeDestinationId = updateChartProps.suggestions.find(s => s.id === slot.id)?.alternativeDestination
+                const suggestion = suggestionsMap.get(slot.id);
+                const alternativeDestinationId = suggestion?.alternativeDestination;
                 if (alternativeDestinationId && !topic.isCollapsed) {
-                    const alternativeDestinationDisplayname = (destinationData.find(d => d.id === alternativeDestinationId)?.displayName || updateChartProps.suggestions.find(s => s.id === slot.id)?.alternativeDestinationDisplayName || alternativeDestinationId)!;
+                    const alternativeDestinationDisplayname = (destinationData.find(d => d.id === alternativeDestinationId)?.displayName || suggestion?.alternativeDestinationDisplayName || alternativeDestinationId)!;
                     defs.suggestionDefinition.push({
                         x: xScale(openTime) - 20,
                         y: y + (0.5 * yScale.gap()),
@@ -384,35 +391,8 @@ export function updateChart(
             .attr("rx", 4)
             .attr("ry", 4)
             .attr("pointer-events", "none") // Allow clicks to pass through
-            .transition()
-            .duration(500)
             .attr("opacity", 0.7)
-            .transition()
-            .duration(500)
-            .attr("opacity", 0.4)
-            .transition()
-            .duration(500)
-            .attr("opacity", 0.7)
-            .on("end", function () {
-                // Add a subtle pulsing effect
-                d3.select(this)
-                    .transition()
-                    .duration(1500)
-                    .attr("opacity", 0.4)
-                    .transition()
-                    .duration(1500)
-                    .attr("opacity", 0.7)
-                    .on("end", function repeat() {
-                        d3.select(this)
-                            .transition()
-                            .duration(1500)
-                            .attr("opacity", 0.4)
-                            .transition()
-                            .duration(1500)
-                            .attr("opacity", 0.7)
-                            .on("end", repeat);
-                    });
-            });
+            .style("animation", "interval-marker-pulse 3s ease-in-out infinite");
     }
 
     const markIntervalComplete = (timeInterval: { start: number; end: number }) => {
@@ -420,19 +400,23 @@ export function updateChart(
     }
 
     groupMap.forEach((group) => {
-        group.selectAll(".interval-marker").remove();
+        // Interrupt any running transitions before removing to prevent leaked callbacks
+        group.selectAll(".interval-marker").interrupt().remove();
     });
 
     if (updateChartProps.markedRegion) {
         const { destinationId, timeInterval } = updateChartProps.markedRegion;
-        if (!destinationId || !timeInterval) return;
-        if (destinationId === "multiple") {
-            markIntervalComplete(timeInterval);
+        if (destinationId && timeInterval) {
+            if (destinationId === "multiple") {
+                markIntervalComplete(timeInterval);
+            } else {
+                const topic = processedData.find(t => t.id === destinationId);
+                if (topic) {
+                    scrollToDestination(topic);
+                    markIntervalOnDestination(topic, timeInterval);
+                }
+            }
         }
-        const topic = processedData.find(t => t.id === destinationId);
-        if (!topic) return;
-        scrollToDestination(topic);
-        markIntervalOnDestination(topic, timeInterval);
     }
 
     const clearClipboard = () => {
@@ -446,6 +430,8 @@ export function updateChart(
                 })
             })
         })
+        // Also clear isCopied on original data items so it persists through processData
+        data.forEach(d => { d.isCopied = false; });
         // remove the preview slots
         processedData.forEach(topic => {
             topic.rows.forEach((row) => {
@@ -511,10 +497,16 @@ export function updateChart(
         updateChart({ ...updateChartProps, processedData: [] })
     };
 
+    // Track which topic is currently being previewed to avoid redundant re-renders
+    let lastPreviewTopicId: string | null = null;
+
     const previewClipboardPaste = (topicId: string) => {
         if (updateChartProps.isReadOnly) return;
         const clipboard = JSON.parse(localStorage.getItem("pointerClipboard") || "[]") as GanttEditorSlot[];
         if (clipboard.length === 0) return;
+        // Skip if we're already showing a preview for this exact topic
+        if (lastPreviewTopicId === topicId) return;
+        lastPreviewTopicId = topicId;
 
         // update the chart with  preview data
         const processedDataWithPreview = processedData.map((topic) => {
@@ -589,28 +581,6 @@ export function updateChart(
         topicAreas.exit().remove();
     }
 
-    // s is pressed, bring the brush to the front
-    d3.select("body").on("keydown", function (event: KeyboardEvent) {
-        if (event.key === "s") {
-            console.log("Bring brush to front");
-            // allocatedGroup.select(".brush-group").raise();
-            // unallocatedGroup.select(".brush-group").raise();
-            groupMap.forEach((group) => {
-                group.select(".brush-group").raise();
-            });
-        }
-    });
-    d3.select("body").on("keyup", function (event) {
-        if (event.key === "s") {
-            console.log("Bring brush to back");
-            // allocatedGroup.select(".brush-group").lower();
-            // unallocatedGroup.select(".brush-group").lower();
-            groupMap.forEach((group) => {
-                group.select(".brush-group").lower();
-            });
-        }
-    });
-
     const addSlotToClipboard = (slotData: GanttEditorSlot) => {
         if (updateChartProps.isReadOnly || !slotData || slotData.readOnly) return;
         const pointerClipboard = JSON.parse(localStorage.getItem("pointerClipboard") || "[]");
@@ -627,6 +597,8 @@ export function updateChart(
         }
         clipboardUpdate();
         // update the chart to display the slots as copied
+        // Set isCopied on both the processedData slots AND the original data items
+        // so the flag persists when processData creates shallow copies
         processedData.forEach(topic => {
             topic.rows.forEach(row => {
                 row.slots.forEach(s => {
@@ -636,6 +608,10 @@ export function updateChart(
                 })
             })
         })
+        const dataItem = data.find(d => d.id === slotData.id);
+        if (dataItem) {
+            dataItem.isCopied = isCopied;
+        }
         updateChart(updateChartProps);
     }
 
@@ -718,19 +694,45 @@ export function updateChart(
             .style("fill", "rgba(255,255,255,0.3)");
 
 
-        // Hover delay mechanism
-        let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
+        // Hover delay mechanism – store on the group node so a fresh updateSlots
+        // call can cancel any pending timeout from the previous call's closure.
+        type GroupWithHover = SVGGElement & {
+            _hoverTimeout?: ReturnType<typeof setTimeout> | null;
+            _isResizingSlot?: boolean;
+        };
+        const groupNode = group.node() as GroupWithHover;
+        // Cancel any pending hover timeout from a previous updateSlots call
+        if (groupNode._hoverTimeout) {
+            clearTimeout(groupNode._hoverTimeout);
+            groupNode._hoverTimeout = null;
+        }
         const HOVER_DELAY = 500;
+        const hoverTooltip = getSharedHoverTooltip();
+        const isResizeHandleTarget = (target: EventTarget | null): boolean => {
+            if (!(target instanceof Element)) return false;
+            return target.closest(".slot-resize-handle-left, .slot-resize-handle-right") !== null;
+        };
 
         // Update the slots section to include both drag and resize
         const slotsUpdate = slots.merge(slotsEnter as any)
             .on("mouseover", function (event, d) {
-                if (hoverTimeout) {
-                    clearTimeout(hoverTimeout);
+                if (groupNode._hoverTimeout) {
+                    clearTimeout(groupNode._hoverTimeout);
+                }
+
+                if (groupNode._isResizingSlot) {
+                    hideSharedHoverTooltip(hoverTooltip);
+                    return;
+                }
+
+                if (isResizeHandleTarget(event.target)) {
+                    hideSharedHoverTooltip(hoverTooltip);
+                } else {
+                    showSharedHoverTooltip(hoverTooltip, event, d.slotData.hoverData);
                 }
 
                 // Set a new timeout for the hover event
-                hoverTimeout = setTimeout(() => {
+                groupNode._hoverTimeout = setTimeout(() => {
                     if (updateChartProps.onHoverOnSlot) {
                         updateChartProps.onHoverOnSlot(d.slotData.id);
                     }
@@ -738,12 +740,25 @@ export function updateChart(
             })
             .on("mouseout", function () {
                 // Clear the timeout when mouse leaves
-                if (hoverTimeout) {
-                    clearTimeout(hoverTimeout);
-                    hoverTimeout = null;
+                if (groupNode._hoverTimeout) {
+                    clearTimeout(groupNode._hoverTimeout);
+                    groupNode._hoverTimeout = null;
                 }
+
+                hideSharedHoverTooltip(hoverTooltip);
             })
-            .on("mousemove", function () {
+            .on("mousemove", function (event, d) {
+                if (groupNode._isResizingSlot) {
+                    hideSharedHoverTooltip(hoverTooltip);
+                    return;
+                }
+
+                if (isResizeHandleTarget(event.target)) {
+                    hideSharedHoverTooltip(hoverTooltip);
+                    return;
+                }
+
+                showSharedHoverTooltip(hoverTooltip, event, d.slotData.hoverData);
             })
             .on("click", function (event, d) {
 
@@ -777,6 +792,12 @@ export function updateChart(
 
         const dragStartLeftRight = (event: d3.D3DragEvent<Element, any, any>, d: SlotDefinition): void => {
             event.sourceEvent.stopPropagation();
+            groupNode._isResizingSlot = true;
+            if (groupNode._hoverTimeout) {
+                clearTimeout(groupNode._hoverTimeout);
+                groupNode._hoverTimeout = null;
+            }
+            hideSharedHoverTooltip(hoverTooltip);
             d.dragStartX = event.x;
             d.originalX = d.x;
             d.originalWidth = d.width;
@@ -819,6 +840,8 @@ export function updateChart(
         }
 
         const dragLeftRightEnd = (event: d3.D3DragEvent<Element, any, any>, d: SlotDefinition): void => {
+            groupNode._isResizingSlot = false;
+            hideSharedHoverTooltip(hoverTooltip);
             if (d.slotData.readOnly) return;
             const slot = d3.select<SVGGElement, SlotDefinition>(d.element.parentNode);
             slot.select('.slot-box').attr('transform', `translate(0,0)`);
