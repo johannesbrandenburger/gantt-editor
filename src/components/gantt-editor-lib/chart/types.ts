@@ -115,6 +115,7 @@ export interface SlotDefinition {
     isEndInView: boolean;
     isDraggable: boolean;
     isCopied?: boolean;
+    isHighlightedByLabel?: boolean;
     newX?: number;
     newWidth?: number;
     newY?: number;
