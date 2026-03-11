@@ -66,7 +66,7 @@ export function updateGridlinesAndLabels(
         .data(topicLabelsDefinition.map(d => ({
             id: `${d.id}-slot-names`,
             // Keep some free space on the far left so topic-area margin-click collapse still works.
-            x: d.x + 30,
+            x: d.x,
             y: d.y + 1,
             slotNames: d.slotNames,
             isCollapsed: d.isCollapsed
