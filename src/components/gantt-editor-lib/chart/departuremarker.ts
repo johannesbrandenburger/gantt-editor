@@ -59,7 +59,7 @@ export const updateDepartureMarker = (
     departureMarkerEndline.enter()
         .append("rect")
         .attr("class", "departure-marker-endline")
-        .attr("fill", "black")
+        .attr("fill", d => d.lineColor || "black")
         .attr("opacity", 0)
         .on("mousemove", (event, d) => {
             showSharedHoverTooltip(tooltip, event, d.info);
@@ -72,13 +72,15 @@ export const updateDepartureMarker = (
         .attr("y", d => d.lineY)
         .attr("height", d => d.lineHeight)
         .merge(departureMarkerEndline)
+        .sort((a, b) => (a.layer || 0) - (b.layer || 0))
         .transition()
         .duration(ANIMATION_DURATION)
+        .attr("fill", d => d.lineColor || "black")
         .attr("x", d => d.x2-1)
         .attr("width", d => 2)
         .attr("y", d => d.lineY)
         .attr("height", d => d.lineHeight)
-        .attr("opacity", 1);
+        .attr("opacity", d => d.markerOpacity ?? 1);
     departureMarkerEndline.exit()
         .transition()
         .duration(ANIMATION_DURATION)
@@ -92,7 +94,7 @@ export const updateDepartureMarker = (
     departureMarkerDashedLine.enter()
         .append("line")
         .attr("class", "departure-marker-dashed-line")
-        .attr("stroke", "gray")
+        .attr("stroke", d => d.lineColor || "gray")
         .attr("stroke-width", 1)
         .attr("stroke-dasharray", "3,3")
         .attr("opacity", 0)
@@ -107,13 +109,15 @@ export const updateDepartureMarker = (
         .attr("y1", d => d.lineY + d.lineHeight / 2)
         .attr("y2", d => d.lineY + d.lineHeight / 2)
         .merge(departureMarkerDashedLine)
+        .sort((a, b) => (a.layer || 0) - (b.layer || 0))
         .transition()
         .duration(ANIMATION_DURATION)
+        .attr("stroke", d => d.lineColor || "gray")
         .attr("x1", d => d.x1)
         .attr("x2", d => d.x2)
         .attr("y1", d => d.lineY + d.lineHeight / 2)
         .attr("y2", d => d.lineY + d.lineHeight / 2)
-        .attr("opacity", 1);
+        .attr("opacity", d => d.markerOpacity ?? 1);
     departureMarkerDashedLine.exit()
         .transition()
         .duration(ANIMATION_DURATION)

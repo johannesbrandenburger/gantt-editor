@@ -308,31 +308,57 @@ export function updateChart(
 
                 // add a departure marker for indicating the departure time of a corresponding flight
                 if (!settings.collapseGroups
-                    && slot.deadline
                     && !settings.compactView
                     && !topic.isCollapsed
                 ) {
-                    let departureDate = new Date(slot.deadline);
-                    if (departureDate) {
-                        departureDate = new Date(departureDate);
+                    const departureText = slot.hoverData;
+                    const hasEstimatedTime = !!slot.secondaryDeadline;
+                    const deadlinesDiffer = hasEstimatedTime
+                        && new Date(slot.deadline || 0).getTime() !== new Date(slot.secondaryDeadline || 0).getTime();
+                    const departureMarkers = [
+                        {
+                            // Legacy deadline represents STD.
+                            id: `departure-${slot.id}-std`,
+                            date: slot.deadline,
+                            lineColor: deadlinesDiffer ? "#9e9e9e" : "#1f1f1f",
+                            markerOpacity: deadlinesDiffer ? 0.6 : 1,
+                            layer: 0,
+                        },
+                        {
+                            // New secondaryDeadline represents ETD and should be the relevant anchor.
+                            id: `departure-${slot.id}-etd`,
+                            date: slot.secondaryDeadline,
+                            lineColor: "#1f1f1f",
+                            markerOpacity: 1,
+                            layer: 1,
+                        },
+                    ];
+
+                    for (const marker of departureMarkers) {
+                        if (!marker.date) continue;
+
+                        const departureDate = new Date(marker.date);
+                        if (Number.isNaN(departureDate.getTime())) continue;
 
                         // check if visible
-                        if (!(departureDate < timeExtent[0] || departureDate > timeExtent[1])) {
-                            const departureX = xScale(departureDate);
-                            const departureText = slot.hoverData
-                            defs.departureMarkerDefinition.push({
-                                x1: x + slotWidth,
-                                x2: departureX,
-                                y: y,
-                                height: yScale.bandwidth(),
-                                lineHeight: yScale.step(),
-                                lineY: currentY,
-                                info: departureText || "",
-                                id: `departure-${slot.id}`,
-                                color: slotColor!,
-                                lineVisible: departureX < x + slotWidth,
-                            });
-                        }
+                        if (departureDate < timeExtent[0] || departureDate > timeExtent[1]) continue;
+
+                        const departureX = xScale(departureDate);
+                        defs.departureMarkerDefinition.push({
+                            x1: x + slotWidth,
+                            x2: departureX,
+                            y: y,
+                            height: yScale.bandwidth(),
+                            lineHeight: yScale.step(),
+                            lineY: currentY,
+                            info: departureText || "",
+                            id: marker.id,
+                            color: slotColor!,
+                            lineColor: marker.lineColor,
+                            markerOpacity: marker.markerOpacity,
+                            layer: marker.layer,
+                            lineVisible: departureX < x + slotWidth,
+                        });
                     }
                 }
 

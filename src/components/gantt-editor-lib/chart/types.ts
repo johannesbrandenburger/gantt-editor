@@ -8,6 +8,7 @@ export type GanttEditorSlot = {
     additionalData?: string,
     hoverData?: string,
     deadline?: Date,
+    secondaryDeadline?: Date,
     readOnly?: boolean,
     color?: string
 };
@@ -174,6 +175,9 @@ export interface DepartureMarker {
     info: string;
     id: string;
     color: string;
+    lineColor?: string;
+    markerOpacity?: number;
+    layer?: number;
     lineVisible: boolean;
     lineHeight: number;
     lineY: number;

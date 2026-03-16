@@ -1,5 +1,5 @@
 import type { Topic, ProcessedData, Settings } from './types';
-
+/* 
 const areSlotsOverlapping = (slots: {
     openTime: Date, closeTime: Date
 }[]): boolean => {
@@ -30,7 +30,7 @@ const areSlotsOverlappingWithDeadlineConsidered = (slots: {
         }
     }
     return false;
-}
+} */
 
 /**
  * Check if a candidate slot overlaps with any existing slot in the row.
@@ -47,15 +47,23 @@ const doesSlotOverlapRow = (existingSlots: { openTime: Date, closeTime: Date }[]
     return false;
 }
 
-const doesSlotOverlapRowWithDeadline = (existingSlots: { openTime: Date, closeTime: Date, deadline?: Date }[], candidate: { openTime: Date, closeTime: Date, deadline?: Date }): boolean => {
+const doesSlotOverlapRowWithDeadline = (existingSlots: { openTime: Date, closeTime: Date, deadline?: Date, secondaryDeadline?: Date }[], candidate: { openTime: Date, closeTime: Date, deadline?: Date, secondaryDeadline?: Date }): boolean => {
     const cOpen = candidate.openTime.getTime();
-    const cClose = candidate.deadline
-        ? Math.max(candidate.closeTime.getTime(), new Date(candidate.deadline).getTime())
-        : candidate.closeTime.getTime();
+    let cClose = candidate.closeTime.getTime();
+    if (candidate.deadline) {
+        cClose = Math.max(cClose, candidate.deadline.getTime());
+    }
+    if (candidate.secondaryDeadline) {
+        cClose = Math.max(cClose, candidate.secondaryDeadline.getTime());
+    }
     for (const s of existingSlots) {
-        const sClose = s.deadline
-            ? Math.max(s.closeTime.getTime(), new Date(s.deadline).getTime())
-            : s.closeTime.getTime();
+        let sClose = s.closeTime.getTime();
+        if (s.deadline) {
+            sClose = Math.max(sClose, s.deadline.getTime());
+        }
+        if (s.secondaryDeadline) {
+            sClose = Math.max(sClose, s.secondaryDeadline.getTime());
+        }
         if (s.openTime.getTime() < cClose && sClose > cOpen) {
             return true;
         }
@@ -64,9 +72,9 @@ const doesSlotOverlapRowWithDeadline = (existingSlots: { openTime: Date, closeTi
 }
 
 export const addSlotToRows = (rows: { name: string, slots: {
-    openTime: Date, closeTime: Date, destinationId: string, id: string
+    openTime: Date, closeTime: Date, destinationId: string, id: string, deadline?: Date, secondaryDeadline?: Date
     }[], id: string }[], slot: {
-        openTime: Date, closeTime: Date, destinationId: string, id: string
+        openTime: Date, closeTime: Date, destinationId: string, id: string, deadline?: Date, secondaryDeadline?: Date
     }, topicId: string, compactView: boolean) => {
     let rowFound = false;
     if (compactView) {
