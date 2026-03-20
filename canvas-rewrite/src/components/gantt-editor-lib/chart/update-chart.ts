@@ -8,7 +8,7 @@ import { updateDepartureMarker, getSharedHoverTooltip, showSharedHoverTooltip, h
 import { updateWeekdays } from './weekdays';
 import { setupPanAndZoom } from './setup-pan-zoom';
 import type { Topic, ProcessedData, Settings, SlotText, SlotDefinition, TranslateFunction, DisplayFunction, TopicLabel, RowLabel, DepartureMarker, ChartDefinition, ProgressChartDefinition, EventDot, EventChartDefinitions, SuggestionDefinition, GanttEditorSlotWithUiAttributes, GanttEditorXAxisOptions } from './types';
-import { updateAxis } from './axis';
+import { drawAxisOnCanvas } from './canvas_axis';
 import { addSvgDefs } from './svg-defs';
 import { setupCurrentTime } from './current-time';
 import { updateSuggestionButtons } from './suggestion-buttons';
@@ -18,7 +18,7 @@ import type { GanttEditorDestination, GanttEditorDestinationGroup, GanttEditorSl
 // NOTE: this is still prototype code and not really ready for production use
 export function updateChart(
     updateChartProps: {
-        xAxisSvgRef: SVGElement,
+        xAxisCanvasRef: HTMLCanvasElement,
         data: Array<GanttEditorSlotWithUiAttributes>,
         destinationData: Array<GanttEditorDestination>,
         processedData: Topic[],
@@ -51,7 +51,7 @@ export function updateChart(
 
     const svgs = new Map<string, d3.Selection<SVGElement, unknown, null, undefined>>();
     let {
-        xAxisSvgRef,
+        xAxisCanvasRef,
         data,
         destinationData,
         processedData,
@@ -128,37 +128,17 @@ export function updateChart(
         yScaleMap.set(group.id, yScale);
     }
 
-    // Setup x-axis SVG
-    const xAxisSvg = d3.select(xAxisSvgRef);
-    xAxisSvg
-        .attr('width', width + margin.left + margin.right)
-
     // dynamically create SVGs for each destination group
     for (const group of updateChartProps.destinationGroups) {
         const svgRef = updateChartProps.svgRefs.get(group.id);
         if (!svgRef) continue;
         const svg = d3.select(svgRef);
-        // const height = updateChartProps.heights.get(group.id);
         const height = yScaleMap.get(group.id)?.height;
         if (!height) continue;
         svg
             .attr('width', width + margin.left + margin.right)
             .attr('height', height);
         svgs.set(group.id, svg);
-    }
-
-    // Setup x-axis container if it doesn't exist
-    let xAxisGroup = xAxisSvg.select('.x-axis-group') as d3.Selection<SVGGElement, unknown, null, undefined>;
-
-    if (xAxisGroup.empty()) {
-        xAxisGroup = xAxisSvg
-            .append('g')
-            .attr('class', 'x-axis-group')
-            .attr('transform', `translate(${margin.left},${margin.top})`);
-
-        // date should be on top
-        xAxisGroup.append('g').attr('class', 'x-axis-date').attr('transform', `translate(0,${-20})`);
-        xAxisGroup.append('g').attr('class', 'x-axis');
     }
 
     const groupMap = new Map<string, d3.Selection<SVGGElement, unknown, null, undefined>>();
@@ -210,10 +190,10 @@ export function updateChart(
         });
     }
 
-    type SelectionStateCarrier = SVGElement & {
+    type SelectionStateCarrier = HTMLCanvasElement & {
         _selectedSlotDisplayName?: string | null;
     };
-    const selectionStateCarrier = xAxisSvgRef as SelectionStateCarrier;
+    const selectionStateCarrier = xAxisCanvasRef as SelectionStateCarrier;
     const selectedSlotDisplayName = selectionStateCarrier._selectedSlotDisplayName || null;
 
     // Pre-build a Map of suggestion slot IDs for O(1) lookup inside the slot loop
@@ -482,11 +462,11 @@ export function updateChart(
         updateChart({ ...updateChartProps, processedData: [], animationDuration: 0 });
     };
 
-    updateAxis(
-        xAxisGroup,
-        animationDuration,
+    drawAxisOnCanvas(
+
+        xAxisCanvasRef,
         xScale,
-        0,
+        margin,
         clearClipboard,
         updateChartProps.xAxisOptions
     )

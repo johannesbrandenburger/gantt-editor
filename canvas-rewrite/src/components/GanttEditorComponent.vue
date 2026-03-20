@@ -25,7 +25,7 @@
     ></div>
 
     <div class="x-axis-container">
-      <svg ref="xAxisRef"></svg>
+      <canvas ref="xAxisRef" style="width: 100%; height: 100%;"></canvas>
     </div>
     <template
       v-for="(group, index) in props.destinationGroups"
@@ -102,7 +102,7 @@ interface GanttEditorEmits {
 const props = defineProps<GanttEditorProps>();
 const emit = defineEmits<GanttEditorEmits>();
 const chartContainerRef = ref<HTMLElement | null>(null);
-const xAxisRef = ref<SVGSVGElement | null>(null);
+const xAxisRef = ref<HTMLCanvasElement | null>(null);
 const containerHeight = ref(0);
 
 // Top content resizing state
@@ -325,7 +325,7 @@ const triggerUpdate = () => {
     });
 
     updateChart({
-      xAxisSvgRef: xAxisRef.value,
+      xAxisCanvasRef: xAxisRef.value,
       data: props.slots,
       destinationData: props.destinations,
       processedData: [],
@@ -452,7 +452,11 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  d3.select(xAxisRef.value).selectAll("*").remove();
+  if (xAxisRef.value) {
+    const ctx = xAxisRef.value.getContext('2d');
+    ctx?.clearRect(0, 0, xAxisRef.value.width, xAxisRef.value.height);
+    // Event-Listeners managed by canvas_axis.ts itself
+  }
   props.destinationGroups.forEach((group) => {
     if (ganttRefs.value[group.id]) {
       // Clean up any active pan listeners stored on the chart group DOM node
