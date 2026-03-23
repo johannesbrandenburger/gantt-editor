@@ -210,6 +210,12 @@ export function updateChart(
         });
     }
 
+    type SelectionStateCarrier = SVGElement & {
+        _selectedSlotDisplayName?: string | null;
+    };
+    const selectionStateCarrier = xAxisSvgRef as SelectionStateCarrier;
+    const selectedSlotDisplayName = selectionStateCarrier._selectedSlotDisplayName || null;
+
     // Pre-build a Map of suggestion slot IDs for O(1) lookup inside the slot loop
     const suggestionsMap = new Map<string, { alternativeDestination: string; alternativeDestinationDisplayName: string }>();
     for (const s of updateChartProps.suggestions) {
@@ -225,9 +231,9 @@ export function updateChart(
         topic.yStart = currentY;
         defs.horizontalGridlinesDefinitions.push({ y: currentY, id: `gridline-${topic.id}` });
 
-        const slotNames = topic.rows.flatMap(row =>
+        const slotNames = Array.from(new Set(topic.rows.flatMap(row =>
             row.slots.map(slot => slot.displayName)
-        );
+        )));
 
         defs.topicLabelsDefinition.push({
             x: -margin.left + 10,
@@ -296,36 +302,63 @@ export function updateChart(
                     isStartInView,
                     isEndInView,
                     isDraggable: isStartInView && isEndInView,
-                    isCopied: slot.isCopied
+                    isCopied: slot.isCopied,
+                    isHighlightedByLabel: selectedSlotDisplayName !== null && slot.displayName === selectedSlotDisplayName,
                 });
 
                 // add a departure marker for indicating the departure time of a corresponding flight
                 if (!settings.collapseGroups
-                    && slot.deadline
                     && !settings.compactView
                     && !topic.isCollapsed
                 ) {
-                    let departureDate = new Date(slot.deadline);
-                    if (departureDate) {
-                        departureDate = new Date(departureDate);
+                    const departureText = slot.hoverData;
+                    const hasEstimatedTime = !!slot.secondaryDeadline;
+                    const deadlinesDiffer = hasEstimatedTime
+                        && new Date(slot.deadline || 0).getTime() !== new Date(slot.secondaryDeadline || 0).getTime();
+                    const departureMarkers = [
+                        {
+                            // Legacy deadline represents STD.
+                            id: `departure-${slot.id}-std`,
+                            date: slot.deadline,
+                            lineColor: deadlinesDiffer ? "#9e9e9e" : "#1f1f1f",
+                            markerOpacity: deadlinesDiffer ? 0.6 : 1,
+                            layer: 0,
+                        },
+                        {
+                            // New secondaryDeadline represents ETD and should be the relevant anchor.
+                            id: `departure-${slot.id}-etd`,
+                            date: slot.secondaryDeadline,
+                            lineColor: "#1f1f1f",
+                            markerOpacity: 1,
+                            layer: 1,
+                        },
+                    ];
+
+                    for (const marker of departureMarkers) {
+                        if (!marker.date) continue;
+
+                        const departureDate = new Date(marker.date);
+                        if (Number.isNaN(departureDate.getTime())) continue;
 
                         // check if visible
-                        if (!(departureDate < timeExtent[0] || departureDate > timeExtent[1])) {
-                            const departureX = xScale(departureDate);
-                            const departureText = slot.hoverData
-                            defs.departureMarkerDefinition.push({
-                                x1: x + slotWidth,
-                                x2: departureX,
-                                y: y,
-                                height: yScale.bandwidth(),
-                                lineHeight: yScale.step(),
-                                lineY: currentY,
-                                info: departureText || "",
-                                id: `departure-${slot.id}`,
-                                color: slotColor!,
-                                lineVisible: departureX < x + slotWidth,
-                            });
-                        }
+                        if (departureDate < timeExtent[0] || departureDate > timeExtent[1]) continue;
+
+                        const departureX = xScale(departureDate);
+                        defs.departureMarkerDefinition.push({
+                            x1: x + slotWidth,
+                            x2: departureX,
+                            y: y,
+                            height: yScale.bandwidth(),
+                            lineHeight: yScale.step(),
+                            lineY: currentY,
+                            info: departureText || "",
+                            id: marker.id,
+                            color: slotColor!,
+                            lineColor: marker.lineColor,
+                            markerOpacity: marker.markerOpacity,
+                            layer: marker.layer,
+                            lineVisible: departureX < x + slotWidth,
+                        });
                     }
                 }
 
@@ -443,6 +476,12 @@ export function updateChart(
         updateChart({ ...updateChartProps, processedData }); // TODO: processedData not needed
     }
 
+    const selectSlotByDisplayName = (slotName: string) => {
+        const currentSelection = selectionStateCarrier._selectedSlotDisplayName || null;
+        selectionStateCarrier._selectedSlotDisplayName = currentSelection === slotName ? null : slotName;
+        updateChart({ ...updateChartProps, processedData: [], animationDuration: 0 });
+    };
+
     updateAxis(
         xAxisGroup,
         animationDuration,
@@ -462,7 +501,9 @@ export function updateChart(
             yScaleMap.get(groupId)!,
             margin,
             width,
-            animationDuration
+            animationDuration,
+            selectSlotByDisplayName,
+            selectedSlotDisplayName,
         );
     });
 
@@ -542,6 +583,21 @@ export function updateChart(
         updateChart({ ...updateChartProps, processedData: processedDataWithPreview });
     };
 
+    const getClickedSlotName = (event: MouseEvent): string | null => {
+        const topicArea = event.currentTarget as SVGRectElement | null;
+        if (!topicArea) return null;
+
+        const previousPointerEvents = topicArea.style.pointerEvents;
+        topicArea.style.pointerEvents = "none";
+        const elementBelow = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
+        topicArea.style.pointerEvents = previousPointerEvents || "all";
+
+        if (!elementBelow) return null;
+        const slotNameElement = elementBelow.closest('.topic-slot-name') as HTMLElement | null;
+        if (!slotNameElement) return null;
+        return slotNameElement.getAttribute('data-slot-name');
+    };
+
     const updateTopicAreas = (
         group: d3.Selection<SVGGElement, unknown, null, undefined>,
         data: Topic[],
@@ -560,6 +616,12 @@ export function updateChart(
             .merge(topicAreas as any)
             // click event to the topic areas to paste the clipboard content into this topic
             .on("click", (event, d) => {
+                const clickedSlotName = getClickedSlotName(event as MouseEvent);
+                if (clickedSlotName) {
+                    selectSlotByDisplayName(clickedSlotName);
+                    return;
+                }
+
                 console.log("Clicked on topic area", d.name);
                 if (d3.pointer(event)[0] < 0) {
                     collapseTopic(d.id);
@@ -881,7 +943,14 @@ export function updateChart(
             .attr("fill", d => d.fill)
             .attr("stroke-opacity", 1)
             .attr("fill-opacity", d => d.opacity)
-            .attr("class", d => `slot-box ${d.isCopied ? "copied" : ""}`)
+            .attr("stroke", d => d.isHighlightedByLabel ? "#ff7a00" : null)
+            .attr("stroke-width", d => d.isHighlightedByLabel ? 3 : null)
+            .attr("class", d => {
+                const classes = ["slot-box"];
+                if (d.isCopied) classes.push("copied");
+                if (d.isHighlightedByLabel) classes.push("highlighted-from-label");
+                return classes.join(" ");
+            })
 
         slotsUpdate.select(".slot-text")
             .transition()

@@ -209,14 +209,41 @@ const generateSlots = (count: number) => {
 
         const departureTime = new Date(slotEnd.getTime() + 60 * 60 * 1000); // 1 hour after close time
 
+        // Demo scenarios for departure anchors:
+        // - deadline is STD (legacy/original value)
+        // - secondaryDeadline is ETD (new relevant value)
+        // - ETD can be before or after STD
+        // - every 7th slot uses the same timestamp to verify overlap behavior
+        const deadline = new Date(departureTime); // STD
+        let secondaryDeadline = new Date(departureTime.getTime() + 20 * 60 * 1000); // ETD after STD (default)
+        let scenario = "ETD after STD";
+
+        if (index % 5 === 0) {
+            secondaryDeadline = new Date(departureTime.getTime() + 35 * 60 * 1000);
+            scenario = "ETD delayed (after STD)";
+        }
+
+        if (index % 6 === 0) {
+            secondaryDeadline = new Date(departureTime.getTime() - 15 * 60 * 1000);
+            scenario = "ETD advanced (before STD)";
+        }
+
+        if (index % 7 === 0) {
+            secondaryDeadline = new Date(departureTime);
+            scenario = "ETD equals STD";
+        }
+
+        const hoverData = `Flight ${flightNumber}: 🛫 Departure: ${secondaryDeadline.toLocaleString()}`;
+
         return {
             id: `${flightNumber}-${index}`,
             displayName: flightNumber,
             group: flightNumber,
             openTime: slotStart,
             closeTime: slotEnd,
-            hoverData: `Flight ${flightNumber}: 🛫 Departure: ${departureTime.toLocaleString()}`,
-            deadline: departureTime
+            hoverData,
+            deadline,
+            secondaryDeadline,
             // color: mockColors[index % mockColors.length], // leave color generation to the component
         };
     });

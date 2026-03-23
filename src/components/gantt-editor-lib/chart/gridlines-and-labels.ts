@@ -1,6 +1,23 @@
 import * as d3 from "d3";
 import type { RowLabel, TopicLabel } from "./types";
 
+type SlotNameLabelData = {
+    id: string;
+    x: number;
+    y: number;
+    slotNames: string[];
+    isCollapsed: boolean;
+};
+
+const escapeHtml = (value: string): string => {
+    return value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+};
+
 export function updateGridlinesAndLabels(
     group: d3.Selection<SVGGElement, unknown, null, undefined>,
     topicLabelsDefinition: TopicLabel[],
@@ -10,6 +27,8 @@ export function updateGridlinesAndLabels(
     margin: { top: number; right: number; bottom: number; left: number; },
     width: number,
     animationDuration: number,
+    onSlotNameClick?: (slotName: string) => void,
+    selectedSlotName?: string | null,
 ) {
 
     // Update topic and row labels on data SVG
@@ -43,9 +62,10 @@ export function updateGridlinesAndLabels(
 
     // Update slot names below topic labels
     const slotNameLabels = group
-        .selectAll<SVGForeignObjectElement, { id: string; x: number; y: number; slotNames: string[]; isCollapsed: boolean }>(`.topic-slot-names`)
+        .selectAll<SVGForeignObjectElement, SlotNameLabelData>(`.topic-slot-names`)
         .data(topicLabelsDefinition.map(d => ({
             id: `${d.id}-slot-names`,
+            // Keep some free space on the far left so topic-area margin-click collapse still works.
             x: d.x,
             y: d.y + 1,
             slotNames: d.slotNames,
@@ -69,14 +89,50 @@ export function updateGridlinesAndLabels(
         .style('line-height', '1.2')
         .style('word-wrap', 'break-word')
         .style('overflow-wrap', 'break-word')
-        .style('max-width', '180px');
+        .style('max-width', '180px')
+        .style('pointer-events', 'none');
     
     const slotNameLabelsUpdate = slotNameLabelsEnter.merge(slotNameLabels);
     
     // Update content first (before transition)
-    slotNameLabelsUpdate.select('div')
-        .html((d: { id: string; x: number; y: number; slotNames: string[]; isCollapsed: boolean }) => 
-            d.slotNames.length > 0 ? d.slotNames.join(', ') : '');
+    const slotNameContainers = slotNameLabelsUpdate.select('div')
+        .html((d: SlotNameLabelData) => {
+            if (d.slotNames.length === 0) return '';
+            return d.slotNames
+                .map((slotName) => {
+                    const safeSlotName = escapeHtml(slotName);
+                    const isSelected = selectedSlotName === slotName;
+                    const selectedClass = isSelected ? ' is-selected' : '';
+                    return `<span class="topic-slot-name${selectedClass}" data-slot-name="${safeSlotName}">${safeSlotName}</span>`;
+                })
+                .join(', ');
+        });
+
+    slotNameContainers.each(function () {
+        const slotNames = d3.select(this).selectAll<HTMLSpanElement, unknown>('span.topic-slot-name');
+        slotNames
+            .style('pointer-events', 'all')
+            .style('cursor', onSlotNameClick ? 'pointer' : 'default')
+            .style('text-decoration', function () {
+                return this.classList.contains('is-selected') ? 'underline' : 'none';
+            })
+            .style('text-decoration-thickness', function () {
+                return this.classList.contains('is-selected') ? '2px' : '0';
+            })
+            .style('color', function () {
+                return this.classList.contains('is-selected') ? '#b35a00' : '#666';
+            })
+            .style('font-weight', function () {
+                return this.classList.contains('is-selected') ? '700' : '400';
+            })
+            .on('click', function (event) {
+                event.stopPropagation();
+                if (!onSlotNameClick) return;
+                const slotName = this.getAttribute('data-slot-name');
+                if (!slotName) return;
+                onSlotNameClick(slotName);
+            });
+    });
     
     // Then apply transition
     slotNameLabelsUpdate
