@@ -8,7 +8,11 @@ export type GanttEditorSlot = {
     additionalData?: string,
     hoverData?: string,
     deadline?: Date,
+    /** When set, overrides the default line color for the deadline (STD) marker. */
+    deadlineColor?: string,
     secondaryDeadline?: Date,
+    /** When set, overrides the default line color for the secondary (ETD) marker. */
+    secondaryDeadlineColor?: string,
     readOnly?: boolean,
     color?: string
 };

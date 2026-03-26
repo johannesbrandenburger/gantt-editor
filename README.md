@@ -56,8 +56,11 @@ import "@pf/gantt-editor-vue-component/style.css"; // NOTE: this is only needed 
                     openTime: new Date('2025-01-01T10:00:00Z'), // start time of service window
                     closeTime: new Date('2025-01-01T12:00:00Z'), // end time of service window
                     destinationId: 'chute-1', // destination/chute id it is allocated to
-                    deadline: new Date('2025-01-01T13:00:00Z'), // departure time of the flight
-                    hoverData: '🛫 Departure: ' + (new Date('2025-01-01T13:00:00Z')).toLocaleString(), // custom text/html shown in the shared hover popup
+                    deadline: new Date('2025-01-01T13:00:00Z'), // STD (scheduled departure) marker anchor
+                    secondaryDeadline: new Date('2025-01-01T13:25:00Z'), // optional ETD marker (estimated departure)
+                    deadlineColor: '#9b59b6', // optional: color of the STD marker (defaults apply if omitted)
+                    secondaryDeadlineColor: '#e74c3c', // optional: color of the ETD marker
+                    hoverData: '🛫 Departure: ' + (new Date('2025-01-01T13:25:00Z')).toLocaleString(), // custom text/html shown in the shared hover popup
                     color: '#3498db', // color for the allocation bar, should show the status of the allocation
                 },
                 // ...
@@ -94,7 +97,7 @@ import "@pf/gantt-editor-vue-component/style.css"; // NOTE: this is only needed 
 </template>
 ```
 
-- the input parameters have the following types (defined in `gantt-editor-lib/types.ts`):
+- the input parameters have the following types (see `src/components/gantt-editor-lib/chart/types.ts`):
 ```typescript
 export type GanttEditorSlot = {
   id: string, // unique id for the allocation (e.g. flightnumber + criteria)
@@ -103,7 +106,10 @@ export type GanttEditorSlot = {
   openTime: Date, // start time of service window
   closeTime: Date, // end time of service window
   destinationId: string, // destination/chute id it is allocated to
-  deadline?: Date, // departure time of the flight
+  deadline?: Date, // STD (scheduled departure) anchor for the first marker line
+  deadlineColor?: string, // optional stroke color for the STD marker (default: dark gray; dimmed when ETD differs)
+  secondaryDeadline?: Date, // optional ETD anchor (second marker when both are set)
+  secondaryDeadlineColor?: string, // optional stroke color for the ETD marker (default: dark gray)
   hoverData?: string, // custom text/html shown in the shared hover popup
   readOnly?: boolean, // disable editing of the slot (no resize, no drag)
   color?: string // color for the allocation bar, should show the status of the allocation (if not set, the a state color is computed (see `src/components/gantt-editor-lib/helpers.ts: mapSlotToStateColor`))

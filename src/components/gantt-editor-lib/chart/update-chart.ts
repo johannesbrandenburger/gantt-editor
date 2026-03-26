@@ -317,18 +317,18 @@ export function updateChart(
                         && new Date(slot.deadline || 0).getTime() !== new Date(slot.secondaryDeadline || 0).getTime();
                     const departureMarkers = [
                         {
-                            // Legacy deadline represents STD.
+                            // `deadline` — STD (scheduled departure) marker.
                             id: `departure-${slot.id}-std`,
                             date: slot.deadline,
-                            lineColor: deadlinesDiffer ? "#9e9e9e" : "#1f1f1f",
+                            lineColor: slot.deadlineColor ?? (deadlinesDiffer ? "#9e9e9e" : "#1f1f1f"),
                             markerOpacity: deadlinesDiffer ? 0.6 : 1,
                             layer: 0,
                         },
                         {
-                            // New secondaryDeadline represents ETD and should be the relevant anchor.
+                            // `secondaryDeadline` — ETD (estimated departure); drawn on top of STD when both exist.
                             id: `departure-${slot.id}-etd`,
                             date: slot.secondaryDeadline,
-                            lineColor: "#1f1f1f",
+                            lineColor: slot.secondaryDeadlineColor ?? "#1f1f1f",
                             markerOpacity: 1,
                             layer: 1,
                         },
