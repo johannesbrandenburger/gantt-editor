@@ -37,10 +37,22 @@ npm install d3; npm install --save-dev @types/d3
 - or as in this small example (easier to understand)
 ```vue
 <script setup lang="ts">
+import { ref } from 'vue';
 import GanttEditorComponent from '@/components/GanttEditorComponent.vue'; // adjust the path to your project structure
 // OR:
 import GanttEditorComponent from '@pf/gantt-editor-vue-component'; // if you installed the package from the registry
 import "@pf/gantt-editor-vue-component/style.css"; // NOTE: this is only needed when installed from the registry
+import type { GanttEditorVerticalMarker } from '@pf/gantt-editor-vue-component';
+// manual copy: import type { GanttEditorVerticalMarker } from '@/components/gantt-editor-lib/chart/types';
+
+const verticalMarkers = ref<GanttEditorVerticalMarker[]>([
+    { id: 'vm-1', date: new Date('2025-01-01T13:00:00Z'), color: '#16a34a', label: 'Cut-off' },
+]);
+
+function onChangeVerticalMarker(id: string, date: Date) {
+    const m = verticalMarkers.value.find((x) => x.id === id);
+    if (m) m.date = date; // persist drag so the line stays put after re-render
+}
 </script>
 <template>
     <div style="height: 100vh; width: 100%; margin: 0 auto;">
@@ -81,6 +93,10 @@ import "@pf/gantt-editor-vue-component/style.css"; // NOTE: this is only needed 
             :suggestions="[
                 // optional suggestions for the user to see and apply
             ]"
+
+            :verticalMarkers="verticalMarkers"
+            @onChangeVerticalMarker="onChangeVerticalMarker"
+            @onClickVerticalMarker="(id) => console.log('vertical marker click', id)"
 
             @onChangeStartAndEndTime="(newStartTime, newEndTime) => console.log(`onChangeStartAndEndTime(${newStartTime}, ${newEndTime})`)"
             @onChangeDestinationId="(slotId, newDestinationId) => console.log(`onChangeDestinationId(${slotId}, ${newDestinationId})`)"
@@ -135,6 +151,13 @@ export type GanttEditorSuggestion = {
   alternativeDestinationId: string, // alternative destination/chute id the suggestion is for
   alternativeDestinationDisplayName?: string, // optional display name for the alternative destination/chute
 };
+export type GanttEditorVerticalMarker = {
+  id: string, // stable id for the marker (used in events)
+  date: Date, // time position on the x-axis
+  color?: string, // line color (default: green)
+  label?: string, // optional text for the hover tooltip
+  draggable?: boolean, // default true when the chart is not read-only; set false to lock position
+};
 export type GanttEditorXAxisOptions = {
   upper?: {
     tickFormat?: (domainValue: Date | d3.NumberValue) => string;
@@ -186,3 +209,11 @@ const handleClearClipboard = () => {
 ### Available Methods
 
 - `clearClipboard()`: Clears all slots from the clipboard programmatically. This is useful when you need to reset the clipboard state from external controls or based on application logic.
+
+
+## Vertical markers
+
+- Optional prop **`verticalMarkers`**: draw one or more **full-height vertical lines** in every destination group (same time axis as slots).
+- A marker is shown only while its `date` lies inside the current visible time range (`startTime`–`endTime`); panning or zooming updates visibility automatically.
+- **Interaction:** drag horizontally on the line (or its wide hit area) to move it in time; **click** fires `onClickVerticalMarker`. While dragging, **`onChangeVerticalMarker`** emits `(id, newDate)` — update your reactive copy of `verticalMarkers` (as in the example above) so the new time persists after re-render.
+- **`isReadOnly`** disables dragging; **`draggable: false`** on a single marker locks that line only.
