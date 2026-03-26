@@ -38,6 +38,17 @@ export type GanttEditorSuggestion = {
     alternativeDestinationDisplayName?: string,
 };
 
+/** Full-height vertical timeline lines; draggable when the chart is editable unless `draggable: false`. */
+export type GanttEditorVerticalMarker = {
+    id: string,
+    date: Date,
+    color?: string,
+    /** Shown in the hover tooltip when set. */
+    label?: string,
+    /** When false, the marker cannot be dragged (still clickable if a handler is provided). Default: true when the chart is not read-only. */
+    draggable?: boolean,
+};
+
 export type GanttEditorSlotWithUiAttributes = GanttEditorSlot & {
     isConflict?: boolean;
     isCopied?: boolean;
