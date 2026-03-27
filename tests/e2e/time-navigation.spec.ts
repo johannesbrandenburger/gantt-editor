@@ -41,15 +41,33 @@ test.describe('Time Navigation', () => {
     expect(box).not.toBeNull();
 
     if (box) {
+      let startX = box.x + box.width / 2;
+      const startY = box.y + box.height / 2;
+    
+
+      //move cursor away from slot edges to avoid triggering resize instead of pan
+      while (true) {
+          await page.mouse.move(startX, startY);
+          const isOnResizeHandle = await page.evaluate(({ x, y }) => {
+            const el = document.elementFromPoint(x, y);
+            return el?.closest('.slot-resize-handle-left, .slot-resize-handle-right') !== null;
+          }, { x: startX, y: startY });
+          if (!isOnResizeHandle) break;
+          startX += 15;
+          console.warn('Adjusted startX to avoid slot resize handle:', startX);
+        }
+    
+    if (box) {
       // Shift+drag
       await page.keyboard.down('Shift');
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.move(startX, startY);
       await page.mouse.down();
-      await page.mouse.move(box.x + box.width / 2 - 100, box.y + box.height / 2);
+      await page.mouse.move(startX - 100, startY);
       await page.mouse.up();
       await page.keyboard.up('Shift');
     }
-
+  }
+  
     await page.waitForTimeout(300);
 
     // Check for navigation callback
