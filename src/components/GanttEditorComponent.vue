@@ -71,7 +71,7 @@
 <script setup lang="ts">
 import * as d3 from "d3";
 import { updateChart } from "./gantt-editor-lib/chart/update-chart";
-import type { GanttEditorDestination, GanttEditorSlot, GanttEditorDestinationGroup, GanttEditorSuggestion, GanttEditorMarkedRegion, Settings, GanttEditorXAxisOptions, GanttEditorSlotWithUiAttributes } from "./gantt-editor-lib/chart/types";
+import type { GanttEditorDestination, GanttEditorSlot, GanttEditorDestinationGroup, GanttEditorSuggestion, GanttEditorMarkedRegion, Settings, GanttEditorXAxisOptions, GanttEditorSlotWithUiAttributes, GanttEditorVerticalMarker } from "./gantt-editor-lib/chart/types";
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 
 interface GanttEditorProps {
@@ -85,7 +85,9 @@ interface GanttEditorProps {
   isReadOnly: boolean,
   topContentPortion?: number,
   xAxisOptions?: GanttEditorXAxisOptions,
-  lazyRendering?: boolean
+  lazyRendering?: boolean,
+  /** Optional full-height vertical timeline lines (draggable when not read-only). */
+  verticalMarkers?: GanttEditorVerticalMarker[],
 }
 
 interface GanttEditorEmits {
@@ -96,7 +98,9 @@ interface GanttEditorEmits {
   onHoverOnSlot: [string],
   onDoubleClickOnSlot: [string],
   onContextClickOnSlot: [string],
-  onTopContentPortionChange: [number, number] // [newPortion, newAbsoluteHeight]
+  onTopContentPortionChange: [number, number], // [newPortion, newAbsoluteHeight]
+  onChangeVerticalMarker: [string, Date],
+  onClickVerticalMarker: [string],
 }
 
 const props = defineProps<GanttEditorProps>();
@@ -368,6 +372,9 @@ const triggerUpdate = () => {
       onContextClickOnSlot: (allocationId: string) => { emit("onContextClickOnSlot", allocationId); },
       xAxisOptions: props.xAxisOptions,
       lazyRendering: props.lazyRendering,
+      verticalMarkers: props.verticalMarkers,
+      onVerticalMarkerChange: (id: string, date: Date) => { emit("onChangeVerticalMarker", id, date); },
+      onVerticalMarkerClick: (id: string) => { emit("onClickVerticalMarker", id); },
     });
   }
 };
@@ -396,6 +403,7 @@ watch(
     props.suggestions,
     props.markedRegion,
     props.lazyRendering,
+    props.verticalMarkers,
   ],
   () => {
     scheduleTriggerUpdate();
