@@ -15,7 +15,7 @@ async function clickTopicLabel(page: import('@playwright/test').Page, index: num
   expect(box).not.toBeNull();
   if (box) {
     // Click near the left edge of the topic-area rect (within the label/margin zone)
-    await page.mouse.click(box.x + 20, box.y + box.height / 2);
+    await page.mouse.click(box.x + 20, box.y + 10);
   }
 }
 

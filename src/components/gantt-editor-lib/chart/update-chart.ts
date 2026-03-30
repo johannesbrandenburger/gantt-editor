@@ -11,8 +11,9 @@ import type { Topic, ProcessedData, Settings, SlotText, SlotDefinition, Translat
 import { updateAxis } from './axis';
 import { addSvgDefs } from './svg-defs';
 import { setupCurrentTime } from './current-time';
+import { updateVerticalMarkers } from './vertical-markers';
 import { updateSuggestionButtons } from './suggestion-buttons';
-import type { GanttEditorDestination, GanttEditorDestinationGroup, GanttEditorSlot } from './types';
+import type { GanttEditorDestination, GanttEditorDestinationGroup, GanttEditorSlot, GanttEditorVerticalMarker } from './types';
 
 
 // NOTE: this is still prototype code and not really ready for production use
@@ -46,6 +47,9 @@ export function updateChart(
         onContextClickOnSlot?: (slotId: string) => void;
         xAxisOptions?: GanttEditorXAxisOptions;
         lazyRendering?: boolean;
+        verticalMarkers?: GanttEditorVerticalMarker[];
+        onVerticalMarkerChange?: (id: string, date: Date) => void;
+        onVerticalMarkerClick?: (id: string) => void;
     },
 ): void {
 
@@ -317,18 +321,18 @@ export function updateChart(
                         && new Date(slot.deadline || 0).getTime() !== new Date(slot.secondaryDeadline || 0).getTime();
                     const departureMarkers = [
                         {
-                            // Legacy deadline represents STD.
+                            // `deadline` — STD (scheduled departure) marker.
                             id: `departure-${slot.id}-std`,
                             date: slot.deadline,
-                            lineColor: deadlinesDiffer ? "#9e9e9e" : "#1f1f1f",
+                            lineColor: slot.deadlineColor ?? (deadlinesDiffer ? "#9e9e9e" : "#1f1f1f"),
                             markerOpacity: deadlinesDiffer ? 0.6 : 1,
                             layer: 0,
                         },
                         {
-                            // New secondaryDeadline represents ETD and should be the relevant anchor.
+                            // `secondaryDeadline` — ETD (estimated departure); drawn on top of STD when both exist.
                             id: `departure-${slot.id}-etd`,
                             date: slot.secondaryDeadline,
-                            lineColor: "#1f1f1f",
+                            lineColor: slot.secondaryDeadlineColor ?? "#1f1f1f",
                             markerOpacity: 1,
                             layer: 1,
                         },
@@ -1038,6 +1042,19 @@ export function updateChart(
 
                 updateSlots(group, visibleSlots, yScale);
                 updateDepartureMarker(group, visibleDepartures, anim, textSize);
+                updateVerticalMarkers(
+                    group,
+                    xScale,
+                    yScale.height,
+                    width,
+                    updateChartProps.verticalMarkers ?? [],
+                    anim,
+                    {
+                        isReadOnly: updateChartProps.isReadOnly,
+                        onChange: (id, date) => { updateChartProps.onVerticalMarkerChange?.(id, date); },
+                        onClick: (id) => { updateChartProps.onVerticalMarkerClick?.(id); },
+                    },
+                );
                 updateSuggestionButtons(group, visibleSuggestions, anim, textSize, applySuggestion);
             };
 
@@ -1063,6 +1080,19 @@ export function updateChart(
             // Standard rendering: render all slots at once
             updateSlots(group, defs.slotDefinition, yScale);
             updateDepartureMarker(group, defs.departureMarkerDefinition, animationDuration, textSize);
+            updateVerticalMarkers(
+                group,
+                xScale,
+                yScale.height,
+                width,
+                updateChartProps.verticalMarkers ?? [],
+                animationDuration,
+                {
+                    isReadOnly: updateChartProps.isReadOnly,
+                    onChange: (id, date) => { updateChartProps.onVerticalMarkerChange?.(id, date); },
+                    onClick: (id) => { updateChartProps.onVerticalMarkerClick?.(id); },
+                },
+            );
             updateSuggestionButtons(group, defs.suggestionDefinition, animationDuration, textSize, applySuggestion);
 
             // Clean up any existing lazy scroll listeners

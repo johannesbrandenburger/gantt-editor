@@ -8,7 +8,11 @@ export type GanttEditorSlot = {
     additionalData?: string,
     hoverData?: string,
     deadline?: Date,
+    /** When set, overrides the default line color for the deadline (STD) marker. */
+    deadlineColor?: string,
     secondaryDeadline?: Date,
+    /** When set, overrides the default line color for the secondary (ETD) marker. */
+    secondaryDeadlineColor?: string,
     readOnly?: boolean,
     color?: string
 };
@@ -32,6 +36,17 @@ export type GanttEditorSuggestion = {
     slotId: string,
     alternativeDestinationId: string,
     alternativeDestinationDisplayName?: string,
+};
+
+/** Full-height vertical timeline lines; draggable when the chart is editable unless `draggable: false`. */
+export type GanttEditorVerticalMarker = {
+    id: string,
+    date: Date,
+    color?: string,
+    /** Shown in the hover tooltip when set. */
+    label?: string,
+    /** When false, the marker cannot be dragged (still clickable if a handler is provided). Default: true when the chart is not read-only. */
+    draggable?: boolean,
 };
 
 export type GanttEditorSlotWithUiAttributes = GanttEditorSlot & {

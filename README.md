@@ -37,10 +37,22 @@ npm install d3; npm install --save-dev @types/d3
 - or as in this small example (easier to understand)
 ```vue
 <script setup lang="ts">
+import { ref } from 'vue';
 import GanttEditorComponent from '@/components/GanttEditorComponent.vue'; // adjust the path to your project structure
 // OR:
 import GanttEditorComponent from '@pf/gantt-editor-vue-component'; // if you installed the package from the registry
 import "@pf/gantt-editor-vue-component/style.css"; // NOTE: this is only needed when installed from the registry
+import type { GanttEditorVerticalMarker } from '@pf/gantt-editor-vue-component';
+// manual copy: import type { GanttEditorVerticalMarker } from '@/components/gantt-editor-lib/chart/types';
+
+const verticalMarkers = ref<GanttEditorVerticalMarker[]>([
+    { id: 'vm-1', date: new Date('2025-01-01T13:00:00Z'), color: '#16a34a', label: 'Cut-off' },
+]);
+
+function onChangeVerticalMarker(id: string, date: Date) {
+    const m = verticalMarkers.value.find((x) => x.id === id);
+    if (m) m.date = date; // persist drag so the line stays put after re-render
+}
 </script>
 <template>
     <div style="height: 100vh; width: 100%; margin: 0 auto;">
@@ -56,8 +68,11 @@ import "@pf/gantt-editor-vue-component/style.css"; // NOTE: this is only needed 
                     openTime: new Date('2025-01-01T10:00:00Z'), // start time of service window
                     closeTime: new Date('2025-01-01T12:00:00Z'), // end time of service window
                     destinationId: 'chute-1', // destination/chute id it is allocated to
-                    deadline: new Date('2025-01-01T13:00:00Z'), // departure time of the flight
-                    hoverData: '🛫 Departure: ' + (new Date('2025-01-01T13:00:00Z')).toLocaleString(), // custom text/html shown in the shared hover popup
+                    deadline: new Date('2025-01-01T13:00:00Z'), // STD (scheduled departure) marker anchor
+                    secondaryDeadline: new Date('2025-01-01T13:25:00Z'), // optional ETD marker (estimated departure)
+                    deadlineColor: '#9b59b6', // optional: color of the STD marker (defaults apply if omitted)
+                    secondaryDeadlineColor: '#e74c3c', // optional: color of the ETD marker
+                    hoverData: '🛫 Departure: ' + (new Date('2025-01-01T13:25:00Z')).toLocaleString(), // custom text/html shown in the shared hover popup
                     color: '#3498db', // color for the allocation bar, should show the status of the allocation
                 },
                 // ...
@@ -79,6 +94,10 @@ import "@pf/gantt-editor-vue-component/style.css"; // NOTE: this is only needed 
                 // optional suggestions for the user to see and apply
             ]"
 
+            :verticalMarkers="verticalMarkers"
+            @onChangeVerticalMarker="onChangeVerticalMarker"
+            @onClickVerticalMarker="(id) => console.log('vertical marker click', id)"
+
             @onChangeStartAndEndTime="(newStartTime, newEndTime) => console.log(`onChangeStartAndEndTime(${newStartTime}, ${newEndTime})`)"
             @onChangeDestinationId="(slotId, newDestinationId) => console.log(`onChangeDestinationId(${slotId}, ${newDestinationId})`)"
             @onChangeSlotTime="(slotId, newOpenTime, newCloseTime) => console.log(`onChangeSlotTime(${slotId}, ${newOpenTime}, ${newCloseTime})`)"
@@ -94,7 +113,7 @@ import "@pf/gantt-editor-vue-component/style.css"; // NOTE: this is only needed 
 </template>
 ```
 
-- the input parameters have the following types (defined in `gantt-editor-lib/types.ts`):
+- the input parameters have the following types (see `src/components/gantt-editor-lib/chart/types.ts`):
 ```typescript
 export type GanttEditorSlot = {
   id: string, // unique id for the allocation (e.g. flightnumber + criteria)
@@ -103,7 +122,10 @@ export type GanttEditorSlot = {
   openTime: Date, // start time of service window
   closeTime: Date, // end time of service window
   destinationId: string, // destination/chute id it is allocated to
-  deadline?: Date, // departure time of the flight
+  deadline?: Date, // STD (scheduled departure) anchor for the first marker line
+  deadlineColor?: string, // optional stroke color for the STD marker (default: dark gray; dimmed when ETD differs)
+  secondaryDeadline?: Date, // optional ETD anchor (second marker when both are set)
+  secondaryDeadlineColor?: string, // optional stroke color for the ETD marker (default: dark gray)
   hoverData?: string, // custom text/html shown in the shared hover popup
   readOnly?: boolean, // disable editing of the slot (no resize, no drag)
   color?: string // color for the allocation bar, should show the status of the allocation (if not set, the a state color is computed (see `src/components/gantt-editor-lib/helpers.ts: mapSlotToStateColor`))
@@ -128,6 +150,13 @@ export type GanttEditorSuggestion = {
   slotId: string, // slot id the suggestion is for
   alternativeDestinationId: string, // alternative destination/chute id the suggestion is for
   alternativeDestinationDisplayName?: string, // optional display name for the alternative destination/chute
+};
+export type GanttEditorVerticalMarker = {
+  id: string, // stable id for the marker (used in events)
+  date: Date, // time position on the x-axis
+  color?: string, // line color (default: green)
+  label?: string, // optional text for the hover tooltip
+  draggable?: boolean, // default true when the chart is not read-only; set false to lock position
 };
 export type GanttEditorXAxisOptions = {
   upper?: {
@@ -180,3 +209,11 @@ const handleClearClipboard = () => {
 ### Available Methods
 
 - `clearClipboard()`: Clears all slots from the clipboard programmatically. This is useful when you need to reset the clipboard state from external controls or based on application logic.
+
+
+## Vertical markers
+
+- Optional prop **`verticalMarkers`**: draw one or more **full-height vertical lines** in every destination group (same time axis as slots).
+- A marker is shown only while its `date` lies inside the current visible time range (`startTime`–`endTime`); panning or zooming updates visibility automatically.
+- **Interaction:** drag horizontally on the line (or its wide hit area) to move it in time; **click** fires `onClickVerticalMarker`. While dragging, **`onChangeVerticalMarker`** emits `(id, newDate)` — update your reactive copy of `verticalMarkers` (as in the example above) so the new time persists after re-render.
+- **`isReadOnly`** disables dragging; **`draggable: false`** on a single marker locks that line only.

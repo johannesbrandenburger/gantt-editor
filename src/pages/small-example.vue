@@ -1,5 +1,22 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import GanttEditorComponent from '@/components/GanttEditorComponent.vue';
+import type { GanttEditorVerticalMarker } from '@/components/gantt-editor-lib/chart/types';
+
+const verticalMarkers = ref<GanttEditorVerticalMarker[]>([
+    {
+        id: 'vertical-marker-1',
+        date: new Date('2025-01-01T13:00:00Z'),
+        color: '#00ff00',
+        label: 'Example marker — drag horizontally or click',
+    },
+]);
+
+function onChangeVerticalMarker(id: string, date: Date) {
+    console.log(`onChangeVerticalMarker(${id}, ${date.toISOString()})`);
+    const m = verticalMarkers.value.find((x) => x.id === id);
+    if (m) m.date = date;
+}
 </script>
 <template>
     <!--
@@ -24,8 +41,11 @@ import GanttEditorComponent from '@/components/GanttEditorComponent.vue';
                     openTime: new Date('2025-01-01T10:00:00Z'), // start time of service window
                     closeTime: new Date('2025-01-01T12:00:00Z'), // end time of service window
                     destinationId: 'chute-1', // destination/chute id
-                    deadline: new Date('2025-01-01T13:00:00Z'), // departure time of the flight
-                    hoverData: '🛫 Departure: ' + (new Date('2025-01-01T13:00:00Z')).toLocaleString(),
+                    deadline: new Date('2025-01-01T13:00:00Z'), // STD marker
+                    secondaryDeadline: new Date('2025-01-01T13:25:00Z'), // ETD marker (optional)
+                    deadlineColor: '#9b59b6', // optional STD line color
+                    secondaryDeadlineColor: '#e74c3c', // optional ETD line color
+                    hoverData: '🛫 Departure: ' + (new Date('2025-01-01T13:25:00Z')).toLocaleString(),
                     color: '#3498db', // color for the allocation bar
                 },
                 // ...
@@ -46,6 +66,10 @@ import GanttEditorComponent from '@/components/GanttEditorComponent.vue';
             :suggestions="[
                 // optional suggestions for the user to see and apply
             ]"
+
+            :verticalMarkers="verticalMarkers"
+            @onChangeVerticalMarker="onChangeVerticalMarker"
+            @onClickVerticalMarker="(id) => console.log(`onClickVerticalMarker(${id})`)"
 
             @onChangeStartAndEndTime="(newStartTime, newEndTime) => console.log(`onChangeStartAndEndTime(${newStartTime}, ${newEndTime})`)"
             @onChangeDestinationId="(slotId, newDestinationId) => console.log(`onChangeDestinationId(${slotId}, ${newDestinationId})`)"

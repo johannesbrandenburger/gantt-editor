@@ -67,6 +67,23 @@ export const updateDepartureMarker = (
         .on("mouseout", () => {
             hideSharedHoverTooltip(tooltip);
         })
+        .on("click", function(event) {
+            // Allow click events to pass through by temporarily disabling pointer events
+            // and re-dispatching the event to the element below
+            const element = this as SVGRectElement;
+            element.style.pointerEvents = 'none';
+            const elementBelow = document.elementFromPoint(event.clientX, event.clientY);
+            
+            if (elementBelow && elementBelow !== element) {
+                elementBelow.dispatchEvent(new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: event.clientX,
+                    clientY: event.clientY
+                }));
+            }
+            element.style.pointerEvents = '';
+        })
         .attr("x", d => d.x1)
         .attr("width", 2)
         .attr("y", d => d.lineY)
@@ -103,6 +120,23 @@ export const updateDepartureMarker = (
         })
         .on("mouseout", () => {
             hideSharedHoverTooltip(tooltip);
+        })
+        .on("click", function(event) {
+            // Allow click events to pass through by temporarily disabling pointer events
+            // and re-dispatching the event to the element below
+            const element = this as SVGLineElement;
+            element.style.pointerEvents = 'none';
+            const elementBelow = document.elementFromPoint(event.clientX, event.clientY);
+            
+            if (elementBelow && elementBelow !== element) {
+                elementBelow.dispatchEvent(new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: event.clientX,
+                    clientY: event.clientY
+                }));
+            }
+            element.style.pointerEvents = '';
         })
         .attr("x1", d => d.x1)
         .attr("x2", d => d.x1)
@@ -145,7 +179,6 @@ export const updateDepartureMarker = (
             const element = this as SVGRectElement;
             element.style.pointerEvents = 'none';
             const elementBelow = document.elementFromPoint(event.clientX, event.clientY);
-            element.style.pointerEvents = '';
             
             if (elementBelow && elementBelow !== element) {
                 elementBelow.dispatchEvent(new MouseEvent('click', {
@@ -155,6 +188,7 @@ export const updateDepartureMarker = (
                     clientY: event.clientY
                 }));
             }
+            element.style.pointerEvents = '';
         })
         .merge(departureMarkerHoverArea)
         .transition()
