@@ -1,160 +1,93 @@
-import * as d3 from 'd3';
-import type { GanttEditorXAxisOptions } from './types';
+import * as d3 from "d3";
+import type { GanttEditorXAxisOptions } from "./types";
 
-// Extend HTMLCanvasElement to store axis-specific event handlers for cleanup
-type AxisCanvas = HTMLCanvasElement & {
-    _axisClickHandler?: (e: MouseEvent) => void;
-    _axisMoveHandler?: (e: MouseEvent) => void;
-    _axisKeyHandler?: (e: KeyboardEvent) => void;
-    _clipboardButtonHovered?: boolean;
-};
+export interface DrawXAxisParams {
+  ctx: CanvasRenderingContext2D;
+  width: number;
+  height: number;
+  startTime: Date;
+  endTime: Date;
+  margin: { left: number; right: number };
+  xAxisOptions?: GanttEditorXAxisOptions;
+}
 
-// Position and size of the "Clear Clipboard" button — mirrors the SVG version:
-// xAxisGroup is at translate(margin.left=200, margin.top=40), button at translate(-190,-30)
-// → absolute x = 200-190 = 10, y = 40-30 = 10
-const BTN = { x: 10, y: 10, w: 100, h: 30 };
+export function drawXAxisOnCanvas(params: DrawXAxisParams) {
+  const { ctx, width, height, startTime, endTime, margin, xAxisOptions } = params;
 
-export function drawAxisOnCanvas(
-    canvas: HTMLCanvasElement,
-    xScale: d3.ScaleTime<number, number, never>,
-    margin: { left: number },
-    clearClipboard: () => void,
-    xAxisOptions?: GanttEditorXAxisOptions,
-): void {
-    const c = canvas as AxisCanvas;
-    const ctx = canvas.getContext('2d')!;
-    const dpr = window.devicePixelRatio || 1;
+  const chartWidth = width - margin.left - margin.right;
+  const xScale = d3.scaleTime()
+    .domain([startTime, endTime])
+    .range([0, chartWidth])
+    .clamp(true);
 
-    // Resize physical pixel buffer when CSS size has changed (keeps text sharp on HiDPI)
-    const cssW = canvas.offsetWidth;
-    const cssH = canvas.offsetHeight;
-    if (canvas.width !== Math.round(cssW * dpr) || canvas.height !== Math.round(cssH * dpr)) {
-        canvas.width = Math.round(cssW * dpr);
-        canvas.height = Math.round(cssH * dpr);
-    }
+  // Clear
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#f5f5f5";
+  ctx.fillRect(0, 0, width, height);
 
-    const hasClipboard = JSON.parse(localStorage.getItem('pointerClipboard') || '[]').length > 0;
+  // Formatters (matching original axis.ts defaults)
+  const dateFormatter = xAxisOptions?.upper?.tickFormat ?? ((d: Date | d3.NumberValue) => {
+    return d instanceof Date ? d3.timeFormat("%d.%m.")(d) : "";
+  });
+  const timeFormatter = xAxisOptions?.lower?.tickFormat ?? ((d: Date | d3.NumberValue) => {
+    return d instanceof Date ? d3.timeFormat("%H:%M")(d) : "";
+  });
 
-    // ── Formatters (same defaults as axis.ts) ────────────────────────────────
-    const timeFormatter = (d: Date | d3.NumberValue): string =>
-        d instanceof Date ? d3.timeFormat('%H:%M')(d) : '';
-    const dateFormatter = (d: Date | d3.NumberValue): string =>
-        d instanceof Date ? d3.timeFormat('%d.%m.')(d) : '';
+  // Generate ticks using d3
+  const upperTicks = xScale.ticks(xAxisOptions?.upper?.ticks ?? d3.timeDay.every(1)!);
+  const lowerTicks = xScale.ticks(xAxisOptions?.lower?.ticks as any);
 
-    const upperFmt = xAxisOptions?.upper?.tickFormat ?? dateFormatter;
-    const lowerFmt = xAxisOptions?.lower?.tickFormat ?? timeFormatter;
+  // Layout constants (matching original SVG: margin.top=40, upper at y=-20, lower at y=0)
+  // In canvas the x-axis container is 50px tall.
+  // Original SVG: xAxisGroup translated to (margin.left, 40). Upper axis at y=-20, lower at y=0.
+  // So upper text ~ y=20 (40-20), lower text ~ y=40 (40+0). Tick lines from y=40 downward.
+  // We map: upper row center = 14, lower row center = 36, tick lines end at 50.
+  const upperY = 14;
+  const lowerY = 36;
+  const tickLineTop = height;
+  const tickLineBottom = height-5;
 
-    // ── Tick sets (same logic as axis.ts) ────────────────────────────────────
-    const upperTicks: Date[] = xAxisOptions?.upper?.ticks
-        ? xScale.ticks(xAxisOptions.upper.ticks as d3.TimeInterval)
-        : xScale.ticks(d3.timeDay.every(1)!);
+  // Draw upper axis ticks (date labels, no tick lines in original)
+  ctx.save();
+  ctx.fillStyle = "#333";
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (const tick of upperTicks) {
+    const x = margin.left + xScale(tick);
+    if (x < margin.left || x > width - margin.right) continue;
+    ctx.fillText(dateFormatter(tick), x, upperY);
+  }
+  ctx.restore();
 
-    const lowerTicks: Date[] = xAxisOptions?.lower?.ticks
-        ? xScale.ticks(xAxisOptions.lower.ticks as d3.TimeInterval)
-        : xScale.ticks();
+  // Draw lower axis ticks (time labels + tick lines)
+  ctx.save();
+  ctx.fillStyle = "#333";
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.strokeStyle = "#333";
+  ctx.lineWidth = 1;
+  for (const tick of lowerTicks) {
+    const x = margin.left + xScale(tick);
+    if (x < margin.left || x > width - margin.right) continue;
+    // Tick line
+    ctx.beginPath();
+    ctx.moveTo(x, tickLineTop);
+    ctx.lineTo(x, tickLineBottom);
+    ctx.stroke();
+    // Label
+    ctx.fillText(timeFormatter(tick), x, lowerY);
+  }
+  ctx.restore();
 
-    // ── Render function (called on initial draw and on button hover changes) ─
-    const render = (buttonHovered: boolean): void => {
-        ctx.save();
-        ctx.scale(dpr, dpr);
-        ctx.clearRect(0, 0, cssW, cssH);
-
-        const leftOffset = margin.left;
-
-        // SVG layout reference (50px tall container, axisGroup at y=40, axisTop draws upward):
-        //   upper date labels  → absolute y ≈ 17  (axisGroup y=20, axisTop label y=-9, text shift +6)
-        //   lower time labels  → absolute y ≈ 31  (axisGroup y=40, axisTop label y=-9)
-        //   lower tick lines   → from y=34 to y=40 (axisGroup y=40, tick from 0 to -6)
-
-        // Upper row: date labels only (tick lines hidden in SVG version)
-        ctx.font = '11px sans-serif';
-        ctx.fillStyle = '#333';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic';
-        for (const tick of upperTicks) {
-            const x = leftOffset + xScale(tick);
-            ctx.fillText(String(upperFmt(tick)), x, 17);
-        }
-
-        // Lower row: time labels + tick marks
-        for (const tick of lowerTicks) {
-            const x = leftOffset + xScale(tick);
-            // tick line (mirrors axisTop default: 6px upward)
-            ctx.beginPath();
-            ctx.moveTo(x, 40);
-            ctx.lineTo(x, 34);
-            ctx.strokeStyle = '#bbb';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            // label
-            ctx.fillText(String(lowerFmt(tick)), x, 31);
-        }
-
-        // Baseline separator (the domain line that axisTop draws)
-        ctx.beginPath();
-        ctx.moveTo(leftOffset, 40);
-        ctx.lineTo(cssW, 40);
-        ctx.strokeStyle = '#bbb';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        // ── Clear Clipboard button ────────────────────────────────────────────
-        if (hasClipboard) {
-            ctx.fillStyle = buttonHovered ? '#e0e0e0' : '#f0f0f0';
-            ctx.beginPath();
-            ctx.rect(BTN.x, BTN.y, BTN.w, BTN.h);
-            ctx.fill();
-
-            ctx.fillStyle = '#000';
-            ctx.font = 'bold 12px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('Clear Clipboard', BTN.x + BTN.w / 2, BTN.y + BTN.h / 2);
-        }
-
-        ctx.restore();
-    };
-
-    render(c._clipboardButtonHovered ?? false);
-
-    // ── Event listeners ───────────────────────────────────────────────────────
-    // Always remove stale listeners first to avoid stacking across re-renders
-    if (c._axisClickHandler) c.removeEventListener('click', c._axisClickHandler);
-    if (c._axisMoveHandler)  c.removeEventListener('mousemove', c._axisMoveHandler);
-    if (c._axisKeyHandler)   document.removeEventListener('keydown', c._axisKeyHandler);
-
-    if (hasClipboard) {
-        const hitTest = (e: MouseEvent): boolean => {
-            const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX - rect.left;
-            const my = e.clientY - rect.top;
-            return mx >= BTN.x && mx <= BTN.x + BTN.w && my >= BTN.y && my <= BTN.y + BTN.h;
-        };
-
-        c._axisClickHandler = (e: MouseEvent) => {
-            if (hitTest(e)) clearClipboard();
-        };
-
-        c._axisMoveHandler = (e: MouseEvent) => {
-            const hovered = hitTest(e);
-            if (hovered !== c._clipboardButtonHovered) {
-                c._clipboardButtonHovered = hovered;
-                canvas.style.cursor = hovered ? 'pointer' : '';
-                render(hovered);
-            }
-        };
-
-        // ESC key clears clipboard (mirrors d3.select(document).on('keydown.clearClipboard', ...))
-        c._axisKeyHandler = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' || e.keyCode === 27) clearClipboard();
-        };
-
-        c.addEventListener('click', c._axisClickHandler);
-        c.addEventListener('mousemove', c._axisMoveHandler);
-        document.addEventListener('keydown', c._axisKeyHandler);
-    } else {
-        // Clipboard emptied: reset hover state and cursor
-        c._clipboardButtonHovered = false;
-        canvas.style.cursor = '';
-    }
+  // Bottom border line
+  ctx.save();
+  ctx.strokeStyle = "#333";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(margin.left, height - 0.5);
+  ctx.lineTo(width - margin.right, height - 0.5);
+  ctx.stroke();
+  ctx.restore();
 }

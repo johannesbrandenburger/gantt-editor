@@ -51,7 +51,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
 import type { GanttEditorSlot } from '../components/gantt-editor-lib/chart/types';
-import GanttEditorComponent from '../components/GanttEditorComponent.vue';
+import GanttEditorComponent from '../components/GanttEditorComponentCanvas.vue';
 
 // Performance test parameters
 const numberOfSlots = 2000;

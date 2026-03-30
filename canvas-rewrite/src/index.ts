@@ -1,4 +1,4 @@
-import GanttEditorComponent from './components/GanttEditorComponent.vue'
+import GanttEditorComponent from './components/GanttEditorComponentCanvas.vue'
 export type {
     GanttEditorSlot,
     GanttEditorDestination,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import GanttEditorComponent from '@/components/GanttEditorComponent.vue';
+import GanttEditorComponent from '@/components/GanttEditorComponentCanvas.vue';
 </script>
 <template>
     <!--

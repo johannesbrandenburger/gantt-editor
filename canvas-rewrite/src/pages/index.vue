@@ -141,7 +141,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import * as d3 from 'd3';
 import type { GanttEditorSlot } from '../components/gantt-editor-lib/chart/types';
-import GanttEditorComponent from '../components/GanttEditorComponent.vue';
+import GanttEditorComponent from '../components/GanttEditorComponentCanvas.vue';
 
 // Ref to the Gantt Editor component for programmatic access
 const ganttEditorRef = ref<InstanceType<typeof GanttEditorComponent> | null>(null);
