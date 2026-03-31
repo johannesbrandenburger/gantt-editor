@@ -58,9 +58,8 @@ export function setupCanvasPanZoom(
       return;
     }
 
-    // Zoom: pinch (ctrlKey) on trackpad, or shift+wheel on mouse
-    const isTrackpad = Math.abs(event.deltaY) < 100 && event.deltaY % 1 !== 0;
-    const shouldZoom = (isTrackpad && event.ctrlKey) || (!isTrackpad && event.shiftKey);
+    // Zoom: ctrl+wheel or shift+wheel
+    const shouldZoom = event.ctrlKey || event.shiftKey;
     if (!shouldZoom) return;
 
     event.preventDefault();

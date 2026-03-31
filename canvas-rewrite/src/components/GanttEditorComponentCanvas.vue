@@ -113,7 +113,8 @@ const containerHeight = ref(0);
 const containerWidth = ref(0);
 
 const X_AXIS_HEIGHT = 50;
-const ROW_HEIGHT = 40;
+const DEFAULT_ROW_HEIGHT = 40;
+const rowHeight = ref(DEFAULT_ROW_HEIGHT);
 
 // Internal time range (mutated during pan/scroll for immediate re-render)
 const internalStartTime = ref(new Date(props.startTime));
@@ -309,7 +310,7 @@ const processedTopics = computed(() => {
     props.endTime,
     {
       groupBy: 'destinationId',
-      rowHeight: ROW_HEIGHT,
+      rowHeight: rowHeight.value,
       progressChartsDisplay: 'None',
       collapseGroups: false,
       editable: !props.isReadOnly,
@@ -357,7 +358,7 @@ const drawGantt = () => {
     if (viewportHeight <= 0) return;
 
     const groupTopics = topics.filter(t => t.groupId === group.id);
-    const contentHeight = computeContentHeight(groupTopics, ROW_HEIGHT);
+    const contentHeight = computeContentHeight(groupTopics, rowHeight.value);
     const scrollOffset = verticalScrollOffsets.value.get(group.id) || 0;
 
     // Clamp scroll offset in case content shrank
@@ -380,7 +381,7 @@ const drawGantt = () => {
       height: viewportHeight,
       topics: groupTopics,
       margin: MARGIN,
-      rowHeight: ROW_HEIGHT,
+      rowHeight: rowHeight.value,
       viewportTop: clampedOffset,
       viewportHeight: viewportHeight,
     });
@@ -390,7 +391,7 @@ const drawGantt = () => {
       width: containerWidth.value,
       topics: groupTopics,
       margin: MARGIN,
-      rowHeight: ROW_HEIGHT,
+      rowHeight: rowHeight.value,
       startTime: internalStartTime.value,
       endTime: internalEndTime.value,
       viewportTop: clampedOffset,
@@ -425,7 +426,7 @@ watch(
 );
 
 watch(
-  [containerWidth, containerHeight, currentTopContentPortion, internalStartTime, internalEndTime, () => props.slots, () => props.destinations],
+  [containerWidth, containerHeight, currentTopContentPortion, internalStartTime, internalEndTime, rowHeight, () => props.slots, () => props.destinations],
   () => { redraw(); }
 );
 
@@ -477,14 +478,13 @@ onMounted(() => {
     const onWheel = (event: WheelEvent) => {
       // Only handle vertical scroll (not horizontal, not zoom)
       if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
-      const isTrackpad = Math.abs(event.deltaY) < 100 && event.deltaY % 1 !== 0;
-      const shouldZoom = (isTrackpad && event.ctrlKey) || (!isTrackpad && event.shiftKey);
-      if (shouldZoom) return;
+      // ctrl or alt held → zoom, not scroll
+      if (event.ctrlKey || event.altKey) return;
 
       event.preventDefault();
 
       const groupTopics = processedTopics.value.filter(t => t.groupId === group.id);
-      const contentHeight = computeContentHeight(groupTopics, ROW_HEIGHT);
+      const contentHeight = computeContentHeight(groupTopics, rowHeight.value);
       const viewportHeight = heightMap.value.get(group.id) || 0;
 
       const currentOffset = verticalScrollOffsets.value.get(group.id) || 0;
@@ -497,6 +497,21 @@ onMounted(() => {
 
     containerEl.addEventListener('wheel', onWheel, { passive: false });
     verticalScrollCleanups.push(() => containerEl.removeEventListener('wheel', onWheel));
+
+    // Vertical zoom: alt(option)+wheel
+    const onVerticalZoom = (event: WheelEvent) => {
+      if (!event.altKey) return;
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+      event.preventDefault();
+
+      const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
+      const newHeight = Math.round(Math.max(5, Math.min(120, rowHeight.value * zoomFactor)));
+      rowHeight.value = newHeight;
+      redraw();
+    };
+
+    containerEl.addEventListener('wheel', onVerticalZoom, { passive: false });
+    verticalScrollCleanups.push(() => containerEl.removeEventListener('wheel', onVerticalZoom));
   });
 });
 
