@@ -702,6 +702,10 @@ export class GanttChartCanvasController {
 
     const topicId = this.topicIdAtContentY(ctx.groupId, ctx.contentY);
     if (topicId) {
+      if (ctx.point.x < MARGIN.left) {
+        this.toggleTopicCollapse(topicId);
+        return;
+      }
       this.moveClipboardToTopic(topicId);
     }
   }
@@ -1251,6 +1255,31 @@ export class GanttChartCanvasController {
       this.cachedProcessedTopics = null;
       this.redraw();
     }
+  }
+
+  private toggleTopicCollapse(topicId: string): void {
+    if (!topicId) return;
+
+    let collapsedTopics: string[] = [];
+    try {
+      const raw = localStorage.getItem("collapsedTopics") || "[]";
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        collapsedTopics = parsed.filter((v): v is string => typeof v === "string");
+      }
+    } catch {
+      collapsedTopics = [];
+    }
+
+    if (collapsedTopics.includes(topicId)) {
+      collapsedTopics = collapsedTopics.filter((id) => id !== topicId);
+    } else {
+      collapsedTopics.push(topicId);
+    }
+
+    localStorage.setItem("collapsedTopics", JSON.stringify(collapsedTopics));
+    this.cachedProcessedTopics = null;
+    this.redraw();
   }
 
   private resizeHoverKey(
