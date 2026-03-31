@@ -57,7 +57,12 @@ import {
   handlePanZoomWheelEvent,
   clearPanZoomWheelDebounce,
   type PanZoomCleanup,
+  type WheelZoomAnchor,
 } from "./gantt-editor-lib/chart/canvas_pan_zoom";
+import {
+  computeRowHeightForUnifiedZoom,
+  SLOT_RENDER_RATIO,
+} from "./gantt-editor-lib/chart/canvas_slot_scale";
 import { processData } from "./gantt-editor-lib/chart/process-data";
 import { drawTopicLines, computeContentHeight } from "./gantt-editor-lib/chart/canvas_topics";
 import { drawSlots } from "./gantt-editor-lib/chart/canvas_slots";
@@ -104,6 +109,7 @@ const containerHeight = ref(0);
 const containerWidth = ref(0);
 
 const X_AXIS_HEIGHT = 50;
+/** Fallback before layout; reconciled from visible time span and chart width. */
 const DEFAULT_ROW_HEIGHT = 40;
 const MIN_ROW_HEIGHT = 5;
 const MAX_ROW_HEIGHT = 120;
@@ -391,6 +397,78 @@ const processedTopics = computed(() => {
   return processedData_;
 });
 
+/**
+ * Keeps row height locked to the time scale so slot aspect ratio is stable (see SLOT_RENDER_RATIO).
+ * Optionally preserves vertical position under the cursor during wheel zoom.
+ */
+function reconcileUnifiedZoomRowHeight(wheelAnchor?: WheelZoomAnchor) {
+  const chartW = containerWidth.value - MARGIN.left - MARGIN.right;
+  const timeRangeMs =
+    internalEndTime.value.getTime() - internalStartTime.value.getTime();
+  const raw = computeRowHeightForUnifiedZoom(
+    chartW,
+    timeRangeMs,
+    SLOT_RENDER_RATIO,
+  );
+  if (!Number.isFinite(raw)) return;
+
+  const prevRowHeight = rowHeight.value;
+  const next = Math.max(
+    MIN_ROW_HEIGHT,
+    Math.min(MAX_ROW_HEIGHT, raw),
+  );
+  if (Math.abs(next - prevRowHeight) < 1e-4) return;
+
+  const layout = chartLayout.value;
+  const canvas = chartCanvasRef.value;
+  let focusedGroupId: string | null = null;
+  let anchorMouseY = 0;
+  if (wheelAnchor && layout && canvas) {
+    const pt = canvasLocalPoint(canvas, wheelAnchor.clientX, wheelAnchor.clientY);
+    const hit = hitTestChart(layout, pt.x, pt.y);
+    if (hit.type === "group") {
+      focusedGroupId = hit.groupId;
+      anchorMouseY = anchorYInGroupViewport(
+        layout,
+        hit.groupId,
+        wheelAnchor.clientX,
+        wheelAnchor.clientY,
+        canvas,
+      );
+    }
+  }
+
+  rowHeight.value = next;
+
+  const topics = processedTopics.value;
+  const topicsByGroupId = new Map<string, typeof topics>();
+  for (const t of topics) {
+    const list = topicsByGroupId.get(t.groupId);
+    if (list) list.push(t);
+    else topicsByGroupId.set(t.groupId, [t]);
+  }
+
+  props.destinationGroups.forEach((group) => {
+    const groupTopics = topicsByGroupId.get(group.id) ?? [];
+    const viewportHeight = heightMap.value.get(group.id) || 0;
+    const H_old = computeContentHeight(groupTopics, prevRowHeight);
+    const H_new = computeContentHeight(groupTopics, next);
+    if (H_old <= 0) return;
+
+    const s = verticalScrollOffsets.value.get(group.id) || 0;
+    const ratio = H_new / H_old;
+    const newScroll =
+      group.id === focusedGroupId
+        ? (s + anchorMouseY) * ratio - anchorMouseY
+        : s * ratio;
+    const maxOffset = Math.max(0, H_new - viewportHeight);
+    verticalScrollOffsets.value.set(
+      group.id,
+      Math.max(0, Math.min(maxOffset, newScroll)),
+    );
+  });
+}
+
 function buildPanZoomCallbacks() {
   return {
     marginLeft: MARGIN.left,
@@ -403,70 +481,11 @@ function buildPanZoomCallbacks() {
       internalStartTime.value = start;
       internalEndTime.value = end;
     },
-    onTimeRangeCommit: (start: Date, end: Date) => {
+    onTimeRangeCommit: (start: Date, end: Date, wheelAnchor?: WheelZoomAnchor) => {
       internalStartTime.value = start;
       internalEndTime.value = end;
+      reconcileUnifiedZoomRowHeight(wheelAnchor);
       emit("onChangeStartAndEndTime", start, end);
-    },
-    applyRowHeightZoomFactor: (
-      factor: number,
-      anchor: { clientX: number; clientY: number },
-    ) => {
-      const prevRowHeight = rowHeight.value;
-      const next = Math.max(
-        MIN_ROW_HEIGHT,
-        Math.min(MAX_ROW_HEIGHT, prevRowHeight * factor),
-      );
-      if (Math.abs(next - prevRowHeight) < 1e-4) return;
-
-      const layout = chartLayout.value;
-      const canvas = chartCanvasRef.value;
-      let focusedGroupId: string | null = null;
-      let anchorMouseY = 0;
-      if (layout && canvas) {
-        const pt = canvasLocalPoint(canvas, anchor.clientX, anchor.clientY);
-        const hit = hitTestChart(layout, pt.x, pt.y);
-        if (hit.type === "group") {
-          focusedGroupId = hit.groupId;
-          anchorMouseY = anchorYInGroupViewport(
-            layout,
-            hit.groupId,
-            anchor.clientX,
-            anchor.clientY,
-            canvas,
-          );
-        }
-      }
-
-      rowHeight.value = next;
-
-      const topics = processedTopics.value;
-      const topicsByGroupId = new Map<string, typeof topics>();
-      for (const t of topics) {
-        const list = topicsByGroupId.get(t.groupId);
-        if (list) list.push(t);
-        else topicsByGroupId.set(t.groupId, [t]);
-      }
-
-      props.destinationGroups.forEach((group) => {
-        const groupTopics = topicsByGroupId.get(group.id) ?? [];
-        const viewportHeight = heightMap.value.get(group.id) || 0;
-        const H_old = computeContentHeight(groupTopics, prevRowHeight);
-        const H_new = computeContentHeight(groupTopics, next);
-        if (H_old <= 0) return;
-
-        const s = verticalScrollOffsets.value.get(group.id) || 0;
-        const ratio = H_new / H_old;
-        const newScroll =
-          group.id === focusedGroupId
-            ? (s + anchorMouseY) * ratio - anchorMouseY
-            : s * ratio;
-        const maxOffset = Math.max(0, H_new - viewportHeight);
-        verticalScrollOffsets.value.set(
-          group.id,
-          Math.max(0, Math.min(maxOffset, newScroll)),
-        );
-      });
     },
   };
 }
@@ -618,8 +637,13 @@ watch(
   ([newStart, newEnd]) => {
     internalStartTime.value = new Date(newStart);
     internalEndTime.value = new Date(newEnd);
+    reconcileUnifiedZoomRowHeight();
   }
 );
+
+watch(containerWidth, () => {
+  reconcileUnifiedZoomRowHeight();
+});
 
 watch(
   [containerWidth, containerHeight, currentTopContentPortion, internalStartTime, internalEndTime, rowHeight, () => props.slots, () => props.destinations, currentHeightPortions],
@@ -642,6 +666,7 @@ onMounted(() => {
   }
 
   nextTick(() => {
+    reconcileUnifiedZoomRowHeight();
     redraw();
     isInitialized.value = true;
 

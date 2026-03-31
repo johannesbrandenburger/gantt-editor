@@ -5,6 +5,7 @@ import {
   computeTopicLayout,
   scaledBoldSansFont,
   TEXT_SCALE_BASE_ROW_HEIGHT,
+  TOPIC_BAND_PADDING,
 } from "./canvas_topics";
 
 function slotTextPaddingPx(rowHeight: number): number {
@@ -55,7 +56,7 @@ export function drawSlots(params: DrawSlotsParams) {
     .clamp(true);
 
   // d3.scaleBand equivalent
-  const padding = 0.3;
+  const padding = TOPIC_BAND_PADDING;
   const step = rowHeight;
   const bandwidth = step * (1 - padding);
   const gap = step - bandwidth;

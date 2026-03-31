@@ -1,33 +1,40 @@
 import * as d3 from "d3";
 
+/** Passed on wheel zoom commit so the chart can keep content stable under the cursor while row height updates. */
+export type WheelZoomAnchor = { clientX: number; clientY: number };
+
 export interface PanZoomCallbacks {
   /** Immediate re-render with new time range (no data fetch). */
   onTimeRangeChange: (start: Date, end: Date) => void;
-  /** Final commit after scroll/drag ends — triggers data fetch via parent emit. */
-  onTimeRangeCommit: (start: Date, end: Date) => void;
+  /**
+   * Final commit after scroll/drag ends — triggers data fetch via parent emit.
+   * `wheelAnchor` is set for modifier+wheel time zoom so row height can track the same zoom anchor.
+   */
+  onTimeRangeCommit: (
+    start: Date,
+    end: Date,
+    wheelAnchor?: WheelZoomAnchor,
+  ) => void;
   /** Returns the current visible time range. */
   getCurrentTimeRange: () => { start: Date; end: Date };
   /** Returns chart width excluding margins. */
   getChartWidth: () => number;
   /** Left margin (label area). */
   marginLeft: number;
-  /**
-   * Applied together with wheel zoom so time span and row height scale like a single map:
-   * zoom in → shorter visible range, taller rows; zoom out → the inverse.
-   * Anchor is viewport coordinates so vertical scroll can stay fixed under the cursor.
-   */
-  applyRowHeightZoomFactor: (
-    factor: number,
-    anchor: { clientX: number; clientY: number },
-  ) => void;
 }
 
 export interface PanZoomCleanup {
   destroy: () => void;
 }
 
-/** One modifier+wheel “step”: zoom out multiplies visible time span by this; zoom in uses the reciprocal. Row height uses the inverse so both axes stay matched (~4% per tick vs the old ~10%). */
+/** One modifier+wheel step on the unified time scale (~4% per tick). Row height is derived from visible span and chart width in the chart component. */
 const ZOOM_WHEEL_STEP = 1.04;
+
+/**
+ * Maximum visible time span when zooming out with modifier+wheel (ms).
+ * Default ~6 months; raise for wider views (rows shrink until the chart hits its min row height clamp).
+ */
+export const MAX_WHEEL_VISIBLE_TIME_RANGE_MS = 180 * 24 * 60 * 60 * 1000;
 
 /** Rough line height when wheel `deltaMode` is DOM_DELTA_LINE. */
 const WHEEL_LINE_HEIGHT_PX = 32;
@@ -116,20 +123,16 @@ export function handlePanZoomWheelEvent(
 
   const timeZoomFactor =
     event.deltaY > 0 ? ZOOM_WHEEL_STEP : 1 / ZOOM_WHEEL_STEP;
-  const rowZoomFactor =
-    event.deltaY > 0 ? 1 / ZOOM_WHEEL_STEP : ZOOM_WHEEL_STEP;
   const timeRange = end.getTime() - start.getTime();
   const mouseOffset = (mouseTime.getTime() - start.getTime()) / timeRange;
 
   const newTimeRange = timeRange * timeZoomFactor;
-  const maxTimeRange = 4 * 24 * 60 * 60 * 1000;
-  const constrainedTimeRange = Math.min(newTimeRange, maxTimeRange);
+  const constrainedTimeRange = Math.min(newTimeRange, MAX_WHEEL_VISIBLE_TIME_RANGE_MS);
 
   const newStart = new Date(mouseTime.getTime() - constrainedTimeRange * mouseOffset);
   const newEnd = new Date(newStart.getTime() + constrainedTimeRange);
 
-  callbacks.onTimeRangeCommit(newStart, newEnd);
-  callbacks.applyRowHeightZoomFactor(rowZoomFactor, {
+  callbacks.onTimeRangeCommit(newStart, newEnd, {
     clientX: event.clientX,
     clientY: event.clientY,
   });

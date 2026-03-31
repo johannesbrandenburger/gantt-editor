@@ -3,6 +3,9 @@ import type { Topic } from "./types";
 /** Matches default row height in GanttEditorComponentCanvas — fonts/padding scale from this baseline. */
 export const TEXT_SCALE_BASE_ROW_HEIGHT = 40;
 
+/** Band padding for topic rows (must match slot band geometry in canvas_slots). */
+export const TOPIC_BAND_PADDING = 0.3;
+
 /** Bold label font for topic headers and slot names; scales with row height. */
 export function scaledBoldSansFont(rowHeight: number): string {
   const px = Math.round(
@@ -50,7 +53,7 @@ export function computeTopicLayout(
   rowHeight: number,
 ): TopicLayout[] {
   // d3.scaleBand equivalent values
-  const padding = 0.3;
+  const padding = TOPIC_BAND_PADDING;
   const totalRows = topics.reduce(
     (acc, t) => acc + (t.isCollapsed ? 1 : t.rows.length) + 1, // +1 header row per topic
     0,
