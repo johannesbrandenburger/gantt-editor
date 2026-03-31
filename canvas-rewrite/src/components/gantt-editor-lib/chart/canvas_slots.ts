@@ -6,6 +6,7 @@ import {
   scaledBoldSansFont,
   TEXT_SCALE_BASE_ROW_HEIGHT,
   TOPIC_BAND_PADDING,
+  type TopicLayout,
 } from "./canvas_topics";
 
 function slotTextPaddingPx(rowHeight: number): number {
@@ -38,6 +39,24 @@ export interface DrawSlotsParams {
   endTime: Date;
   viewportTop?: number;
   viewportHeight?: number;
+  /** When set, skips internal computeTopicLayout (caller computed once per frame). */
+  topicLayouts?: TopicLayout[];
+}
+
+/** First index of slot with closeTime > t (slots sorted by openTime ascending). */
+function firstSlotIndexCloseAfter(
+  slots: { openTime: Date; closeTime: Date }[],
+  t: Date,
+): number {
+  const tm = t.getTime();
+  let lo = 0;
+  let hi = slots.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (slots[mid]!.closeTime.getTime() <= tm) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
 }
 
 /**
@@ -45,7 +64,7 @@ export interface DrawSlotsParams {
  * Assumes the topic gridlines/labels have already been drawn on this context.
  */
 export function drawSlots(params: DrawSlotsParams) {
-  const { ctx, width, topics, margin, rowHeight, startTime, endTime, viewportTop, viewportHeight } = params;
+  const { ctx, width, topics, margin, rowHeight, startTime, endTime, viewportTop, viewportHeight, topicLayouts } = params;
 
   const hasViewport = viewportTop !== undefined && viewportHeight !== undefined;
 
@@ -61,7 +80,7 @@ export function drawSlots(params: DrawSlotsParams) {
   const bandwidth = step * (1 - padding);
   const gap = step - bandwidth;
 
-  const layouts = computeTopicLayout(topics, margin.left, rowHeight);
+  const layouts = topicLayouts ?? computeTopicLayout(topics, margin.left, rowHeight);
 
   ctx.save();
 
@@ -73,9 +92,11 @@ export function drawSlots(params: DrawSlotsParams) {
       const rowTop = layout.rowYs[rowIndex];
       if (rowTop === undefined) return;
 
-      for (const slot of row.slots) {
-        // Horizontal culling: skip slots entirely outside the visible time range
-        if (slot.closeTime <= startTime || slot.openTime >= endTime) continue;
+      const slots = row.slots;
+      const i0 = firstSlotIndexCloseAfter(slots, startTime);
+      for (let i = i0; i < slots.length; i++) {
+        const slot = slots[i]!;
+        if (slot.openTime >= endTime) break;
 
         const slotDef = computeSlotRect(
           slot, xScale, chartWidth, margin.left, rowTop, bandwidth, gap,

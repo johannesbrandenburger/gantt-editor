@@ -41,6 +41,8 @@ export interface DrawTopicsParams {
   rowHeight: number;
   viewportTop?: number;
   viewportHeight?: number;
+  /** When set, skips internal computeTopicLayout (caller computed once per frame). */
+  layouts?: TopicLayout[];
 }
 
 /**
@@ -124,7 +126,7 @@ export function computeContentHeight(
  * Draws topic gridlines and labels onto a canvas context.
  */
 export function drawTopicLines(params: DrawTopicsParams) {
-  const { ctx, width, height, topics, margin, rowHeight, viewportTop, viewportHeight } = params;
+  const { ctx, width, height, topics, margin, rowHeight, viewportTop, viewportHeight, layouts: layoutsIn } = params;
 
   const hasViewport = viewportTop !== undefined && viewportHeight !== undefined;
 
@@ -139,7 +141,7 @@ export function drawTopicLines(params: DrawTopicsParams) {
     ctx.fillRect(0, 0, width, height);
   }
 
-  const layouts = computeTopicLayout(topics, margin.left, rowHeight);
+  const layouts = layoutsIn ?? computeTopicLayout(topics, margin.left, rowHeight);
 
   // Draw horizontal gridlines (one per topic, full width)
   ctx.save();

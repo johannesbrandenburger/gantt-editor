@@ -64,7 +64,7 @@ import {
   SLOT_RENDER_RATIO,
 } from "./gantt-editor-lib/chart/canvas_slot_scale";
 import { processData } from "./gantt-editor-lib/chart/process-data";
-import { drawTopicLines, computeContentHeight } from "./gantt-editor-lib/chart/canvas_topics";
+import { drawTopicLines, computeContentHeight, computeTopicLayout } from "./gantt-editor-lib/chart/canvas_topics";
 import { drawSlots } from "./gantt-editor-lib/chart/canvas_slots";
 import {
   computeUnifiedChartLayout,
@@ -344,18 +344,39 @@ const clearClipboard = () => {
 
 let resizeObserver: ResizeObserver | null = null;
 
-const setupCanvas = (canvas: HTMLCanvasElement, width: number, height: number) => {
+let cachedCanvasEl: HTMLCanvasElement | null = null;
+let cachedCtx: CanvasRenderingContext2D | null = null;
+
+/** Resize backing store only when CSS size or DPR changes (avoids clearing GPU surface every frame). */
+function ensureCanvasContext(
+  canvas: HTMLCanvasElement,
+  cssWidth: number,
+  cssHeight: number,
+): CanvasRenderingContext2D | null {
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = width * dpr;
-  canvas.height = height * dpr;
-  canvas.style.width = width + "px";
-  canvas.style.height = height + "px";
-  const ctx = canvas.getContext("2d");
+  const pw = Math.max(1, Math.round(cssWidth * dpr));
+  const ph = Math.max(1, Math.round(cssHeight * dpr));
+
+  if (cachedCanvasEl !== canvas) {
+    cachedCanvasEl = canvas;
+    cachedCtx = null;
+  }
+
+  canvas.style.width = `${cssWidth}px`;
+  canvas.style.height = `${cssHeight}px`;
+
+  if (canvas.width !== pw || canvas.height !== ph || !cachedCtx) {
+    canvas.width = pw;
+    canvas.height = ph;
+    cachedCtx = canvas.getContext("2d");
+  }
+
+  const ctx = cachedCtx;
   if (ctx) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   return ctx;
-};
+}
 
 const MARGIN = { left: 200, right: 60 };
 
@@ -549,7 +570,7 @@ const drawUnifiedFrame = () => {
 
   const topics = processedTopics.value;
 
-  const ctx = setupCanvas(canvas, layout.canvasCssWidth, layout.canvasCssHeight);
+  const ctx = ensureCanvasContext(canvas, layout.canvasCssWidth, layout.canvasCssHeight);
   if (!ctx) return;
 
   ctx.clearRect(0, 0, layout.canvasCssWidth, layout.canvasCssHeight);
@@ -591,6 +612,8 @@ const drawUnifiedFrame = () => {
     ctx.clip();
     ctx.translate(0, gr.y - clampedOffset);
 
+    const topicLayouts = computeTopicLayout(groupTopics, MARGIN.left, rowHeight.value);
+
     drawTopicLines({
       ctx,
       width: layout.canvasCssWidth,
@@ -600,6 +623,7 @@ const drawUnifiedFrame = () => {
       rowHeight: rowHeight.value,
       viewportTop: clampedOffset,
       viewportHeight: viewportHeight,
+      layouts: topicLayouts,
     });
 
     drawSlots({
@@ -612,6 +636,7 @@ const drawUnifiedFrame = () => {
       endTime: internalEndTime.value,
       viewportTop: clampedOffset,
       viewportHeight: viewportHeight,
+      topicLayouts,
     });
 
     ctx.restore();
