@@ -2,12 +2,11 @@
   <div
     ref="chartContainerRef"
     class="chart-container"
-    @mousemove="updateCursorPosition"
+    @mousemove="onContainerMouseMove"
     @mouseenter="onMouseEnter"
     @mouseleave="onMouseLeave"
   >
 
-    <!-- Top content slot (e.g., for LoadChart) -->
     <div
       v-if="$slots['top-content'] || topContentPortion"
       class="top-content-container"
@@ -16,36 +15,16 @@
       <slot name="top-content"></slot>
     </div>
 
-    <!-- Resize handle for top content -->
-    <div
-      v-if="$slots['top-content'] || topContentPortion"
-      class="resize-handle"
-      @mousedown="startTopContentResize($event)"
-    ></div>
-
-    <!-- X-Axis canvas -->
-    <div class="x-axis-container">
-      <canvas ref="xAxisCanvasRef"></canvas>
+    <div class="chart-canvas-wrap">
+      <canvas
+        ref="chartCanvasRef"
+        class="chart-canvas"
+        @mousedown="onCanvasMouseDown"
+        @mousemove="onChartMouseMove"
+        @mouseleave="onChartMouseLeave"
+        @wheel="onCanvasWheel"
+      ></canvas>
     </div>
-
-    <!-- Per-group gantt chart canvases -->
-    <template
-      v-for="(group, index) in props.destinationGroups"
-      :key="group.id"
-    >
-      <div
-        class="gantt-canvas-container"
-        :id="group.id + '-gantt-container'"
-        :style="{ height: heightMap.get(group.id) + 'px' }"
-      >
-        <canvas :ref="el => { if (el) ganttCanvasRefs[group.id] = el as HTMLCanvasElement }"></canvas>
-      </div>
-      <div
-        class="resize-handle"
-        @mousedown="startResize($event, group.id)"
-        v-if="index < props.destinationGroups.length - 1"
-      ></div>
-    </template>
 
     <div
       v-if="clipboardItems.length && showClipboard"
@@ -73,11 +52,24 @@
 <script setup lang="ts">
 import type { GanttEditorDestination, GanttEditorSlot, GanttEditorDestinationGroup, GanttEditorSuggestion, GanttEditorMarkedRegion, GanttEditorXAxisOptions, GanttEditorSlotWithUiAttributes } from "./gantt-editor-lib/chart/types";
 import { drawXAxisOnCanvas } from "./gantt-editor-lib/chart/canvas_axis";
-import { setupCanvasPanZoom, type PanZoomCleanup } from "./gantt-editor-lib/chart/canvas_pan_zoom";
+import {
+  setupCanvasPanZoom,
+  handlePanZoomWheelEvent,
+  clearPanZoomWheelDebounce,
+  type PanZoomCleanup,
+} from "./gantt-editor-lib/chart/canvas_pan_zoom";
 import { processData } from "./gantt-editor-lib/chart/process-data";
 import { drawTopicLines, computeContentHeight } from "./gantt-editor-lib/chart/canvas_topics";
 import { drawSlots } from "./gantt-editor-lib/chart/canvas_slots";
-import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
+import {
+  computeUnifiedChartLayout,
+  hitTestChart,
+  canvasLocalPoint,
+  anchorYInGroupViewport,
+  drawResizeBands,
+  type UnifiedChartLayout,
+} from "./gantt-editor-lib/chart/unified_chart_layout";
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
 
 interface GanttEditorProps {
   startTime: Date,
@@ -107,8 +99,7 @@ interface GanttEditorEmits {
 const props = defineProps<GanttEditorProps>();
 const emit = defineEmits<GanttEditorEmits>();
 const chartContainerRef = ref<HTMLElement | null>(null);
-const xAxisCanvasRef = ref<HTMLCanvasElement | null>(null);
-const ganttCanvasRefs = ref<Record<string, HTMLCanvasElement>>({});
+const chartCanvasRef = ref<HTMLCanvasElement | null>(null);
 const containerHeight = ref(0);
 const containerWidth = ref(0);
 
@@ -116,21 +107,16 @@ const X_AXIS_HEIGHT = 50;
 const DEFAULT_ROW_HEIGHT = 40;
 const MIN_ROW_HEIGHT = 5;
 const MAX_ROW_HEIGHT = 120;
-/** Sub-pixel values allowed so zoom steps can accumulate at min/max (integer rounding used to trap at MIN). */
 const rowHeight = ref<number>(DEFAULT_ROW_HEIGHT);
 
-// Internal time range (mutated during pan/scroll for immediate re-render)
 const internalStartTime = ref(new Date(props.startTime));
 const internalEndTime = ref(new Date(props.endTime));
 let panZoomCleanup: PanZoomCleanup | null = null;
-let verticalScrollCleanups: Array<() => void> = [];
 
-// Top content resizing state
 const currentTopContentPortion = ref(props.topContentPortion || 0);
 const isResizingTopContent = ref(false);
 const topContentStartY = ref(0);
 
-// Group resize state
 const isResizing = ref(false);
 const resizingElement = ref<string | null>(null);
 const startY = ref(0);
@@ -141,24 +127,30 @@ props.destinationGroups.forEach((group) => {
   verticalScrollOffsets.value.set(group.id, 0);
 });
 
-const totalContentHeight = computed(() => {
-  return containerHeight.value - 3 * (props.destinationGroups.length - 1) - (currentTopContentPortion.value > 0 ? 3 : 0);
+const chartLayout = computed((): UnifiedChartLayout | null => {
+  if (containerWidth.value <= 0 || containerHeight.value <= 0) return null;
+  if (props.destinationGroups.length === 0) return null;
+  return computeUnifiedChartLayout({
+    containerWidth: containerWidth.value,
+    containerHeight: containerHeight.value,
+    destinationGroups: props.destinationGroups,
+    heightPortions: currentHeightPortions.value,
+    topContentPortion: currentTopContentPortion.value,
+    xAxisHeight: X_AXIS_HEIGHT,
+    resizeHandlePx: 3,
+  });
 });
 
-const currentTopContentHeight = computed(() => {
-  return totalContentHeight.value * currentTopContentPortion.value;
-});
+const totalContentHeight = computed(() => chartLayout.value?.totalContentHeight ?? 0);
 
-const outerComponentHeight = computed(() => {
-  return totalContentHeight.value * (1 - currentTopContentPortion.value) - X_AXIS_HEIGHT;
-});
+const currentTopContentHeight = computed(() => chartLayout.value?.currentTopContentHeight ?? 0);
+
+const outerComponentHeight = computed(() => chartLayout.value?.outerComponentHeight ?? 0);
 
 const heightMap = computed(() => {
-  const map = new Map<string, number>();
-  props.destinationGroups.forEach((group) => {
-    map.set(group.id, outerComponentHeight.value * (currentHeightPortions.value.get(group.id) || 0));
-  });
-  return map;
+  const layout = chartLayout.value;
+  if (!layout) return new Map<string, number>();
+  return layout.groupHeights;
 });
 
 const isInitialized = ref(false);
@@ -172,45 +164,62 @@ watch(
   }
 );
 
-// Top content resize
+watch(
+  () => props.destinationGroups.map((g) => ({ id: g.id, hp: g.heightPortion })),
+  () => {
+    const nextH = new Map<string, number>();
+    const nextS = new Map<string, number>();
+    props.destinationGroups.forEach((g) => {
+      nextH.set(g.id, currentHeightPortions.value.get(g.id) ?? g.heightPortion);
+      nextS.set(g.id, verticalScrollOffsets.value.get(g.id) ?? 0);
+    });
+    currentHeightPortions.value = nextH;
+    verticalScrollOffsets.value = nextS;
+  },
+  { deep: true },
+);
+
 const startTopContentResize = (e: MouseEvent) => {
   isResizingTopContent.value = true;
   topContentStartY.value = e.clientY;
-  document.addEventListener('mousemove', handleTopContentResize);
-  document.addEventListener('mouseup', stopTopContentResize);
+  document.addEventListener("mousemove", handleTopContentResize);
+  document.addEventListener("mouseup", stopTopContentResize);
   e.preventDefault();
 };
 
 const handleTopContentResize = (e: MouseEvent) => {
   if (!isResizingTopContent.value) return;
+  const th = totalContentHeight.value;
+  if (th <= 0) return;
   const deltaY = e.clientY - topContentStartY.value;
-  const portionDelta = deltaY / totalContentHeight.value;
+  const portionDelta = deltaY / th;
   let newPortion = currentTopContentPortion.value + portionDelta;
   if (newPortion < 0.01) newPortion = 0.01;
   if (newPortion > 0.99) newPortion = 0.99;
   currentTopContentPortion.value = newPortion;
   topContentStartY.value = e.clientY;
-  emit("onTopContentPortionChange", newPortion, totalContentHeight.value * newPortion);
+  emit("onTopContentPortionChange", newPortion, th * newPortion);
 };
 
 const stopTopContentResize = () => {
   isResizingTopContent.value = false;
-  document.removeEventListener('mousemove', handleTopContentResize);
-  document.removeEventListener('mouseup', stopTopContentResize);
+  document.removeEventListener("mousemove", handleTopContentResize);
+  document.removeEventListener("mouseup", stopTopContentResize);
 };
 
-// Group resize
 const startResize = (e: MouseEvent, element: string) => {
   isResizing.value = true;
   resizingElement.value = element;
   startY.value = e.clientY;
-  document.addEventListener('mousemove', handleResize);
-  document.addEventListener('mouseup', stopResize);
+  document.addEventListener("mousemove", handleResize);
+  document.addEventListener("mouseup", stopResize);
   e.preventDefault();
 };
 
 const handleResize = (e: MouseEvent) => {
   if (!isResizing.value || !resizingElement.value) return;
+  const o = outerComponentHeight.value;
+  if (o <= 0) return;
   const deltaY = e.clientY - startY.value;
   const minHeightPortion = 0.01;
   const currentIndex = props.destinationGroups.findIndex(group => group.id === resizingElement.value);
@@ -220,7 +229,7 @@ const handleResize = (e: MouseEvent) => {
   const currentElement = props.destinationGroups[currentIndex];
   const currentPortion = currentHeightPortions.value.get(currentElement.id) || 0;
   const nextPortion = currentHeightPortions.value.get(nextElement.id) || 0;
-  const portionDelta = deltaY / outerComponentHeight.value;
+  const portionDelta = deltaY / o;
   const totalPortion = currentPortion + nextPortion;
   let newCurrentPortion = currentPortion + portionDelta;
   let newNextPortion = nextPortion - portionDelta;
@@ -245,11 +254,10 @@ const stopResize = () => {
     resizingElement.value = null;
     redraw();
   }
-  document.removeEventListener('mousemove', handleResize);
-  document.removeEventListener('mouseup', stopResize);
+  document.removeEventListener("mousemove", handleResize);
+  document.removeEventListener("mouseup", stopResize);
 };
 
-// Clipboard
 const cursorPosition = ref({ x: 0, y: 0 });
 const showClipboard = ref(false);
 const clipboardItems = ref<GanttEditorSlot[]>([]);
@@ -280,22 +288,64 @@ const updateCursorPosition = (e: MouseEvent) => {
 const onMouseEnter = () => { showClipboard.value = true; };
 const onMouseLeave = () => { showClipboard.value = false; };
 
+const hoverResizeBand = ref<string | null>(null);
+
+function resizeHoverKey(layout: UnifiedChartLayout, clientX: number, clientY: number): string | null {
+  const canvas = chartCanvasRef.value;
+  if (!canvas) return null;
+  const pt = canvasLocalPoint(canvas, clientX, clientY);
+  const hit = hitTestChart(layout, pt.x, pt.y);
+  if (hit.type === "topResize") return "top";
+  if (hit.type === "betweenResize") return `between:${hit.groupIdAbove}`;
+  return null;
+}
+
+const onContainerMouseMove = (e: MouseEvent) => {
+  updateCursorPosition(e);
+};
+
+const onChartMouseMove = (e: MouseEvent) => {
+  updateCursorPosition(e);
+  const layout = chartLayout.value;
+  const canvas = chartCanvasRef.value;
+  if (!layout || !canvas) return;
+  const nextHover = resizeHoverKey(layout, e.clientX, e.clientY);
+  if (nextHover !== hoverResizeBand.value) {
+    hoverResizeBand.value = nextHover;
+    redraw();
+  } else {
+    hoverResizeBand.value = nextHover;
+  }
+  const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
+  const hit = hitTestChart(layout, pt.x, pt.y);
+  if (hit.type === "topResize" || hit.type === "betweenResize") {
+    canvas.style.cursor = "ns-resize";
+  } else {
+    canvas.style.cursor = "";
+  }
+};
+
+const onChartMouseLeave = () => {
+  hoverResizeBand.value = null;
+  const canvas = chartCanvasRef.value;
+  if (canvas) canvas.style.cursor = "";
+};
+
 const clearClipboard = () => {
   localStorage.setItem("pointerClipboard", "[]");
   updateClipboard();
   props.slots.forEach(slot => { slot.isCopied = false; });
 };
 
-// Canvas drawing
 let resizeObserver: ResizeObserver | null = null;
 
 const setupCanvas = (canvas: HTMLCanvasElement, width: number, height: number) => {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = width * dpr;
   canvas.height = height * dpr;
-  canvas.style.width = width + 'px';
-  canvas.style.height = height + 'px';
-  const ctx = canvas.getContext('2d');
+  canvas.style.width = width + "px";
+  canvas.style.height = height + "px";
+  const ctx = canvas.getContext("2d");
   if (ctx) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
@@ -304,7 +354,6 @@ const setupCanvas = (canvas: HTMLCanvasElement, width: number, height: number) =
 
 const MARGIN = { left: 200, right: 60 };
 
-// Cache processed data — only recompute when slots/destinations change, NOT on pan/zoom
 const processedTopics = computed(() => {
   const { processedData_ } = processData(
     props.slots,
@@ -312,13 +361,13 @@ const processedTopics = computed(() => {
     props.startTime,
     props.endTime,
     {
-      groupBy: 'destinationId',
+      groupBy: "destinationId",
       rowHeight: rowHeight.value,
-      progressChartsDisplay: 'None',
+      progressChartsDisplay: "None",
       collapseGroups: false,
       editable: !props.isReadOnly,
       compactView: false,
-      sortInFrontend: 'None',
+      sortInFrontend: "None",
       slotLimit: 0,
       overlayWeeks: 0,
       overlayDays: 0,
@@ -336,51 +385,183 @@ const processedTopics = computed(() => {
   return processedData_;
 });
 
-const drawXAxis = () => {
-  if (!xAxisCanvasRef.value) return;
-  const ctx = setupCanvas(xAxisCanvasRef.value, containerWidth.value, X_AXIS_HEIGHT);
+function buildPanZoomCallbacks() {
+  return {
+    marginLeft: MARGIN.left,
+    getCurrentTimeRange: () => ({
+      start: internalStartTime.value,
+      end: internalEndTime.value,
+    }),
+    getChartWidth: () => containerWidth.value - MARGIN.left - MARGIN.right,
+    onTimeRangeChange: (start: Date, end: Date) => {
+      internalStartTime.value = start;
+      internalEndTime.value = end;
+    },
+    onTimeRangeCommit: (start: Date, end: Date) => {
+      internalStartTime.value = start;
+      internalEndTime.value = end;
+      emit("onChangeStartAndEndTime", start, end);
+    },
+    applyRowHeightZoomFactor: (
+      factor: number,
+      anchor: { clientX: number; clientY: number },
+    ) => {
+      const prevRowHeight = rowHeight.value;
+      const next = Math.max(
+        MIN_ROW_HEIGHT,
+        Math.min(MAX_ROW_HEIGHT, prevRowHeight * factor),
+      );
+      if (Math.abs(next - prevRowHeight) < 1e-4) return;
+
+      const layout = chartLayout.value;
+      const canvas = chartCanvasRef.value;
+      let focusedGroupId: string | null = null;
+      let anchorMouseY = 0;
+      if (layout && canvas) {
+        const pt = canvasLocalPoint(canvas, anchor.clientX, anchor.clientY);
+        const hit = hitTestChart(layout, pt.x, pt.y);
+        if (hit.type === "group") {
+          focusedGroupId = hit.groupId;
+          anchorMouseY = anchorYInGroupViewport(
+            layout,
+            hit.groupId,
+            anchor.clientX,
+            anchor.clientY,
+            canvas,
+          );
+        }
+      }
+
+      rowHeight.value = next;
+
+      props.destinationGroups.forEach((group) => {
+        const groupTopics = processedTopics.value.filter((t) => t.groupId === group.id);
+        const viewportHeight = heightMap.value.get(group.id) || 0;
+        const H_old = computeContentHeight(groupTopics, prevRowHeight);
+        const H_new = computeContentHeight(groupTopics, next);
+        if (H_old <= 0) return;
+
+        const s = verticalScrollOffsets.value.get(group.id) || 0;
+        const ratio = H_new / H_old;
+        const newScroll =
+          group.id === focusedGroupId
+            ? (s + anchorMouseY) * ratio - anchorMouseY
+            : s * ratio;
+        const maxOffset = Math.max(0, H_new - viewportHeight);
+        verticalScrollOffsets.value.set(
+          group.id,
+          Math.max(0, Math.min(maxOffset, newScroll)),
+        );
+      });
+    },
+  };
+}
+
+const onCanvasWheel = (event: WheelEvent) => {
+  const canvas = chartCanvasRef.value;
+  if (!canvas) return;
+
+  const callbacks = buildPanZoomCallbacks();
+  if (handlePanZoomWheelEvent(event, canvas, callbacks)) {
+    redraw();
+    return;
+  }
+
+
+  if (event.ctrlKey || event.shiftKey || event.altKey) return;
+
+  if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+
+  const layout = chartLayout.value;
+  if (!layout) return;
+
+  const pt = canvasLocalPoint(canvas, event.clientX, event.clientY);
+  const hit = hitTestChart(layout, pt.x, pt.y);
+  if (hit.type !== "group") return;
+
+  event.preventDefault();
+
+  const groupId = hit.groupId;
+  const groupTopics = processedTopics.value.filter(t => t.groupId === groupId);
+  const contentHeight = computeContentHeight(groupTopics, rowHeight.value);
+  const viewportHeight = heightMap.value.get(groupId) || 0;
+
+  const currentOffset = verticalScrollOffsets.value.get(groupId) || 0;
+  const maxOffset = Math.max(0, contentHeight - viewportHeight);
+  const newOffset = Math.max(0, Math.min(maxOffset, currentOffset + event.deltaY));
+
+  verticalScrollOffsets.value.set(groupId, newOffset);
+  redraw();
+};
+
+const onCanvasMouseDown = (e: MouseEvent) => {
+  if (e.button !== 0) return;
+  const layout = chartLayout.value;
+  const canvas = chartCanvasRef.value;
+  if (!layout || !canvas) return;
+  const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
+  const hit = hitTestChart(layout, pt.x, pt.y);
+  if (hit.type === "topResize") {
+    startTopContentResize(e);
+    return;
+  }
+  if (hit.type === "betweenResize") {
+    startResize(e, hit.groupIdAbove);
+  }
+};
+
+const drawUnifiedFrame = () => {
+  const layout = chartLayout.value;
+  const canvas = chartCanvasRef.value;
+  if (!layout || !canvas || layout.canvasCssHeight <= 0) return;
+
+  const topics = processedTopics.value;
+
+  const ctx = setupCanvas(canvas, layout.canvasCssWidth, layout.canvasCssHeight);
   if (!ctx) return;
+
+  ctx.clearRect(0, 0, layout.canvasCssWidth, layout.canvasCssHeight);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, layout.canvasCssWidth, layout.canvasCssHeight);
+
+  const bandKey = hoverResizeBand.value;
+  drawResizeBands(ctx, layout, bandKey);
+
   drawXAxisOnCanvas({
     ctx,
-    width: containerWidth.value,
+    width: layout.canvasCssWidth,
     height: X_AXIS_HEIGHT,
     startTime: internalStartTime.value,
     endTime: internalEndTime.value,
     margin: MARGIN,
     xAxisOptions: props.xAxisOptions,
+    offsetY: layout.axisRect.y,
   });
-};
-
-const drawGantt = () => {
-  const topics = processedTopics.value;
 
   props.destinationGroups.forEach((group) => {
-    const canvas = ganttCanvasRefs.value[group.id];
-    if (!canvas) return;
-    const viewportHeight = heightMap.value.get(group.id) || 0;
-    if (viewportHeight <= 0) return;
+    const gr = layout.groupRects.get(group.id);
+    if (!gr || gr.h <= 0) return;
 
+    const viewportHeight = gr.h;
     const groupTopics = topics.filter(t => t.groupId === group.id);
     const contentHeight = computeContentHeight(groupTopics, rowHeight.value);
     const scrollOffset = verticalScrollOffsets.value.get(group.id) || 0;
 
-    // Clamp scroll offset in case content shrank
     const maxOffset = Math.max(0, contentHeight - viewportHeight);
     const clampedOffset = Math.min(scrollOffset, maxOffset);
     if (clampedOffset !== scrollOffset) {
       verticalScrollOffsets.value.set(group.id, clampedOffset);
     }
 
-    // Canvas is viewport-sized (not content-sized)
-    const ctx = setupCanvas(canvas, containerWidth.value, viewportHeight);
-    if (!ctx) return;
-
     ctx.save();
-    ctx.translate(0, -clampedOffset);
+    ctx.beginPath();
+    ctx.rect(0, gr.y, layout.canvasCssWidth, gr.h);
+    ctx.clip();
+    ctx.translate(0, gr.y - clampedOffset);
 
     drawTopicLines({
       ctx,
-      width: containerWidth.value,
+      width: layout.canvasCssWidth,
       height: viewportHeight,
       topics: groupTopics,
       margin: MARGIN,
@@ -391,7 +572,7 @@ const drawGantt = () => {
 
     drawSlots({
       ctx,
-      width: containerWidth.value,
+      width: layout.canvasCssWidth,
       topics: groupTopics,
       margin: MARGIN,
       rowHeight: rowHeight.value,
@@ -406,8 +587,7 @@ const drawGantt = () => {
 };
 
 const redraw = () => {
-  drawXAxis();
-  drawGantt();
+  drawUnifiedFrame();
 };
 
 watch(
@@ -419,7 +599,6 @@ watch(
   }
 );
 
-// Sync internal time when props change from parent
 watch(
   [() => props.startTime, () => props.endTime],
   ([newStart, newEnd]) => {
@@ -429,7 +608,7 @@ watch(
 );
 
 watch(
-  [containerWidth, containerHeight, currentTopContentPortion, internalStartTime, internalEndTime, rowHeight, () => props.slots, () => props.destinations],
+  [containerWidth, containerHeight, currentTopContentPortion, internalStartTime, internalEndTime, rowHeight, () => props.slots, () => props.destinations, currentHeightPortions],
   () => { redraw(); }
 );
 
@@ -448,102 +627,13 @@ onMounted(() => {
     resizeObserver.observe(chartContainerRef.value);
   }
 
-  redraw();
-  isInitialized.value = true;
+  nextTick(() => {
+    redraw();
+    isInitialized.value = true;
 
-  // Setup pan & zoom on the chart container
-  if (chartContainerRef.value) {
-    panZoomCleanup = setupCanvasPanZoom(chartContainerRef.value, {
-      marginLeft: MARGIN.left,
-      getCurrentTimeRange: () => ({
-        start: internalStartTime.value,
-        end: internalEndTime.value,
-      }),
-      getChartWidth: () => containerWidth.value - MARGIN.left - MARGIN.right,
-      onTimeRangeChange: (start, end) => {
-        internalStartTime.value = start;
-        internalEndTime.value = end;
-      },
-      onTimeRangeCommit: (start, end) => {
-        internalStartTime.value = start;
-        internalEndTime.value = end;
-        emit('onChangeStartAndEndTime', start, end);
-      },
-      applyRowHeightZoomFactor: (
-        factor: number,
-        anchor: { clientX: number; clientY: number },
-      ) => {
-        const prevRowHeight = rowHeight.value;
-        const next = Math.max(
-          MIN_ROW_HEIGHT,
-          Math.min(MAX_ROW_HEIGHT, prevRowHeight * factor),
-        );
-        if (Math.abs(next - prevRowHeight) < 1e-4) return;
-
-        let focusedGroupId: string | null = null;
-        let anchorMouseY = 0;
-        const hit = document.elementFromPoint(anchor.clientX, anchor.clientY) as Element | null;
-        const ganttHost = hit?.closest?.("[id$='-gantt-container']") as HTMLElement | null;
-        if (ganttHost?.id?.endsWith("-gantt-container")) {
-          focusedGroupId = ganttHost.id.replace(/-gantt-container$/, "");
-          const rect = ganttHost.getBoundingClientRect();
-          anchorMouseY = Math.max(0, Math.min(rect.height, anchor.clientY - rect.top));
-        }
-
-        rowHeight.value = next;
-
-        props.destinationGroups.forEach((group) => {
-          const groupTopics = processedTopics.value.filter((t) => t.groupId === group.id);
-          const viewportHeight = heightMap.value.get(group.id) || 0;
-          const H_old = computeContentHeight(groupTopics, prevRowHeight);
-          const H_new = computeContentHeight(groupTopics, next);
-          if (H_old <= 0) return;
-
-          const s = verticalScrollOffsets.value.get(group.id) || 0;
-          const ratio = H_new / H_old;
-          const newScroll =
-            group.id === focusedGroupId
-              ? (s + anchorMouseY) * ratio - anchorMouseY
-              : s * ratio;
-          const maxOffset = Math.max(0, H_new - viewportHeight);
-          verticalScrollOffsets.value.set(
-            group.id,
-            Math.max(0, Math.min(maxOffset, newScroll)),
-          );
-        });
-
-        redraw();
-      },
-    });
-  }
-
-  // Setup vertical scrolling on each group container
-  props.destinationGroups.forEach((group) => {
-    const containerEl = document.getElementById(group.id + '-gantt-container');
-    if (!containerEl) return;
-
-    const onWheel = (event: WheelEvent) => {
-      // Only handle vertical scroll (not horizontal, not zoom)
-      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
-      // Modifier+wheel → uniform zoom on chart container, not vertical scroll
-      if (event.ctrlKey || event.shiftKey || event.altKey) return;
-
-      event.preventDefault();
-
-      const groupTopics = processedTopics.value.filter(t => t.groupId === group.id);
-      const contentHeight = computeContentHeight(groupTopics, rowHeight.value);
-      const viewportHeight = heightMap.value.get(group.id) || 0;
-
-      const currentOffset = verticalScrollOffsets.value.get(group.id) || 0;
-      const maxOffset = Math.max(0, contentHeight - viewportHeight);
-      const newOffset = Math.max(0, Math.min(maxOffset, currentOffset + event.deltaY));
-
-      verticalScrollOffsets.value.set(group.id, newOffset);
-      redraw();
-    };
-
-    containerEl.addEventListener('wheel', onWheel, { passive: false });
-    verticalScrollCleanups.push(() => containerEl.removeEventListener('wheel', onWheel));
+    if (chartCanvasRef.value) {
+      panZoomCleanup = setupCanvasPanZoom(chartCanvasRef.value, buildPanZoomCallbacks());
+    }
   });
 });
 
@@ -556,14 +646,12 @@ onBeforeUnmount(() => {
     panZoomCleanup.destroy();
     panZoomCleanup = null;
   }
-  verticalScrollCleanups.forEach(fn => fn());
-  verticalScrollCleanups = [];
+  clearPanZoomWheelDebounce();
 });
 
 defineExpose({
   clearClipboard,
-  xAxisCanvas: xAxisCanvasRef,
-  ganttCanvasRefs: ganttCanvasRefs,
+  chartCanvas: chartCanvasRef,
 });
 </script>
 
@@ -578,44 +666,15 @@ defineExpose({
   flex-direction: column;
 }
 
-.x-axis-container {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  height: 50px;
+.chart-canvas-wrap {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  overflow: hidden;
-  background-color: white;
+  position: relative;
 }
 
-.x-axis-container canvas {
+.chart-canvas {
   display: block;
-}
-
-.gantt-canvas-container {
-  overflow: hidden;
-  width: 100%;
-  background-color: white;
-}
-
-.gantt-canvas-container canvas {
-  display: block;
-}
-
-.resize-handle {
-  height: 3px;
-  width: 100%;
-  background-color: #e0e0e0;
-  cursor: ns-resize;
-  z-index: 10;
-}
-
-.resize-handle:hover {
-  background-color: #3700ff;
-}
-
-.resize-handle:active {
-  background-color: #6200ee;
 }
 
 .top-content-container {
@@ -624,14 +683,12 @@ defineExpose({
   background-color: white;
 }
 
-/* New styling for the Vuetify pointer clipboard */
 .pointer-clipboard {
   position: fixed;
   z-index: 1000;
   pointer-events: none;
 }
 
-/* Keep any existing styles for clipboard chips if needed */
 .clipboard-chip text {
   pointer-events: none;
 }

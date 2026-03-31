@@ -9,10 +9,13 @@ export interface DrawXAxisParams {
   endTime: Date;
   margin: { left: number; right: number };
   xAxisOptions?: GanttEditorXAxisOptions;
+  /** Top offset when drawing into a larger unified canvas (default 0). */
+  offsetY?: number;
 }
 
 export function drawXAxisOnCanvas(params: DrawXAxisParams) {
   const { ctx, width, height, startTime, endTime, margin, xAxisOptions } = params;
+  const offsetY = params.offsetY ?? 0;
 
   const chartWidth = width - margin.left - margin.right;
   const xScale = d3.scaleTime()
@@ -20,10 +23,10 @@ export function drawXAxisOnCanvas(params: DrawXAxisParams) {
     .range([0, chartWidth])
     .clamp(true);
 
-  // Clear
-  ctx.clearRect(0, 0, width, height);
+  // Clear axis band
+  ctx.clearRect(0, offsetY, width, height);
   ctx.fillStyle = "#f5f5f5";
-  ctx.fillRect(0, 0, width, height);
+  ctx.fillRect(0, offsetY, width, height);
 
   // Formatters (matching original axis.ts defaults)
   const dateFormatter = xAxisOptions?.upper?.tickFormat ?? ((d: Date | d3.NumberValue) => {
@@ -42,10 +45,10 @@ export function drawXAxisOnCanvas(params: DrawXAxisParams) {
   // Original SVG: xAxisGroup translated to (margin.left, 40). Upper axis at y=-20, lower at y=0.
   // So upper text ~ y=20 (40-20), lower text ~ y=40 (40+0). Tick lines from y=40 downward.
   // We map: upper row center = 14, lower row center = 36, tick lines end at 50.
-  const upperY = 14;
-  const lowerY = 36;
-  const tickLineTop = height;
-  const tickLineBottom = height-5;
+  const upperY = offsetY + 14;
+  const lowerY = offsetY + 36;
+  const tickLineTop = offsetY + height;
+  const tickLineBottom = offsetY + height - 5;
 
   // Draw upper axis ticks (date labels, no tick lines in original)
   ctx.save();
@@ -86,8 +89,8 @@ export function drawXAxisOnCanvas(params: DrawXAxisParams) {
   ctx.strokeStyle = "#333";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(margin.left, height - 0.5);
-  ctx.lineTo(width - margin.right, height - 0.5);
+  ctx.moveTo(margin.left, offsetY + height - 0.5);
+  ctx.lineTo(width - margin.right, offsetY + height - 0.5);
   ctx.stroke();
   ctx.restore();
 }

@@ -249,14 +249,43 @@ const generateSlots = (count: number) => {
     });
 
     // allocate in order of opentime
-    const slots: GanttEditorSlot[] = unallocatedSlots
+    const allocatedSlots: GanttEditorSlot[] = unallocatedSlots
         .sort((a, b) => a.openTime.getTime() - b.openTime.getTime())
         .map((slot, index) => ({
             ...slot,
             destinationId: `mup-${(index % numberOfDestinations.value) + 1}`, // distribute across destinations (IDs start at 1)
         }));
 
-    return slots;
+    // A few fixed slots on the UNALLOCATED chute so the bottom group is visibly populated in the demo
+    const spanMs = dayEnd.getTime() - dayStart.getTime();
+    const unallocatedDemo = (
+        offsets: Array<{ t: number; durationMin: number; name: string; id: string }>,
+    ): GanttEditorSlot[] =>
+        offsets.map(({ t, durationMin, name, id }) => {
+            const openTime = new Date(dayStart.getTime() + spanMs * t);
+            let closeTime = new Date(openTime.getTime() + durationMin * 60 * 1000);
+            if (closeTime > dayEnd) closeTime = new Date(dayEnd.getTime());
+            return {
+                id,
+                displayName: name,
+                group: id,
+                openTime,
+                closeTime,
+                destinationId: 'UNALLOCATED',
+                hoverData: `${name} — unallocated demo`,
+            };
+        });
+
+    const unallocatedDemoSlots = unallocatedDemo([
+        { t: 0.12, durationMin: 75, name: 'UA-9001', id: 'ua-demo-1' },
+        { t: 0.35, durationMin: 60, name: 'UA-9002', id: 'ua-demo-2' },
+        { t: 0.52, durationMin: 90, name: 'UA-9003', id: 'ua-demo-3' },
+        { t: 0.74, durationMin: 50, name: 'UA-9004', id: 'ua-demo-4' },
+    ]);
+
+    return [...allocatedSlots, ...unallocatedDemoSlots].sort(
+        (a, b) => a.openTime.getTime() - b.openTime.getTime(),
+    );
 };
 
 // Slots (main data)

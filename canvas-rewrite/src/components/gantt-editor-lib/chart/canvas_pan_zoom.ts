@@ -54,96 +54,101 @@ function horizontalWheelDeltaToMs(
   return (deltaPx * timeRangeMs) / chartWidth;
 }
 
+let sharedScrollTimeout: ReturnType<typeof setTimeout> | null = null;
+let sharedLastScrollDates: { start: Date; end: Date } | null = null;
+
 /**
- * Attaches horizontal scroll (trackpad swipe), right-click drag panning,
- * and modifier+wheel zoom (ctrl/shift/alt) to a container element.
- * Wheel zoom updates the visible time range and row height together (uniform scale).
+ * Horizontal trackpad pan or modifier+wheel zoom. Returns true if the event was consumed.
+ * Vertical scrolling is handled by the caller (e.g. per-group scroll on the unified canvas).
+ */
+export function handlePanZoomWheelEvent(
+  event: WheelEvent,
+  chartElement: HTMLElement,
+  callbacks: PanZoomCallbacks,
+): boolean {
+  if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const { start, end } = callbacks.getCurrentTimeRange();
+    const chartWidth = callbacks.getChartWidth();
+    const timeRangeMs = end.getTime() - start.getTime();
+    const panMs = horizontalWheelDeltaToMs(
+      event.deltaX,
+      event.deltaMode,
+      timeRangeMs,
+      chartWidth,
+    );
+    const newStart = new Date(start.getTime() + panMs);
+    const newEnd = new Date(end.getTime() + panMs);
+
+    sharedLastScrollDates = { start: newStart, end: newEnd };
+    callbacks.onTimeRangeChange(newStart, newEnd);
+
+    if (sharedScrollTimeout) clearTimeout(sharedScrollTimeout);
+    sharedScrollTimeout = setTimeout(() => {
+      if (sharedLastScrollDates) {
+        callbacks.onTimeRangeCommit(sharedLastScrollDates.start, sharedLastScrollDates.end);
+        sharedLastScrollDates = null;
+      }
+      sharedScrollTimeout = null;
+    }, 150);
+    return true;
+  }
+
+  const shouldZoom = event.ctrlKey || event.shiftKey || event.altKey;
+  if (!shouldZoom) return false;
+
+  event.preventDefault();
+
+  const { start, end } = callbacks.getCurrentTimeRange();
+  const chartWidth = callbacks.getChartWidth();
+
+  const rawMouseX =
+    event.clientX - chartElement.getBoundingClientRect().left - callbacks.marginLeft;
+  const mouseX =
+    chartWidth > 0 ? Math.max(0, Math.min(chartWidth, rawMouseX)) : rawMouseX;
+
+  const scale = d3.scaleTime()
+    .domain([start, end])
+    .range([0, chartWidth]);
+  const mouseTime = scale.invert(mouseX);
+
+  const timeZoomFactor =
+    event.deltaY > 0 ? ZOOM_WHEEL_STEP : 1 / ZOOM_WHEEL_STEP;
+  const rowZoomFactor =
+    event.deltaY > 0 ? 1 / ZOOM_WHEEL_STEP : ZOOM_WHEEL_STEP;
+  const timeRange = end.getTime() - start.getTime();
+  const mouseOffset = (mouseTime.getTime() - start.getTime()) / timeRange;
+
+  const newTimeRange = timeRange * timeZoomFactor;
+  const maxTimeRange = 4 * 24 * 60 * 60 * 1000;
+  const constrainedTimeRange = Math.min(newTimeRange, maxTimeRange);
+
+  const newStart = new Date(mouseTime.getTime() - constrainedTimeRange * mouseOffset);
+  const newEnd = new Date(newStart.getTime() + constrainedTimeRange);
+
+  callbacks.onTimeRangeCommit(newStart, newEnd);
+  callbacks.applyRowHeightZoomFactor(rowZoomFactor, {
+    clientX: event.clientX,
+    clientY: event.clientY,
+  });
+  return true;
+}
+
+/**
+ * Right-click / shift-drag time pan. Wheel is not attached here — use {@link handlePanZoomWheelEvent}
+ * on the chart canvas together with vertical scroll routing.
  */
 export function setupCanvasPanZoom(
-  container: HTMLElement,
+  chartElement: HTMLElement,
   callbacks: PanZoomCallbacks,
 ): PanZoomCleanup {
   let isPanning = false;
   let startPanX = 0;
   let originalStart: Date;
   let originalEnd: Date;
-  let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
-  let lastScrollDates: { start: Date; end: Date } | null = null;
 
-  // ── Wheel: horizontal scroll + zoom ──────────────────────────
-  const onWheel = (event: WheelEvent) => {
-    // Horizontal trackpad swipe
-    if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
-      event.preventDefault();
-      event.stopPropagation();
-
-      const { start, end } = callbacks.getCurrentTimeRange();
-      const chartWidth = callbacks.getChartWidth();
-      const timeRangeMs = end.getTime() - start.getTime();
-      const panMs = horizontalWheelDeltaToMs(
-        event.deltaX,
-        event.deltaMode,
-        timeRangeMs,
-        chartWidth,
-      );
-      const newStart = new Date(start.getTime() + panMs);
-      const newEnd = new Date(end.getTime() + panMs);
-
-      lastScrollDates = { start: newStart, end: newEnd };
-      callbacks.onTimeRangeChange(newStart, newEnd);
-
-      if (scrollTimeout) clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => {
-        if (lastScrollDates) {
-          callbacks.onTimeRangeCommit(lastScrollDates.start, lastScrollDates.end);
-          lastScrollDates = null;
-        }
-        scrollTimeout = null;
-      }, 150);
-      return;
-    }
-
-    // Uniform zoom: modifier + wheel (same gesture as before on the time axis, plus row height)
-    const shouldZoom = event.ctrlKey || event.shiftKey || event.altKey;
-    if (!shouldZoom) return;
-
-    event.preventDefault();
-
-    const { start, end } = callbacks.getCurrentTimeRange();
-    const chartWidth = callbacks.getChartWidth();
-
-    const rawMouseX =
-      event.clientX - container.getBoundingClientRect().left - callbacks.marginLeft;
-    const mouseX =
-      chartWidth > 0 ? Math.max(0, Math.min(chartWidth, rawMouseX)) : rawMouseX;
-
-    const scale = d3.scaleTime()
-      .domain([start, end])
-      .range([0, chartWidth]);
-    const mouseTime = scale.invert(mouseX);
-
-    const timeZoomFactor =
-      event.deltaY > 0 ? ZOOM_WHEEL_STEP : 1 / ZOOM_WHEEL_STEP;
-    const rowZoomFactor =
-      event.deltaY > 0 ? 1 / ZOOM_WHEEL_STEP : ZOOM_WHEEL_STEP;
-    const timeRange = end.getTime() - start.getTime();
-    const mouseOffset = (mouseTime.getTime() - start.getTime()) / timeRange;
-
-    const newTimeRange = timeRange * timeZoomFactor;
-    const maxTimeRange = 4 * 24 * 60 * 60 * 1000;
-    const constrainedTimeRange = Math.min(newTimeRange, maxTimeRange);
-
-    const newStart = new Date(mouseTime.getTime() - constrainedTimeRange * mouseOffset);
-    const newEnd = new Date(newStart.getTime() + constrainedTimeRange);
-
-    callbacks.onTimeRangeCommit(newStart, newEnd);
-    callbacks.applyRowHeightZoomFactor(rowZoomFactor, {
-      clientX: event.clientX,
-      clientY: event.clientY,
-    });
-  };
-
-  // ── Right-click / shift-drag pan ────────────────────────────
   const onMouseDown = (event: MouseEvent) => {
     if (event.button !== 2 && !event.shiftKey) return;
     event.preventDefault();
@@ -197,19 +202,22 @@ export function setupCanvasPanZoom(
     event.preventDefault();
   };
 
-  // ── Attach ──────────────────────────────────────────────────
-  container.addEventListener("wheel", onWheel, { passive: false });
-  container.addEventListener("mousedown", onMouseDown);
-  container.addEventListener("contextmenu", onContextMenu);
+  chartElement.addEventListener("mousedown", onMouseDown);
+  chartElement.addEventListener("contextmenu", onContextMenu);
 
   return {
     destroy() {
-      container.removeEventListener("wheel", onWheel);
-      container.removeEventListener("mousedown", onMouseDown);
-      container.removeEventListener("contextmenu", onContextMenu);
+      chartElement.removeEventListener("mousedown", onMouseDown);
+      chartElement.removeEventListener("contextmenu", onContextMenu);
       document.removeEventListener("mousemove", onPanMove);
       document.removeEventListener("mouseup", onPanUp);
-      if (scrollTimeout) clearTimeout(scrollTimeout);
     },
   };
+}
+
+/** Call from the chart component on unmount so debounced horizontal pan does not fire after teardown. */
+export function clearPanZoomWheelDebounce(): void {
+  if (sharedScrollTimeout) clearTimeout(sharedScrollTimeout);
+  sharedScrollTimeout = null;
+  sharedLastScrollDates = null;
 }
