@@ -64,7 +64,7 @@ export function computeTopicLayout(
   const bandwidth = step * (1 - padding);
   const gap = step - bandwidth;
 
-  let currentY = 15; // initial offset (matches SVG version)
+  let currentY = 0;
   const layouts: TopicLayout[] = [];
 
   for (const topic of topics) {
@@ -108,18 +108,16 @@ export function computeTopicLayout(
 }
 
 /**
- * Computes the total content height for a set of topics.
- * Matches the SVG version: rowHeight * totalRows + margin.top + margin.bottom.
+ * Scrollable content height for a group — matches the bottom extent of {@link computeTopicLayout}
+ * (unified canvas has no per-SVG margin.top/bottom).
  */
 export function computeContentHeight(
   topics: Topic[],
   rowHeight: number,
 ): number {
-  const totalRows = topics.reduce(
-    (acc, t) => acc + (t.isCollapsed ? 1 : t.rows.length) + 1,
-    0,
-  );
-  return rowHeight * totalRows + 40 + 40;
+  if (topics.length === 0) return 0;
+  const layouts = computeTopicLayout(topics, 0, rowHeight);
+  return layouts[layouts.length - 1]!.topic.yEnd;
 }
 
 /**
