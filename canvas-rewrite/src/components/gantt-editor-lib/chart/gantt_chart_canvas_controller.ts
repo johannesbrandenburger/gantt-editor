@@ -16,7 +16,9 @@ import {
 import { processData } from "./process-data";
 import { drawTopicLines, computeContentHeight, computeTopicLayout } from "./canvas_topics";
 import {
+  collectSlotsFullyInsideRect,
   drawSlots,
+  hitTestSlotBar,
   hitTestSlotResizeEdge,
   slotTimesForResizeDragStep,
   type SlotResizeEdge,
@@ -28,7 +30,7 @@ import {
   drawResizeBands,
   type UnifiedChartLayout,
 } from "./unified_chart_layout";
-import type { GanttEditorSlot, Topic } from "./types";
+import type { GanttEditorSlot, GanttEditorSlotWithUiAttributes, Topic } from "./types";
 import type {
   GanttChartCanvasHost,
   GanttEditorCanvasCallbacks,
@@ -53,6 +55,9 @@ const PROCESS_DATA_VIEW_PLACEHOLDER_START = new Date(0);
 const PROCESS_DATA_VIEW_PLACEHOLDER_END = new Date(86400000);
 
 const CLIPBOARD_STORAGE_KEY = "pointerClipboard";
+const HOVER_DELAY_MS = 500;
+const BRUSH_DRAG_THRESHOLD_PX = 3;
+const CLIPBOARD_PREVIEW_MAX_ITEMS = 5;
 
 function destinationGroupsSnapshot(
   groups: GanttEditorCanvasProps["destinationGroups"],
@@ -95,6 +100,22 @@ export class GanttChartCanvasController {
   private lastDestinationGroupsSnapshot: string;
 
   private hoverResizeBand: string | null = null;
+  private hoveredSlotId: string | null = null;
+  private hoverTimeout: ReturnType<typeof setTimeout> | null = null;
+  private suppressNextCanvasClick = false;
+
+  private pointerInChart = false;
+  private pointerCanvasX = 0;
+  private pointerCanvasY = 0;
+  private clipboardItems: GanttEditorSlot[] = [];
+
+  private brushSelection: {
+    groupId: string;
+    startX: number;
+    startYContent: number;
+    currentX: number;
+    currentYContent: number;
+  } | null = null;
 
   private resizeObserver: ResizeObserver | null = null;
   /** Recomputed only when geometry inputs change. */
@@ -154,6 +175,8 @@ export class GanttChartCanvasController {
   private readonly boundStopResize = () => this.stopResize();
   private readonly boundSlotResizeMouseMove = (e: MouseEvent) => this.onSlotResizeMouseMove(e);
   private readonly boundSlotResizeMouseUp = (e: MouseEvent) => this.onSlotResizeMouseUp(e);
+  private readonly boundBrushMouseMove = (e: MouseEvent) => this.onBrushMouseMove(e);
+  private readonly boundBrushMouseUp = (e: MouseEvent) => this.onBrushMouseUp(e);
 
   constructor(
     initialProps: GanttEditorCanvasProps,
@@ -181,7 +204,12 @@ export class GanttChartCanvasController {
    * top-content portion until the parent actually changes those inputs (matches prior Vue watches).
    */
   refreshModel(next: GanttEditorCanvasProps): void {
+    const wasReadOnly = this.props.isReadOnly;
     this.props = next;
+
+    if (!wasReadOnly && next.isReadOnly) {
+      this.clearClipboard();
+    }
 
     const newFp = this.computeProcessDataDeepFingerprint(next);
     if (this.processDataDeepFingerprint !== newFp) {
@@ -279,10 +307,19 @@ export class GanttChartCanvasController {
     document.removeEventListener("mouseup", this.boundStopTopContentResize);
     document.removeEventListener("mousemove", this.boundResize);
     document.removeEventListener("mouseup", this.boundStopResize);
+    document.removeEventListener("mousemove", this.boundBrushMouseMove);
+    document.removeEventListener("mouseup", this.boundBrushMouseUp);
+    if (this.hoverTimeout) {
+      clearTimeout(this.hoverTimeout);
+      this.hoverTimeout = null;
+    }
     this.slotResizeDrag = null;
     this.slotResizePreview = null;
     this.pendingSlotReflowFromResize = null;
     this.slotReflowAnimation = null;
+    this.brushSelection = null;
+    this.hoveredSlotId = null;
+    this.pointerInChart = false;
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
@@ -302,27 +339,16 @@ export class GanttChartCanvasController {
   }
 
   updateClipboard(): void {
-    const storedData = localStorage.getItem(CLIPBOARD_STORAGE_KEY);
-    if (!storedData) {
-      this.host.onClipboardItems?.([]);
-      return;
-    }
-    try {
-      const parsedData = JSON.parse(storedData) as GanttEditorSlot[];
-      this.host.onClipboardItems?.(parsedData);
-    } catch (e) {
-      console.error("Error updating clipboard content:", e);
-      this.host.onClipboardItems?.([]);
-    }
+    const parsedData = this.readClipboard();
+    this.clipboardItems = parsedData;
+    this.applyCopiedFlagsFromClipboard(parsedData);
+    this.host.onClipboardItems?.(parsedData);
+    this.redraw();
   }
 
   clearClipboard(): void {
-    localStorage.setItem(CLIPBOARD_STORAGE_KEY, "[]");
+    this.writeClipboard([]);
     this.updateClipboard();
-    for (const slot of this.props.slots) {
-      slot.isCopied = false;
-    }
-    this.cachedProcessedTopics = null;
   }
 
   onContainerMouseMove(e: MouseEvent): void {
@@ -334,24 +360,24 @@ export class GanttChartCanvasController {
     const layout = this.getChartLayout();
     const canvas = this.canvas;
     if (!layout || !canvas) return;
+    this.pointerInChart = true;
     const nextHover = this.resizeHoverKey(layout, e.clientX, e.clientY);
-    if (nextHover !== this.hoverResizeBand) {
-      this.hoverResizeBand = nextHover;
-      this.redraw();
-    } else {
-      this.hoverResizeBand = nextHover;
-    }
+    const hoverChanged = nextHover !== this.hoverResizeBand;
+    this.hoverResizeBand = nextHover;
+
     const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
     const hit = hitTestChart(layout, pt.x, pt.y);
+
+    let hoveredSlotId: string | null = null;
     let ewResize = false;
-    if (hit.type === "group" && !this.props.isReadOnly) {
+    if (hit.type === "group") {
       const gr = layout.groupRects.get(hit.groupId);
       if (gr) {
         const scroll = this.verticalScrollOffsets.get(hit.groupId) || 0;
         const contentY = pt.y - gr.y + scroll;
         const groupTopics = this.topicsForGroup(hit.groupId);
-        ewResize =
-          hitTestSlotResizeEdge({
+        hoveredSlotId =
+          hitTestSlotBar({
             topics: groupTopics,
             canvasX: pt.x,
             contentY,
@@ -360,10 +386,25 @@ export class GanttChartCanvasController {
             rowHeight: this.rowHeight,
             startTime: this.internalStartTime,
             endTime: this.internalEndTime,
-            isReadOnly: this.props.isReadOnly,
-          }) !== null;
+          })?.slotId ?? null;
+        if (!this.props.isReadOnly) {
+          ewResize =
+            hitTestSlotResizeEdge({
+              topics: groupTopics,
+              canvasX: pt.x,
+              contentY,
+              margin: MARGIN,
+              width: layout.canvasCssWidth,
+              rowHeight: this.rowHeight,
+              startTime: this.internalStartTime,
+              endTime: this.internalEndTime,
+              isReadOnly: this.props.isReadOnly,
+            }) !== null;
+        }
       }
     }
+    this.updateHoverSlot(hoveredSlotId);
+
     if (hit.type === "topResize" || hit.type === "betweenResize") {
       canvas.style.cursor = "ns-resize";
     } else if (ewResize) {
@@ -371,12 +412,19 @@ export class GanttChartCanvasController {
     } else {
       canvas.style.cursor = "";
     }
+
+    if (hoverChanged || this.clipboardItems.length > 0 || this.brushSelection) {
+      this.scheduleFrameRedraw(true);
+    }
   }
 
   onChartMouseLeave(): void {
     this.hoverResizeBand = null;
+    this.pointerInChart = false;
+    this.resetHoverSlot();
     const canvas = this.canvas;
     if (canvas) canvas.style.cursor = "";
+    this.redraw();
   }
 
   onMouseEnter(): void {
@@ -384,7 +432,10 @@ export class GanttChartCanvasController {
   }
 
   onMouseLeave(): void {
+    this.pointerInChart = false;
+    this.resetHoverSlot();
     this.host.onClipboardVisibility?.(false);
+    this.redraw();
   }
 
   onCanvasWheel(event: WheelEvent): void {
@@ -437,40 +488,137 @@ export class GanttChartCanvasController {
       this.startResize(e, hit.groupIdAbove);
       return;
     }
-    if (hit.type === "group") {
-      const gr = layout.groupRects.get(hit.groupId);
-      if (gr) {
-        const scroll = this.verticalScrollOffsets.get(hit.groupId) || 0;
-        const contentY = pt.y - gr.y + scroll;
-        const groupTopics = this.topicsForGroup(hit.groupId);
-        const rh = hitTestSlotResizeEdge({
-          topics: groupTopics,
-          canvasX: pt.x,
-          contentY,
-          margin: MARGIN,
-          width: layout.canvasCssWidth,
-          rowHeight: this.rowHeight,
-          startTime: this.internalStartTime,
-          endTime: this.internalEndTime,
-          isReadOnly: this.props.isReadOnly,
-        });
-        if (rh) {
-          e.preventDefault();
-          this.cancelSlotReflowAnimation();
-          const chartWidth = layout.canvasCssWidth - MARGIN.left - MARGIN.right;
-          this.slotResizeDrag = {
-            edge: rh.edge,
-            slotId: rh.slotId,
-            startClientX: e.clientX,
-            displayInnerLeft: rh.displayInnerLeft,
-            displayInnerWidth: rh.displayInnerWidth,
-            chartWidth,
-          };
-          document.addEventListener("mousemove", this.boundSlotResizeMouseMove);
-          document.addEventListener("mouseup", this.boundSlotResizeMouseUp);
-        }
-      }
+    if (hit.type !== "group") return;
+
+    const gr = layout.groupRects.get(hit.groupId);
+    if (!gr) return;
+    const scroll = this.verticalScrollOffsets.get(hit.groupId) || 0;
+    const contentY = pt.y - gr.y + scroll;
+    const groupTopics = this.topicsForGroup(hit.groupId);
+
+    const rh = hitTestSlotResizeEdge({
+      topics: groupTopics,
+      canvasX: pt.x,
+      contentY,
+      margin: MARGIN,
+      width: layout.canvasCssWidth,
+      rowHeight: this.rowHeight,
+      startTime: this.internalStartTime,
+      endTime: this.internalEndTime,
+      isReadOnly: this.props.isReadOnly,
+    });
+    if (rh) {
+      e.preventDefault();
+      this.suppressNextCanvasClick = true;
+      this.cancelSlotReflowAnimation();
+      const chartWidth = layout.canvasCssWidth - MARGIN.left - MARGIN.right;
+      this.slotResizeDrag = {
+        edge: rh.edge,
+        slotId: rh.slotId,
+        startClientX: e.clientX,
+        displayInnerLeft: rh.displayInnerLeft,
+        displayInnerWidth: rh.displayInnerWidth,
+        chartWidth,
+      };
+      document.addEventListener("mousemove", this.boundSlotResizeMouseMove);
+      document.addEventListener("mouseup", this.boundSlotResizeMouseUp);
+      return;
     }
+
+    const slotHit = hitTestSlotBar({
+      topics: groupTopics,
+      canvasX: pt.x,
+      contentY,
+      margin: MARGIN,
+      width: layout.canvasCssWidth,
+      rowHeight: this.rowHeight,
+      startTime: this.internalStartTime,
+      endTime: this.internalEndTime,
+    });
+    if (slotHit) {
+      return;
+    }
+
+    if ((e.metaKey || e.ctrlKey) && !this.props.isReadOnly) {
+      e.preventDefault();
+      this.suppressNextCanvasClick = true;
+      this.brushSelection = {
+        groupId: hit.groupId,
+        startX: Math.max(0, Math.min(layout.canvasCssWidth, pt.x)),
+        startYContent: contentY,
+        currentX: Math.max(0, Math.min(layout.canvasCssWidth, pt.x)),
+        currentYContent: contentY,
+      };
+      document.addEventListener("mousemove", this.boundBrushMouseMove);
+      document.addEventListener("mouseup", this.boundBrushMouseUp);
+      this.scheduleFrameRedraw(true);
+    }
+  }
+
+  onCanvasClick(e: MouseEvent): void {
+    if (this.suppressNextCanvasClick) {
+      this.suppressNextCanvasClick = false;
+      return;
+    }
+    if (e.button !== 0) return;
+    const ctx = this.resolveGroupPointerContext(e.clientX, e.clientY);
+    if (!ctx) return;
+
+    const slotHit = hitTestSlotBar({
+      topics: ctx.groupTopics,
+      canvasX: ctx.point.x,
+      contentY: ctx.contentY,
+      margin: MARGIN,
+      width: ctx.layout.canvasCssWidth,
+      rowHeight: this.rowHeight,
+      startTime: this.internalStartTime,
+      endTime: this.internalEndTime,
+    });
+
+    if (slotHit) {
+      this.onSlotPrimaryClick(slotHit.slotId, e.metaKey || e.ctrlKey);
+      this.callbacks.onClickOnSlot?.(slotHit.slotId);
+      return;
+    }
+
+    const topicId = this.topicIdAtContentY(ctx.groupId, ctx.contentY);
+    if (topicId) {
+      this.moveClipboardToTopic(topicId);
+    }
+  }
+
+  onCanvasDoubleClick(e: MouseEvent): void {
+    const ctx = this.resolveGroupPointerContext(e.clientX, e.clientY);
+    if (!ctx) return;
+    const slotHit = hitTestSlotBar({
+      topics: ctx.groupTopics,
+      canvasX: ctx.point.x,
+      contentY: ctx.contentY,
+      margin: MARGIN,
+      width: ctx.layout.canvasCssWidth,
+      rowHeight: this.rowHeight,
+      startTime: this.internalStartTime,
+      endTime: this.internalEndTime,
+    });
+    if (!slotHit) return;
+    this.callbacks.onDoubleClickOnSlot?.(slotHit.slotId);
+  }
+
+  onCanvasContextMenu(e: MouseEvent): void {
+    const ctx = this.resolveGroupPointerContext(e.clientX, e.clientY);
+    if (!ctx) return;
+    const slotHit = hitTestSlotBar({
+      topics: ctx.groupTopics,
+      canvasX: ctx.point.x,
+      contentY: ctx.contentY,
+      margin: MARGIN,
+      width: ctx.layout.canvasCssWidth,
+      rowHeight: this.rowHeight,
+      startTime: this.internalStartTime,
+      endTime: this.internalEndTime,
+    });
+    if (!slotHit) return;
+    this.callbacks.onContextClickOnSlot?.(slotHit.slotId);
   }
 
   getCanvasElement(): HTMLCanvasElement | null {
@@ -813,7 +961,177 @@ export class GanttChartCanvasController {
   }
 
   private updateCursorPosition(e: MouseEvent): void {
+    if (this.canvas) {
+      const pt = canvasLocalPoint(this.canvas, e.clientX, e.clientY);
+      this.pointerCanvasX = pt.x;
+      this.pointerCanvasY = pt.y;
+    }
     this.host.onCursorMove?.(e.clientX, e.clientY);
+  }
+
+  private updateHoverSlot(nextSlotId: string | null): void {
+    if (nextSlotId === this.hoveredSlotId) return;
+    if (this.hoverTimeout) {
+      clearTimeout(this.hoverTimeout);
+      this.hoverTimeout = null;
+    }
+    this.hoveredSlotId = nextSlotId;
+    if (!nextSlotId || !this.callbacks.onHoverOnSlot) return;
+    this.hoverTimeout = setTimeout(() => {
+      if (this.hoveredSlotId === nextSlotId) {
+        this.callbacks.onHoverOnSlot?.(nextSlotId);
+      }
+    }, HOVER_DELAY_MS);
+  }
+
+  private resetHoverSlot(): void {
+    if (this.hoverTimeout) {
+      clearTimeout(this.hoverTimeout);
+      this.hoverTimeout = null;
+    }
+    this.hoveredSlotId = null;
+  }
+
+  private readClipboard(): GanttEditorSlot[] {
+    const storedData = localStorage.getItem(CLIPBOARD_STORAGE_KEY);
+    if (!storedData) return [];
+    try {
+      const parsed = JSON.parse(storedData) as GanttEditorSlot[];
+      if (!Array.isArray(parsed)) return [];
+      return parsed;
+    } catch (e) {
+      console.error("Error parsing clipboard content:", e);
+      return [];
+    }
+  }
+
+  private writeClipboard(items: GanttEditorSlot[]): void {
+    localStorage.setItem(CLIPBOARD_STORAGE_KEY, JSON.stringify(items));
+  }
+
+  private applyCopiedFlagsFromClipboard(clipboard: GanttEditorSlot[]): void {
+    const copiedIds = new Set(clipboard.map((s) => s.id));
+    for (const slot of this.props.slots) {
+      slot.isCopied = copiedIds.has(slot.id);
+    }
+    this.cachedProcessedTopics = null;
+  }
+
+  private slotSnapshotForClipboard(slot: GanttEditorSlotWithUiAttributes): GanttEditorSlot {
+    return {
+      ...slot,
+      openTime: new Date(slot.openTime),
+      closeTime: new Date(slot.closeTime),
+      deadline: slot.deadline ? new Date(slot.deadline) : undefined,
+      secondaryDeadline: slot.secondaryDeadline ? new Date(slot.secondaryDeadline) : undefined,
+    };
+  }
+
+  private resolveGroupPointerContext(clientX: number, clientY: number): {
+    layout: UnifiedChartLayout;
+    point: { x: number; y: number };
+    groupId: string;
+    contentY: number;
+    groupTopics: Topic[];
+  } | null {
+    const layout = this.getChartLayout();
+    const canvas = this.canvas;
+    if (!layout || !canvas) return null;
+    const point = canvasLocalPoint(canvas, clientX, clientY);
+    const hit = hitTestChart(layout, point.x, point.y);
+    if (hit.type !== "group") return null;
+
+    const gr = layout.groupRects.get(hit.groupId);
+    if (!gr) return null;
+    const scroll = this.verticalScrollOffsets.get(hit.groupId) || 0;
+    const contentY = point.y - gr.y + scroll;
+    return {
+      layout,
+      point,
+      groupId: hit.groupId,
+      contentY,
+      groupTopics: this.topicsForGroup(hit.groupId),
+    };
+  }
+
+  private topicIdAtContentY(groupId: string, contentY: number): string | null {
+    const topics = this.topicsForGroup(groupId);
+    for (const topic of topics) {
+      if (contentY >= topic.yStart && contentY <= topic.yEnd) {
+        return topic.id;
+      }
+    }
+    return null;
+  }
+
+  private onSlotPrimaryClick(slotId: string, multiSelect: boolean): void {
+    const slot = this.props.slots.find((s) => s.id === slotId);
+    if (!slot) return;
+
+    if (!this.props.isReadOnly && !slot.readOnly) {
+      const clipboard = this.readClipboard();
+      if (clipboard.length === 0 || multiSelect) {
+        this.toggleSlotClipboardSelection(slotId);
+      } else {
+        this.moveClipboardToTopic(slot.destinationId);
+      }
+    }
+  }
+
+  private toggleSlotClipboardSelection(slotId: string): void {
+    const slot = this.props.slots.find((s) => s.id === slotId);
+    if (!slot || slot.readOnly) return;
+
+    const clipboard = this.readClipboard();
+    const idx = clipboard.findIndex((s) => s.id === slotId);
+    if (idx >= 0) {
+      clipboard.splice(idx, 1);
+    } else {
+      clipboard.push(this.slotSnapshotForClipboard(slot));
+    }
+    this.writeClipboard(clipboard);
+    this.updateClipboard();
+  }
+
+  private addSlotsToClipboard(slotIds: string[]): void {
+    if (slotIds.length === 0) return;
+    const clipboard = this.readClipboard();
+    const idsInClipboard = new Set(clipboard.map((s) => s.id));
+    let changed = false;
+    for (const slotId of slotIds) {
+      if (idsInClipboard.has(slotId)) continue;
+      const slot = this.props.slots.find((s) => s.id === slotId);
+      if (!slot || slot.readOnly) continue;
+      clipboard.push(this.slotSnapshotForClipboard(slot));
+      idsInClipboard.add(slotId);
+      changed = true;
+    }
+    if (!changed) return;
+    this.writeClipboard(clipboard);
+    this.updateClipboard();
+  }
+
+  private moveClipboardToTopic(topicId: string): void {
+    if (this.props.isReadOnly) return;
+    const clipboard = this.readClipboard();
+    if (clipboard.length === 0) return;
+
+    let movedSomething = false;
+    for (const copiedSlot of clipboard) {
+      const target = this.props.slots.find((s) => s.id === copiedSlot.id);
+      if (!target || target.readOnly) continue;
+      target.destinationId = topicId;
+      target.isCopied = false;
+      movedSomething = true;
+      this.callbacks.onChangeDestinationId?.(target.id, topicId, false);
+    }
+
+    this.writeClipboard([]);
+    this.updateClipboard();
+    if (movedSomething) {
+      this.cachedProcessedTopics = null;
+      this.redraw();
+    }
   }
 
   private resizeHoverKey(
@@ -884,6 +1202,80 @@ export class GanttChartCanvasController {
       };
       this.callbacks.onChangeSlotTime(d.slotId, openTime, closeTime);
     }
+  }
+
+  private onBrushMouseMove(e: MouseEvent): void {
+    const brush = this.brushSelection;
+    const canvas = this.canvas;
+    const layout = this.getChartLayout();
+    if (!brush || !canvas || !layout) return;
+
+    const gr = layout.groupRects.get(brush.groupId);
+    if (!gr) return;
+
+    const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
+    const scroll = this.verticalScrollOffsets.get(brush.groupId) || 0;
+
+    const clampedX = Math.max(0, Math.min(layout.canvasCssWidth, pt.x));
+    const clampedYInGroup = Math.max(0, Math.min(gr.h, pt.y - gr.y));
+
+    brush.currentX = clampedX;
+    brush.currentYContent = clampedYInGroup + scroll;
+    this.scheduleFrameRedraw(true);
+  }
+
+  private onBrushMouseUp(e: MouseEvent): void {
+    document.removeEventListener("mousemove", this.boundBrushMouseMove);
+    document.removeEventListener("mouseup", this.boundBrushMouseUp);
+    const brush = this.brushSelection;
+    const canvas = this.canvas;
+    const layout = this.getChartLayout();
+    if (!brush || !canvas || !layout) {
+      this.brushSelection = null;
+      this.redraw();
+      return;
+    }
+
+    const gr = layout.groupRects.get(brush.groupId);
+    if (!gr) {
+      this.brushSelection = null;
+      this.redraw();
+      return;
+    }
+
+    const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
+    const scroll = this.verticalScrollOffsets.get(brush.groupId) || 0;
+    const clampedX = Math.max(0, Math.min(layout.canvasCssWidth, pt.x));
+    const clampedYInGroup = Math.max(0, Math.min(gr.h, pt.y - gr.y));
+    brush.currentX = clampedX;
+    brush.currentYContent = clampedYInGroup + scroll;
+
+    const dx = Math.abs(brush.currentX - brush.startX);
+    const dy = Math.abs(brush.currentYContent - brush.startYContent);
+
+    if (dx > BRUSH_DRAG_THRESHOLD_PX || dy > BRUSH_DRAG_THRESHOLD_PX) {
+      const topics = this.topicsForGroup(brush.groupId);
+      const selectedSlots = collectSlotsFullyInsideRect({
+        topics,
+        selectionRect: {
+          x0: brush.startX,
+          y0: brush.startYContent,
+          x1: brush.currentX,
+          y1: brush.currentYContent,
+        },
+        margin: MARGIN,
+        width: layout.canvasCssWidth,
+        rowHeight: this.rowHeight,
+        startTime: this.internalStartTime,
+        endTime: this.internalEndTime,
+        excludeReadOnly: true,
+      });
+      const slotIds = Array.from(new Set(selectedSlots.map((s) => s.id)));
+      this.addSlotsToClipboard(slotIds);
+    }
+
+    this.brushSelection = null;
+    this.redraw();
   }
 
   private ensureCanvasContext(
@@ -1094,9 +1486,116 @@ export class GanttChartCanvasController {
       ctx.restore();
     }
 
+    this.drawBrushSelectionOverlay(ctx, layout);
+    this.drawClipboardPreviewOverlay(ctx, layout);
+
     if (slotYTransition) {
       this.scheduleFrameRedraw(false);
     }
+  }
+
+  private drawBrushSelectionOverlay(
+    ctx: CanvasRenderingContext2D,
+    layout: UnifiedChartLayout,
+  ): void {
+    const brush = this.brushSelection;
+    if (!brush) return;
+    const gr = layout.groupRects.get(brush.groupId);
+    if (!gr) return;
+
+    const scroll = this.verticalScrollOffsets.get(brush.groupId) || 0;
+    const startY = gr.y - scroll + brush.startYContent;
+    const currentY = gr.y - scroll + brush.currentYContent;
+
+    const x = Math.min(brush.startX, brush.currentX);
+    const y = Math.min(startY, currentY);
+    const w = Math.abs(brush.currentX - brush.startX);
+    const h = Math.abs(currentY - startY);
+    if (w <= 0 || h <= 0) return;
+
+    ctx.save();
+    ctx.fillStyle = "rgba(55, 0, 255, 0.16)";
+    ctx.strokeStyle = "rgba(55, 0, 255, 0.8)";
+    ctx.lineWidth = 1;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeRect(x + 0.5, y + 0.5, Math.max(0, w - 1), Math.max(0, h - 1));
+    ctx.restore();
+  }
+
+  private drawClipboardPreviewOverlay(
+    ctx: CanvasRenderingContext2D,
+    layout: UnifiedChartLayout,
+  ): void {
+    if (!this.pointerInChart) return;
+    if (this.brushSelection) return;
+
+    const count = this.clipboardItems.length;
+    if (count === 0) return;
+
+    const visibleItems = this.clipboardItems
+      .slice(0, CLIPBOARD_PREVIEW_MAX_ITEMS)
+      .map((item) => item.displayName || item.id);
+    const extraCount = Math.max(0, count - visibleItems.length);
+
+    const lines = [`Clipboard (${count})`, ...visibleItems];
+    if (extraCount > 0) {
+      lines.push(`+${extraCount} more...`);
+    }
+
+    const lineHeight = 15;
+    const padX = 10;
+    const padY = 8;
+
+    ctx.save();
+    ctx.font = "12px sans-serif";
+    const textWidth = lines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
+    const boxWidth = Math.ceil(textWidth + padX * 2);
+    const boxHeight = Math.ceil(lines.length * lineHeight + padY * 2);
+
+    const margin = 6;
+    const preferredX = this.pointerCanvasX + 16;
+    const preferredY = this.pointerCanvasY + 16;
+    const x = Math.max(
+      margin,
+      Math.min(layout.canvasCssWidth - boxWidth - margin, preferredX),
+    );
+    const y = Math.max(
+      margin,
+      Math.min(layout.canvasCssHeight - boxHeight - margin, preferredY),
+    );
+
+    const radius = 6;
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + boxWidth - radius, y);
+    ctx.quadraticCurveTo(x + boxWidth, y, x + boxWidth, y + radius);
+    ctx.lineTo(x + boxWidth, y + boxHeight - radius);
+    ctx.quadraticCurveTo(x + boxWidth, y + boxHeight, x + boxWidth - radius, y + boxHeight);
+    ctx.lineTo(x + radius, y + boxHeight);
+    ctx.quadraticCurveTo(x, y + boxHeight, x, y + boxHeight - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+
+    ctx.fillStyle = "rgba(17, 24, 39, 0.9)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(59, 130, 246, 0.9)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    lines.forEach((line, idx) => {
+      const baseline = y + padY + idx * lineHeight + 11;
+      if (idx === 0) {
+        ctx.fillStyle = "#93c5fd";
+      } else if (extraCount > 0 && idx === lines.length - 1) {
+        ctx.fillStyle = "#d1d5db";
+      } else {
+        ctx.fillStyle = "#f9fafb";
+      }
+      ctx.fillText(line, x + padX, baseline);
+    });
+
+    ctx.restore();
   }
 
   /**

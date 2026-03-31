@@ -259,6 +259,36 @@ export interface HitTestSlotResizeParams {
   isReadOnly: boolean;
 }
 
+export interface HitTestSlotBarParams {
+  topics: Topic[];
+  canvasX: number;
+  /** Content Y: same space as `rowTop` in drawSlots (viewport scroll applied). */
+  contentY: number;
+  margin: { left: number; right: number };
+  width: number;
+  rowHeight: number;
+  startTime: Date;
+  endTime: Date;
+}
+
+export type SlotBarHit = {
+  slotId: string;
+  slot: GanttEditorSlotWithUiAttributes;
+  /** Full rendered rect in canvas coordinates (includes left margin). */
+  rect: { x: number; y: number; width: number; height: number };
+};
+
+export interface CollectSlotsInRectParams {
+  topics: Topic[];
+  selectionRect: { x0: number; y0: number; x1: number; y1: number };
+  margin: { left: number; right: number };
+  width: number;
+  rowHeight: number;
+  startTime: Date;
+  endTime: Date;
+  excludeReadOnly?: boolean;
+}
+
 /**
  * Hit-test left/right resize handles (8px bands on bar edges), last-drawn slot wins.
  */
@@ -349,6 +379,138 @@ export function hitTestSlotResizeEdge(p: HitTestSlotResizeParams): SlotResizeHit
   }
 
   return hit;
+}
+
+/**
+ * Hit-test slot bars (last-drawn slot wins), used for click/dblclick/context interactions.
+ */
+export function hitTestSlotBar(p: HitTestSlotBarParams): SlotBarHit | null {
+  const chartWidth = p.width - p.margin.left - p.margin.right;
+  if (chartWidth <= 0) return null;
+
+  const xScale = d3
+    .scaleTime()
+    .domain([p.startTime, p.endTime])
+    .range([0, chartWidth])
+    .clamp(true);
+
+  const padding = TOPIC_BAND_PADDING;
+  const step = p.rowHeight;
+  const bandwidth = step * (1 - padding);
+  const gap = step - bandwidth;
+
+  const layouts = computeTopicLayout(p.topics, p.margin.left, p.rowHeight);
+  let hit: SlotBarHit | null = null;
+
+  for (const layout of layouts) {
+    const topic = layout.topic;
+    topic.rows.forEach((row, rowIndex) => {
+      const rowTop = layout.rowYs[rowIndex];
+      if (rowTop === undefined) return;
+
+      const y0 = rowTop;
+      const y1 = rowTop + bandwidth;
+      if (p.contentY < y0 || p.contentY >= y1) return;
+
+      const slots = row.slots;
+      const i0 = firstSlotIndexCloseAfter(slots, p.startTime);
+      for (let i = i0; i < slots.length; i++) {
+        const slot = slots[i]!;
+        if (slot.openTime >= p.endTime) break;
+
+        const def = computeSlotRect(
+          slot,
+          xScale,
+          chartWidth,
+          p.margin.left,
+          rowTop,
+          bandwidth,
+          gap,
+          topic.isCollapsed,
+        );
+        if (!def) continue;
+        if (
+          p.canvasX >= def.x &&
+          p.canvasX <= def.x + def.width &&
+          p.contentY >= def.y &&
+          p.contentY <= def.y + def.height
+        ) {
+          hit = {
+            slotId: slot.id,
+            slot,
+            rect: { x: def.x, y: def.y, width: def.width, height: def.height },
+          };
+        }
+      }
+    });
+  }
+
+  return hit;
+}
+
+/**
+ * Collect slots fully contained in a selection rectangle (matches SVG brush behavior).
+ */
+export function collectSlotsFullyInsideRect(
+  p: CollectSlotsInRectParams,
+): GanttEditorSlotWithUiAttributes[] {
+  const chartWidth = p.width - p.margin.left - p.margin.right;
+  if (chartWidth <= 0) return [];
+
+  const x0 = Math.min(p.selectionRect.x0, p.selectionRect.x1);
+  const y0 = Math.min(p.selectionRect.y0, p.selectionRect.y1);
+  const x1 = Math.max(p.selectionRect.x0, p.selectionRect.x1);
+  const y1 = Math.max(p.selectionRect.y0, p.selectionRect.y1);
+
+  const xScale = d3
+    .scaleTime()
+    .domain([p.startTime, p.endTime])
+    .range([0, chartWidth])
+    .clamp(true);
+
+  const padding = TOPIC_BAND_PADDING;
+  const step = p.rowHeight;
+  const bandwidth = step * (1 - padding);
+  const gap = step - bandwidth;
+
+  const layouts = computeTopicLayout(p.topics, p.margin.left, p.rowHeight);
+  const selected: GanttEditorSlotWithUiAttributes[] = [];
+
+  for (const layout of layouts) {
+    const topic = layout.topic;
+    topic.rows.forEach((row, rowIndex) => {
+      const rowTop = layout.rowYs[rowIndex];
+      if (rowTop === undefined) return;
+
+      const slots = row.slots;
+      const i0 = firstSlotIndexCloseAfter(slots, p.startTime);
+      for (let i = i0; i < slots.length; i++) {
+        const slot = slots[i]!;
+        if (slot.openTime >= p.endTime) break;
+        if (p.excludeReadOnly && slot.readOnly) continue;
+
+        const def = computeSlotRect(
+          slot,
+          xScale,
+          chartWidth,
+          p.margin.left,
+          rowTop,
+          bandwidth,
+          gap,
+          topic.isCollapsed,
+        );
+        if (!def) continue;
+
+        const slotRight = def.x + def.width;
+        const slotBottom = def.y + def.height;
+        if (x0 <= def.x && slotRight <= x1 && y0 <= def.y && slotBottom <= y1) {
+          selected.push(slot);
+        }
+      }
+    });
+  }
+
+  return selected;
 }
 
 /**

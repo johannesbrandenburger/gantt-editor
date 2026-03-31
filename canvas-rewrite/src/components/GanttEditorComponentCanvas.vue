@@ -20,38 +20,19 @@
         ref="chartCanvasRef"
         class="chart-canvas"
         @mousedown="onCanvasMouseDown"
+        @click="onCanvasClick"
+        @dblclick="onCanvasDoubleClick"
+        @contextmenu.prevent="onCanvasContextMenu"
         @mousemove="onChartMouseMove"
         @mouseleave="onChartMouseLeave"
       ></canvas>
-    </div>
-
-    <div
-      v-if="clipboardItems.length && showClipboard"
-      class="pointer-clipboard"
-      :style="{
-        top: cursorPosition.y + 15 + 'px',
-        left: cursorPosition.x + 15 + 'px'
-      }"
-    >
-      <v-chip
-        v-for="(item, index) in clipboardItems"
-        :key="index"
-        color="primary"
-        size="x-small"
-        class="m-1"
-        prepend-icon="mdi-pin"
-      >
-        {{ getClipboardItemDisplayName(item) }}
-      </v-chip>
     </div>
   </div>
 </template>
 
 
 <script setup lang="ts">
-import type { GanttEditorSlot } from "./gantt-editor-lib/chart/types";
 import type { GanttEditorCanvasProps } from "./gantt-editor-lib/chart/gantt_canvas_props";
-import { getClipboardItemDisplayName } from "./gantt-editor-lib/chart/gantt_canvas_props";
 import { GanttChartCanvasController } from "./gantt-editor-lib/chart/gantt_chart_canvas_controller";
 import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 
@@ -72,9 +53,6 @@ const emit = defineEmits<GanttEditorEmits>();
 const chartContainerRef = ref<HTMLElement | null>(null);
 const chartCanvasRef = ref<HTMLCanvasElement | null>(null);
 
-const cursorPosition = ref({ x: 0, y: 0 });
-const showClipboard = ref(false);
-const clipboardItems = ref<GanttEditorSlot[]>([]);
 const currentTopContentHeight = ref(0);
 
 function propsSnapshot(): GanttEditorCanvasProps {
@@ -104,17 +82,23 @@ const controller = new GanttChartCanvasController(
     onChangeSlotTime: (slotId, openTime, closeTime) => {
       emit("onChangeSlotTime", slotId, openTime, closeTime);
     },
+    onChangeDestinationId: (slotId, destinationId, preview) => {
+      emit("onChangeDestinationId", slotId, destinationId, preview);
+    },
+    onClickOnSlot: (slotId) => {
+      emit("onClickOnSlot", slotId);
+    },
+    onHoverOnSlot: (slotId) => {
+      emit("onHoverOnSlot", slotId);
+    },
+    onDoubleClickOnSlot: (slotId) => {
+      emit("onDoubleClickOnSlot", slotId);
+    },
+    onContextClickOnSlot: (slotId) => {
+      emit("onContextClickOnSlot", slotId);
+    },
   },
   {
-    onCursorMove: (x, y) => {
-      cursorPosition.value = { x, y };
-    },
-    onClipboardVisibility: (visible) => {
-      showClipboard.value = visible;
-    },
-    onClipboardItems: (items) => {
-      clipboardItems.value = items;
-    },
     onTopContentHeightPx: (h) => {
       currentTopContentHeight.value = h;
     },
@@ -165,6 +149,15 @@ const onChartMouseLeave = () => {
 const onCanvasMouseDown = (e: MouseEvent) => {
   controller.onCanvasMouseDown(e);
 };
+const onCanvasClick = (e: MouseEvent) => {
+  controller.onCanvasClick(e);
+};
+const onCanvasDoubleClick = (e: MouseEvent) => {
+  controller.onCanvasDoubleClick(e);
+};
+const onCanvasContextMenu = (e: MouseEvent) => {
+  controller.onCanvasContextMenu(e);
+};
 const onMouseEnter = () => {
   controller.onMouseEnter();
 };
@@ -208,37 +201,5 @@ defineExpose({
   width: 100%;
   overflow: hidden;
   background-color: white;
-}
-
-.pointer-clipboard {
-  position: fixed;
-  z-index: 1000;
-  pointer-events: none;
-}
-
-.clipboard-chip text {
-  pointer-events: none;
-}
-
-@keyframes interval-marker-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.7; }
-}
-
-.slot-box.copied {
-  stroke: #000;
-  stroke-width: 1px;
-  stroke-dasharray: 5, 5;
-  animation: dash 1s linear infinite;
-
-  @keyframes dash {
-    0% {
-      stroke-dashoffset: 0;
-    }
-
-    100% {
-      stroke-dashoffset: 10;
-    }
-  }
 }
 </style>
