@@ -26,6 +26,7 @@ import {
 import { drawDepartureMarkers } from "./canvas_departure_markers";
 import { drawVerticalMarkers, hitTestVerticalMarker } from "./canvas_vertical_markers";
 import { drawSuggestionButtons, hitTestSuggestionButton } from "./canvas_suggestions";
+import { drawWeekdayOverlay } from "./canvas_weekdays";
 import {
   computeUnifiedChartLayout,
   hitTestChart,
@@ -1615,6 +1616,15 @@ export class GanttChartCanvasController {
         viewportHeight: viewportHeight,
         layouts: topicLayouts,
         showTopicHeaderText: destinationLabelsVisible(this.rowHeight),
+      });
+
+      drawWeekdayOverlay({
+        ctx,
+        width: layout.canvasCssWidth,
+        height: contentHeight,
+        margin: MARGIN,
+        startTime: this.internalStartTime,
+        endTime: this.internalEndTime,
       });
 
       drawSlots({
