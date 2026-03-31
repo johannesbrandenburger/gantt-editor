@@ -25,6 +25,7 @@ import {
 } from "./canvas_slots";
 import { drawDepartureMarkers } from "./canvas_departure_markers";
 import { drawVerticalMarkers, hitTestVerticalMarker } from "./canvas_vertical_markers";
+import { drawSuggestionButtons, hitTestSuggestionButton } from "./canvas_suggestions";
 import {
   computeUnifiedChartLayout,
   hitTestChart,
@@ -396,25 +397,40 @@ export class GanttChartCanvasController {
 
     let hoveredSlotId: string | null = null;
     let ewResize = false;
+    let suggestionHit = false;
     let verticalMarkerDraggable = false;
     if (hit.type === "group") {
       const gr = layout.groupRects.get(hit.groupId);
       if (gr) {
-        const markerHit = this.hitVerticalMarkerForGroup(
+        const scroll = this.verticalScrollOffsets.get(hit.groupId) || 0;
+        const contentY = pt.y - gr.y + scroll;
+        const groupTopics = this.topicsForGroup(hit.groupId);
+        const suggestionHover = this.hitSuggestionForGroup(
           hit.groupId,
           pt.x,
-          pt.y,
+          contentY,
           layout.canvasCssWidth,
+          groupTopics,
         );
+        if (suggestionHover) {
+          suggestionHit = true;
+          hoveredSlotId = null;
+        }
+
+        const markerHit = suggestionHover
+          ? null
+          : this.hitVerticalMarkerForGroup(
+              hit.groupId,
+              pt.x,
+              pt.y,
+              layout.canvasCssWidth,
+            );
         if (markerHit) {
           hoveredSlotId = null;
           verticalMarkerDraggable = markerHit.draggable;
         }
 
-        const scroll = this.verticalScrollOffsets.get(hit.groupId) || 0;
-        const contentY = pt.y - gr.y + scroll;
-        const groupTopics = this.topicsForGroup(hit.groupId);
-        if (!markerHit) {
+        if (!suggestionHover && !markerHit) {
           hoveredSlotId =
             hitTestSlotBar({
               topics: groupTopics,
@@ -447,6 +463,8 @@ export class GanttChartCanvasController {
 
     if (hit.type === "topResize" || hit.type === "betweenResize") {
       canvas.style.cursor = "ns-resize";
+    } else if (suggestionHit) {
+      canvas.style.cursor = "pointer";
     } else if (verticalMarkerDraggable) {
       canvas.style.cursor = "ew-resize";
     } else if (ewResize) {
@@ -537,6 +555,17 @@ export class GanttChartCanvasController {
     const scroll = this.verticalScrollOffsets.get(hit.groupId) || 0;
     const contentY = pt.y - gr.y + scroll;
     const groupTopics = this.topicsForGroup(hit.groupId);
+
+    const suggestionHit = this.hitSuggestionForGroup(
+      hit.groupId,
+      pt.x,
+      contentY,
+      layout.canvasCssWidth,
+      groupTopics,
+    );
+    if (suggestionHit) {
+      return;
+    }
 
     const markerHit = this.hitVerticalMarkerForGroup(
       hit.groupId,
@@ -635,6 +664,18 @@ export class GanttChartCanvasController {
     );
     if (markerHit) {
       this.callbacks.onVerticalMarkerClick?.(markerHit.id);
+      return;
+    }
+
+    const suggestionHit = this.hitSuggestionForGroup(
+      ctx.groupId,
+      ctx.point.x,
+      ctx.contentY,
+      ctx.layout.canvasCssWidth,
+      ctx.groupTopics,
+    );
+    if (suggestionHit) {
+      this.applySuggestionForSlot(suggestionHit.slotId);
       return;
     }
 
@@ -1619,6 +1660,20 @@ export class GanttChartCanvasController {
 
       this.drawMarkedRegionOverlay(ctx, group.id, contentHeight, layout.canvasCssWidth);
 
+      drawSuggestionButtons({
+        ctx,
+        width: layout.canvasCssWidth,
+        topics: groupTopics,
+        suggestions: this.props.suggestions,
+        margin: MARGIN,
+        rowHeight: this.rowHeight,
+        startTime: this.internalStartTime,
+        endTime: this.internalEndTime,
+        viewportTop: clampedOffset,
+        viewportHeight: viewportHeight,
+        topicLayouts,
+      });
+
       ctx.restore();
     }
 
@@ -1829,6 +1884,20 @@ export class GanttChartCanvasController {
     ctx.restore();
   }
 
+  private applySuggestionForSlot(slotId: string): void {
+    if (!slotId || this.props.isReadOnly) return;
+    const suggestion = this.props.suggestions.find((s) => s.slotId === slotId);
+    if (!suggestion) return;
+
+    const slot = this.props.slots.find((s) => s.id === slotId);
+    if (!slot || slot.readOnly) return;
+
+    slot.destinationId = suggestion.alternativeDestinationId;
+    this.cachedProcessedTopics = null;
+    this.callbacks.onChangeDestinationId?.(slot.id, suggestion.alternativeDestinationId, true);
+    this.redraw();
+  }
+
   private timeMsToCanvasX(timeMs: number, width: number): number {
     const chartWidth = width - MARGIN.left - MARGIN.right;
     if (chartWidth <= 0) return MARGIN.left;
@@ -1840,6 +1909,26 @@ export class GanttChartCanvasController {
 
     const clamped = Math.max(startMs, Math.min(endMs, timeMs));
     return MARGIN.left + ((clamped - startMs) / span) * chartWidth;
+  }
+
+  private hitSuggestionForGroup(
+    groupId: string,
+    canvasX: number,
+    contentY: number,
+    width: number,
+    groupTopics: Topic[],
+  ) {
+    return hitTestSuggestionButton({
+      width,
+      topics: groupTopics,
+      suggestions: this.props.suggestions,
+      margin: MARGIN,
+      rowHeight: this.rowHeight,
+      startTime: this.internalStartTime,
+      endTime: this.internalEndTime,
+      canvasX,
+      contentY,
+    });
   }
 
   private hitVerticalMarkerForGroup(
