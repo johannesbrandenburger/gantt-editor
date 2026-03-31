@@ -62,6 +62,7 @@ import {
 import {
   computeRowHeightForUnifiedZoom,
   SLOT_RENDER_RATIO,
+  slotsAllowLabelsAndInteraction,
 } from "./gantt-editor-lib/chart/canvas_slot_scale";
 import { processData } from "./gantt-editor-lib/chart/process-data";
 import { drawTopicLines, computeContentHeight, computeTopicLayout } from "./gantt-editor-lib/chart/canvas_topics";
@@ -115,7 +116,8 @@ const containerWidth = ref(0);
 const X_AXIS_HEIGHT = 50;
 /** Fallback before layout; reconciled from visible time span and chart width. */
 const DEFAULT_ROW_HEIGHT = 40;
-const MIN_ROW_HEIGHT = 5;
+/** Lower bound for unified zoom so many rows fit when fully zoomed out (band ≈ (1−padding)× this). */
+const MIN_ROW_HEIGHT = 1;
 const MAX_ROW_HEIGHT = 120;
 const rowHeight = ref<number>(DEFAULT_ROW_HEIGHT);
 
@@ -501,6 +503,13 @@ function reconcileUnifiedZoomRowHeight(wheelAnchor?: WheelZoomAnchor) {
 
   rowHeight.value = next;
 
+  if (!slotsAllowLabelsAndInteraction(next) && slotResizeDrag) {
+    document.removeEventListener("mousemove", onSlotResizeMouseMove);
+    document.removeEventListener("mouseup", onSlotResizeMouseUp);
+    slotResizeDrag = null;
+    slotResizePreview = null;
+  }
+
   const topics = processedTopics.value;
   const topicsByGroupId = new Map<string, typeof topics>();
   for (const t of topics) {
@@ -749,6 +758,7 @@ const drawUnifiedFrame = () => {
       viewportTop: clampedOffset,
       viewportHeight: viewportHeight,
       layouts: topicLayouts,
+      showTopicHeaderText: slotsAllowLabelsAndInteraction(rowHeight.value),
     });
 
     drawSlots({

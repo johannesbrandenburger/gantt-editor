@@ -11,7 +11,18 @@ export const REFERENCE_SLOT_DURATION_MS = 60 * 60 * 1000;
  * Tunable: for a slot of {@link REFERENCE_SLOT_DURATION_MS}, horizontal span ÷ band height.
  * `1` = that slot is a square; larger = wider relative to height.
  */
-export const SLOT_RENDER_RATIO = 1;
+/** Higher → shorter rows at the same time span (more chutes visible when zoomed out). */
+export const SLOT_RENDER_RATIO = 2.25;
+
+/**
+ * When unified row height (px) is at or below this — heavily zoomed out — skip slot bar labels
+ * and all slot pointer hit targets. Use {@link slotsAllowLabelsAndInteraction} for new slot UX.
+ */
+export const SLOT_OVERVIEW_MAX_ROW_HEIGHT_PX = 14;
+
+export function slotsAllowLabelsAndInteraction(rowHeight: number): boolean {
+  return rowHeight > SLOT_OVERVIEW_MAX_ROW_HEIGHT_PX;
+}
 
 /**
  * Row height (full step) so time scale and band height stay locked: zoom is one map scale.

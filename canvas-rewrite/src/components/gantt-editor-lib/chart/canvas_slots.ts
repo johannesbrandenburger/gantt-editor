@@ -8,6 +8,7 @@ import {
   TOPIC_BAND_PADDING,
   type TopicLayout,
 } from "./canvas_topics";
+import { slotsAllowLabelsAndInteraction } from "./canvas_slot_scale";
 
 function slotTextPaddingPx(rowHeight: number): number {
   return Math.round(Math.max(2, (5 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT));
@@ -157,9 +158,13 @@ export function drawSlots(params: DrawSlotsParams) {
           ctx.setLineDash([]);
         }
 
-        // Draw text (clipped to slot rect)
+        // Draw text (clipped to slot rect); overview zoom skips labels for density/clarity
         const minTextW = minSlotWidthForTextPx(rowHeight);
-        if (!topic.isCollapsed && slotDef.width > minTextW) {
+        if (
+          slotsAllowLabelsAndInteraction(rowHeight) &&
+          !topic.isCollapsed &&
+          slotDef.width > minTextW
+        ) {
           ctx.save();
           ctx.beginPath();
           ctx.rect(slotDef.x, slotDef.y, slotDef.width, slotDef.height);
@@ -259,6 +264,7 @@ export type SlotResizeHit = {
 
 export function hitTestSlotResizeEdge(p: HitTestSlotResizeParams): SlotResizeHit | null {
   if (p.isReadOnly) return null;
+  if (!slotsAllowLabelsAndInteraction(p.rowHeight)) return null;
 
   const chartWidth = p.width - p.margin.left - p.margin.right;
   if (chartWidth <= 0) return null;

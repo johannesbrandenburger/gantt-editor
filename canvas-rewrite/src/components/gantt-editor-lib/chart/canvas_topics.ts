@@ -3,13 +3,13 @@ import type { Topic } from "./types";
 /** Matches default row height in GanttEditorComponentCanvas — fonts/padding scale from this baseline. */
 export const TEXT_SCALE_BASE_ROW_HEIGHT = 40;
 
-/** Band padding for topic rows (must match slot band geometry in canvas_slots). */
-export const TOPIC_BAND_PADDING = 0.3;
+/** Band padding for topic rows (must match slot band geometry in canvas_slots). Lower = denser rows. */
+export const TOPIC_BAND_PADDING = 0.2;
 
 /** Bold label font for topic headers and slot names; scales with row height. */
 export function scaledBoldSansFont(rowHeight: number): string {
   const px = Math.round(
-    Math.max(6, Math.min(36, (12 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT)),
+    Math.max(1, Math.min(36, (12 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT)),
   );
   return `bold ${px}px sans-serif`;
 }
@@ -43,6 +43,8 @@ export interface DrawTopicsParams {
   viewportHeight?: number;
   /** When set, skips internal computeTopicLayout (caller computed once per frame). */
   layouts?: TopicLayout[];
+  /** When false, topic names in the margin are omitted (dense overview). */
+  showTopicHeaderText?: boolean;
 }
 
 /**
@@ -124,7 +126,18 @@ export function computeContentHeight(
  * Draws topic gridlines and labels onto a canvas context.
  */
 export function drawTopicLines(params: DrawTopicsParams) {
-  const { ctx, width, height, topics, margin, rowHeight, viewportTop, viewportHeight, layouts: layoutsIn } = params;
+  const {
+    ctx,
+    width,
+    height,
+    topics,
+    margin,
+    rowHeight,
+    viewportTop,
+    viewportHeight,
+    layouts: layoutsIn,
+    showTopicHeaderText = true,
+  } = params;
 
   const hasViewport = viewportTop !== undefined && viewportHeight !== undefined;
 
@@ -168,14 +181,16 @@ export function drawTopicLines(params: DrawTopicsParams) {
   ctx.restore();
 
   // Draw topic header labels (bold, in the margin area)
-  ctx.save();
-  ctx.font = scaledBoldSansFont(rowHeight);
-  ctx.textBaseline = "middle";
-  ctx.textAlign = "left";
-  for (const layout of layouts) {
-    if (hasViewport && (layout.topic.yEnd < viewportTop || layout.topic.yStart > viewportTop + viewportHeight)) continue;
-    ctx.fillStyle = layout.isInactive ? "red" : "black";
-    ctx.fillText(layout.labelText, layout.labelX, layout.labelY);
+  if (showTopicHeaderText) {
+    ctx.save();
+    ctx.font = scaledBoldSansFont(rowHeight);
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    for (const layout of layouts) {
+      if (hasViewport && (layout.topic.yEnd < viewportTop || layout.topic.yStart > viewportTop + viewportHeight)) continue;
+      ctx.fillStyle = layout.isInactive ? "red" : "black";
+      ctx.fillText(layout.labelText, layout.labelX, layout.labelY);
+    }
+    ctx.restore();
   }
-  ctx.restore();
 }
