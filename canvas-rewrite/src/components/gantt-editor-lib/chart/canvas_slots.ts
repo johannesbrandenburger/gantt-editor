@@ -23,6 +23,8 @@ export interface DrawSlotsParams {
   rowHeight: number;
   startTime: Date;
   endTime: Date;
+  viewportTop?: number;
+  viewportHeight?: number;
 }
 
 /**
@@ -30,7 +32,9 @@ export interface DrawSlotsParams {
  * Assumes the topic gridlines/labels have already been drawn on this context.
  */
 export function drawSlots(params: DrawSlotsParams) {
-  const { ctx, width, topics, margin, rowHeight, startTime, endTime } = params;
+  const { ctx, width, topics, margin, rowHeight, startTime, endTime, viewportTop, viewportHeight } = params;
+
+  const hasViewport = viewportTop !== undefined && viewportHeight !== undefined;
 
   const chartWidth = width - margin.left - margin.right;
   const xScale = d3.scaleTime()
@@ -50,12 +54,16 @@ export function drawSlots(params: DrawSlotsParams) {
 
   for (const layout of layouts) {
     const topic = layout.topic;
-
+    // Cull topics outside the visible viewport
+    if (hasViewport && (topic.yEnd < viewportTop || topic.yStart > viewportTop + viewportHeight)) continue;
     topic.rows.forEach((row, rowIndex) => {
       const rowTop = layout.rowYs[rowIndex];
       if (rowTop === undefined) return;
 
       for (const slot of row.slots) {
+        // Horizontal culling: skip slots entirely outside the visible time range
+        if (slot.closeTime <= startTime || slot.openTime >= endTime) continue;
+
         const slotDef = computeSlotRect(
           slot, xScale, chartWidth, margin.left, rowTop, bandwidth, gap,
           topic.isCollapsed,

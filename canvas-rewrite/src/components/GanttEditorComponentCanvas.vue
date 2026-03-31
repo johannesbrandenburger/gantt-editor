@@ -119,6 +119,7 @@ const ROW_HEIGHT = 40;
 const internalStartTime = ref(new Date(props.startTime));
 const internalEndTime = ref(new Date(props.endTime));
 let panZoomCleanup: PanZoomCleanup | null = null;
+let verticalScrollCleanups: Array<() => void> = [];
 
 // Top content resizing state
 const currentTopContentPortion = ref(props.topContentPortion || 0);
@@ -130,8 +131,10 @@ const isResizing = ref(false);
 const resizingElement = ref<string | null>(null);
 const startY = ref(0);
 const currentHeightPortions = ref<Map<string, number>>(new Map<string, number>());
+const verticalScrollOffsets = ref<Map<string, number>>(new Map<string, number>());
 props.destinationGroups.forEach((group) => {
   currentHeightPortions.value.set(group.id, group.heightPortion);
+  verticalScrollOffsets.value.set(group.id, 0);
 });
 
 const totalContentHeight = computed(() => {
@@ -350,22 +353,36 @@ const drawGantt = () => {
   props.destinationGroups.forEach((group) => {
     const canvas = ganttCanvasRefs.value[group.id];
     if (!canvas) return;
-    const containerHeight = heightMap.value.get(group.id) || 0;
-    if (containerHeight <= 0) return;
+    const viewportHeight = heightMap.value.get(group.id) || 0;
+    if (viewportHeight <= 0) return;
 
     const groupTopics = topics.filter(t => t.groupId === group.id);
     const contentHeight = computeContentHeight(groupTopics, ROW_HEIGHT);
-    const canvasHeight = Math.max(contentHeight, containerHeight);
-    const ctx = setupCanvas(canvas, containerWidth.value, canvasHeight);
+    const scrollOffset = verticalScrollOffsets.value.get(group.id) || 0;
+
+    // Clamp scroll offset in case content shrank
+    const maxOffset = Math.max(0, contentHeight - viewportHeight);
+    const clampedOffset = Math.min(scrollOffset, maxOffset);
+    if (clampedOffset !== scrollOffset) {
+      verticalScrollOffsets.value.set(group.id, clampedOffset);
+    }
+
+    // Canvas is viewport-sized (not content-sized)
+    const ctx = setupCanvas(canvas, containerWidth.value, viewportHeight);
     if (!ctx) return;
+
+    ctx.save();
+    ctx.translate(0, -clampedOffset);
 
     drawTopicLines({
       ctx,
       width: containerWidth.value,
-      height: canvasHeight,
+      height: viewportHeight,
       topics: groupTopics,
       margin: MARGIN,
       rowHeight: ROW_HEIGHT,
+      viewportTop: clampedOffset,
+      viewportHeight: viewportHeight,
     });
 
     drawSlots({
@@ -376,7 +393,11 @@ const drawGantt = () => {
       rowHeight: ROW_HEIGHT,
       startTime: internalStartTime.value,
       endTime: internalEndTime.value,
+      viewportTop: clampedOffset,
+      viewportHeight: viewportHeight,
     });
+
+    ctx.restore();
   });
 };
 
@@ -447,6 +468,36 @@ onMounted(() => {
       },
     });
   }
+
+  // Setup vertical scrolling on each group container
+  props.destinationGroups.forEach((group) => {
+    const containerEl = document.getElementById(group.id + '-gantt-container');
+    if (!containerEl) return;
+
+    const onWheel = (event: WheelEvent) => {
+      // Only handle vertical scroll (not horizontal, not zoom)
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+      const isTrackpad = Math.abs(event.deltaY) < 100 && event.deltaY % 1 !== 0;
+      const shouldZoom = (isTrackpad && event.ctrlKey) || (!isTrackpad && event.shiftKey);
+      if (shouldZoom) return;
+
+      event.preventDefault();
+
+      const groupTopics = processedTopics.value.filter(t => t.groupId === group.id);
+      const contentHeight = computeContentHeight(groupTopics, ROW_HEIGHT);
+      const viewportHeight = heightMap.value.get(group.id) || 0;
+
+      const currentOffset = verticalScrollOffsets.value.get(group.id) || 0;
+      const maxOffset = Math.max(0, contentHeight - viewportHeight);
+      const newOffset = Math.max(0, Math.min(maxOffset, currentOffset + event.deltaY));
+
+      verticalScrollOffsets.value.set(group.id, newOffset);
+      redraw();
+    };
+
+    containerEl.addEventListener('wheel', onWheel, { passive: false });
+    verticalScrollCleanups.push(() => containerEl.removeEventListener('wheel', onWheel));
+  });
 });
 
 onBeforeUnmount(() => {
@@ -458,6 +509,8 @@ onBeforeUnmount(() => {
     panZoomCleanup.destroy();
     panZoomCleanup = null;
   }
+  verticalScrollCleanups.forEach(fn => fn());
+  verticalScrollCleanups = [];
 });
 
 defineExpose({
@@ -493,8 +546,7 @@ defineExpose({
 }
 
 .gantt-canvas-container {
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   width: 100%;
   background-color: white;
 }
