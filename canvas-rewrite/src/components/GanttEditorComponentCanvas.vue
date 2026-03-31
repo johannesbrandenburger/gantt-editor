@@ -421,7 +421,7 @@ function ensureCanvasContext(
   return ctx;
 }
 
-const MARGIN = { left: 200, right: 60 };
+const MARGIN = { left: 200, right: 12 };
 
 // processData only uses slots, destinations, and settings.compactView; it does not use the view
 // time range or row height. Omitting those reactive deps keeps pan/zoom from re-running O(n) work
