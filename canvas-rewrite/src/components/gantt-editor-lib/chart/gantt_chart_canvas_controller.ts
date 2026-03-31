@@ -4,6 +4,7 @@ import {
   handlePanZoomWheelEvent,
   clearPanZoomWheelDebounce,
   type PanZoomCleanup,
+  type PanZoomCallbacks,
   type WheelZoomAnchor,
 } from "./canvas_pan_zoom";
 import {
@@ -23,7 +24,6 @@ import {
   computeUnifiedChartLayout,
   hitTestChart,
   canvasLocalPoint,
-  anchorYInGroupViewport,
   drawResizeBands,
   type UnifiedChartLayout,
 } from "./unified_chart_layout";
@@ -94,6 +94,10 @@ export class GanttChartCanvasController {
   private hoverResizeBand: string | null = null;
 
   private resizeObserver: ResizeObserver | null = null;
+  /** Recomputed only when geometry inputs change. */
+  private chartLayoutCache: UnifiedChartLayout | null = null;
+  private chartLayoutDirty = true;
+  private readonly panZoomCallbacks: PanZoomCallbacks;
 
   /** Active left/right slot edge drag (canvas CSS pixels / inner chart width). */
   private slotResizeDrag: {
@@ -153,6 +157,7 @@ export class GanttChartCanvasController {
       initialProps.destinationGroups,
     );
     this.initMapsFromGroups(initialProps.destinationGroups);
+    this.panZoomCallbacks = this.buildPanZoomCallbacks();
   }
 
   /**
@@ -182,6 +187,7 @@ export class GanttChartCanvasController {
       if (t !== this.lastSeenParentTopPortion) {
         this.lastSeenParentTopPortion = t;
         this.currentTopContentPortion = t;
+        this.invalidateLayoutCache();
       }
     }
 
@@ -205,6 +211,7 @@ export class GanttChartCanvasController {
     }
     this.currentHeightPortions = nextH;
     this.verticalScrollOffsets = nextS;
+    this.invalidateLayoutCache();
   }
 
   attach(container: HTMLElement, canvas: HTMLCanvasElement): void {
@@ -214,11 +221,13 @@ export class GanttChartCanvasController {
 
     this.containerHeight = container.clientHeight;
     this.containerWidth = container.clientWidth;
+    this.invalidateLayoutCache();
 
     this.resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         this.containerHeight = entry.contentRect.height;
         this.containerWidth = entry.contentRect.width;
+        this.invalidateLayoutCache();
         this.reconcileUnifiedZoomRowHeight();
         this.redraw();
         this.maybeNotifyTopContentLayout();
@@ -235,7 +244,7 @@ export class GanttChartCanvasController {
       this.maybeNotifyTopContentLayout();
 
       if (this.canvas) {
-        this.panZoomCleanup = setupCanvasPanZoom(this.canvas, this.buildPanZoomCallbacks());
+        this.panZoomCleanup = setupCanvasPanZoom(this.canvas, this.panZoomCallbacks);
       }
     });
   }
@@ -362,8 +371,7 @@ export class GanttChartCanvasController {
     const canvas = this.canvas;
     if (!canvas) return;
 
-    const callbacks = this.buildPanZoomCallbacks();
-    if (handlePanZoomWheelEvent(event, canvas, callbacks)) {
+    if (handlePanZoomWheelEvent(event, canvas, this.panZoomCallbacks)) {
       return;
     }
 
@@ -461,7 +469,10 @@ export class GanttChartCanvasController {
   private getChartLayout(): UnifiedChartLayout | null {
     if (this.containerWidth <= 0 || this.containerHeight <= 0) return null;
     if (this.props.destinationGroups.length === 0) return null;
-    return computeUnifiedChartLayout({
+    if (!this.chartLayoutDirty && this.chartLayoutCache) {
+      return this.chartLayoutCache;
+    }
+    this.chartLayoutCache = computeUnifiedChartLayout({
       containerWidth: this.containerWidth,
       containerHeight: this.containerHeight,
       destinationGroups: this.props.destinationGroups,
@@ -470,6 +481,13 @@ export class GanttChartCanvasController {
       xAxisHeight: X_AXIS_HEIGHT,
       resizeHandlePx: 3,
     });
+    this.chartLayoutDirty = false;
+    return this.chartLayoutCache;
+  }
+
+  private invalidateLayoutCache(): void {
+    this.chartLayoutDirty = true;
+    this.chartLayoutCache = null;
   }
 
   private get heightMap(): Map<string, number> {
@@ -617,6 +635,7 @@ export class GanttChartCanvasController {
     if (newPortion < 0.01) newPortion = 0.01;
     if (newPortion > 0.99) newPortion = 0.99;
     this.currentTopContentPortion = newPortion;
+    this.invalidateLayoutCache();
     this.topContentStartY = e.clientY;
     this.callbacks.onTopContentPortionChange(newPortion, th * newPortion);
     this.redraw();
@@ -668,6 +687,7 @@ export class GanttChartCanvasController {
 
     this.currentHeightPortions.set(currentElement.id, newCurrentPortion);
     this.currentHeightPortions.set(nextElement.id, newNextPortion);
+    this.invalidateLayoutCache();
     this.startY = e.clientY;
     this.redraw();
     this.maybeNotifyTopContentLayout();
@@ -799,17 +819,17 @@ export class GanttChartCanvasController {
     let focusedGroupId: string | null = null;
     let anchorMouseY = 0;
     if (wheelAnchor && layout && canvas) {
-      const pt = canvasLocalPoint(canvas, wheelAnchor.clientX, wheelAnchor.clientY);
+      const pt =
+        wheelAnchor.localX !== undefined && wheelAnchor.localY !== undefined
+          ? { x: wheelAnchor.localX, y: wheelAnchor.localY }
+          : canvasLocalPoint(canvas, wheelAnchor.clientX, wheelAnchor.clientY);
       const hit = hitTestChart(layout, pt.x, pt.y);
       if (hit.type === "group") {
         focusedGroupId = hit.groupId;
-        anchorMouseY = anchorYInGroupViewport(
-          layout,
-          hit.groupId,
-          wheelAnchor.clientX,
-          wheelAnchor.clientY,
-          canvas,
-        );
+        const gr = layout.groupRects.get(hit.groupId);
+        if (gr) {
+          anchorMouseY = Math.max(0, Math.min(gr.h, pt.y - gr.y));
+        }
       }
     }
 

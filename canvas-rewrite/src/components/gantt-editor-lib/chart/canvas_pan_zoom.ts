@@ -1,7 +1,11 @@
-import * as d3 from "d3";
-
 /** Passed on wheel zoom commit so the chart can keep content stable under the cursor while row height updates. */
-export type WheelZoomAnchor = { clientX: number; clientY: number };
+export type WheelZoomAnchor = {
+  clientX: number;
+  clientY: number;
+  /** Cursor position in chart-canvas local CSS pixels (avoids an extra layout read downstream). */
+  localX?: number;
+  localY?: number;
+};
 
 export interface PanZoomCallbacks {
   /**
@@ -64,6 +68,12 @@ function horizontalWheelDeltaToMs(
   return (deltaPx * timeRangeMs) / chartWidth;
 }
 
+/** Translate horizontal drag pixels into a time-domain shift for the current visible range. */
+function dragDeltaPxToMs(dxPx: number, chartWidth: number, startMs: number, endMs: number): number {
+  if (chartWidth <= 0) return 0;
+  return (dxPx * (endMs - startMs)) / chartWidth;
+}
+
 let sharedScrollTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleTimeRangeParentCommit(callbacks: PanZoomCallbacks, delayMs: number): void {
@@ -84,21 +94,24 @@ export function handlePanZoomWheelEvent(
   chartElement: HTMLElement,
   callbacks: PanZoomCallbacks,
 ): boolean {
+  const { start, end } = callbacks.getCurrentTimeRange();
+  const startMs = start.getTime();
+  const endMs = end.getTime();
+  const timeRangeMs = endMs - startMs;
+
   if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
     event.preventDefault();
     event.stopPropagation();
 
-    const { start, end } = callbacks.getCurrentTimeRange();
     const chartWidth = callbacks.getChartWidth();
-    const timeRangeMs = end.getTime() - start.getTime();
     const panMs = horizontalWheelDeltaToMs(
       event.deltaX,
       event.deltaMode,
       timeRangeMs,
       chartWidth,
     );
-    const newStart = new Date(start.getTime() + panMs);
-    const newEnd = new Date(end.getTime() + panMs);
+    const newStart = new Date(startMs + panMs);
+    const newEnd = new Date(endMs + panMs);
 
     callbacks.onTimeRangeChange(newStart, newEnd);
     scheduleTimeRangeParentCommit(callbacks, 150);
@@ -107,36 +120,38 @@ export function handlePanZoomWheelEvent(
 
   const shouldZoom = event.ctrlKey || event.shiftKey || event.altKey;
   if (!shouldZoom) return false;
+  if (timeRangeMs <= 0) return false;
 
   event.preventDefault();
 
-  const { start, end } = callbacks.getCurrentTimeRange();
   const chartWidth = callbacks.getChartWidth();
+  if (chartWidth <= 0) return false;
 
-  const rawMouseX =
-    event.clientX - chartElement.getBoundingClientRect().left - callbacks.marginLeft;
+  const rect = chartElement.getBoundingClientRect();
+  const localX = event.clientX - rect.left;
+  const localY = event.clientY - rect.top;
+
+  const rawMouseX = localX - callbacks.marginLeft;
   const mouseX =
     chartWidth > 0 ? Math.max(0, Math.min(chartWidth, rawMouseX)) : rawMouseX;
 
-  const scale = d3.scaleTime()
-    .domain([start, end])
-    .range([0, chartWidth]);
-  const mouseTime = scale.invert(mouseX);
+  const mouseOffset = chartWidth > 0 ? mouseX / chartWidth : 0;
+  const mouseTimeMs = startMs + timeRangeMs * mouseOffset;
 
   const timeZoomFactor =
     event.deltaY > 0 ? ZOOM_WHEEL_STEP : 1 / ZOOM_WHEEL_STEP;
-  const timeRange = end.getTime() - start.getTime();
-  const mouseOffset = (mouseTime.getTime() - start.getTime()) / timeRange;
 
-  const newTimeRange = timeRange * timeZoomFactor;
+  const newTimeRange = timeRangeMs * timeZoomFactor;
   const constrainedTimeRange = Math.min(newTimeRange, MAX_WHEEL_VISIBLE_TIME_RANGE_MS);
 
-  const newStart = new Date(mouseTime.getTime() - constrainedTimeRange * mouseOffset);
+  const newStart = new Date(mouseTimeMs - constrainedTimeRange * mouseOffset);
   const newEnd = new Date(newStart.getTime() + constrainedTimeRange);
 
   callbacks.onTimeRangeChange(newStart, newEnd, {
     clientX: event.clientX,
     clientY: event.clientY,
+    localX,
+    localY,
   });
   scheduleTimeRangeParentCommit(callbacks, 150);
   return true;
@@ -173,13 +188,11 @@ export function setupCanvasPanZoom(
     if (!isPanning) return;
     const dx = event.clientX - startPanX;
     const chartWidth = callbacks.getChartWidth();
-    const scale = d3.scaleTime()
-      .domain([originalStart, originalEnd])
-      .range([0, chartWidth]);
-
-    const timeShift = scale.invert(dx).getTime() - scale.invert(0).getTime();
-    const newStart = new Date(originalStart.getTime() - timeShift);
-    const newEnd = new Date(originalEnd.getTime() - timeShift);
+    const originalStartMs = originalStart.getTime();
+    const originalEndMs = originalEnd.getTime();
+    const timeShiftMs = dragDeltaPxToMs(dx, chartWidth, originalStartMs, originalEndMs);
+    const newStart = new Date(originalStartMs - timeShiftMs);
+    const newEnd = new Date(originalEndMs - timeShiftMs);
 
     callbacks.onTimeRangeChange(newStart, newEnd);
   };
@@ -193,13 +206,11 @@ export function setupCanvasPanZoom(
     if (event.clientX !== startPanX) {
       const dx = event.clientX - startPanX;
       const chartWidth = callbacks.getChartWidth();
-      const scale = d3.scaleTime()
-        .domain([originalStart, originalEnd])
-        .range([0, chartWidth]);
-
-      const timeShift = scale.invert(dx).getTime() - scale.invert(0).getTime();
-      const newStart = new Date(originalStart.getTime() - timeShift);
-      const newEnd = new Date(originalEnd.getTime() - timeShift);
+      const originalStartMs = originalStart.getTime();
+      const originalEndMs = originalEnd.getTime();
+      const timeShiftMs = dragDeltaPxToMs(dx, chartWidth, originalStartMs, originalEndMs);
+      const newStart = new Date(originalStartMs - timeShiftMs);
+      const newEnd = new Date(originalEndMs - timeShiftMs);
       callbacks.onTimeRangeCommit(newStart, newEnd);
     }
   };
