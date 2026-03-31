@@ -158,7 +158,7 @@ export function handlePanZoomWheelEvent(
 }
 
 /**
- * Right-click / shift-drag time pan. Wheel is not attached here — use {@link handlePanZoomWheelEvent}
+ * Middle-click, right-click, or shift-drag time pan. Wheel is not attached here — use {@link handlePanZoomWheelEvent}
  * on the chart canvas together with vertical scroll routing.
  */
 export function setupCanvasPanZoom(
@@ -171,7 +171,10 @@ export function setupCanvasPanZoom(
   let originalEnd: Date;
 
   const onMouseDown = (event: MouseEvent) => {
-    if (event.button !== 2 && !event.shiftKey) return;
+    const isMiddleButton = event.button === 1;
+    const isRightButton = event.button === 2;
+    const isShiftDrag = event.shiftKey;
+    if (!isMiddleButton && !isRightButton && !isShiftDrag) return;
     event.preventDefault();
 
     isPanning = true;
