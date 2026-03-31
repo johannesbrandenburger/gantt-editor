@@ -5,6 +5,7 @@ import type {
   GanttEditorSlot,
   GanttEditorSlotWithUiAttributes,
   GanttEditorSuggestion,
+  GanttEditorVerticalMarker,
   GanttEditorXAxisOptions,
 } from "./types";
 
@@ -20,6 +21,7 @@ export interface GanttEditorCanvasProps {
   destinations: Array<GanttEditorDestination>;
   destinationGroups: Array<GanttEditorDestinationGroup>;
   suggestions: Array<GanttEditorSuggestion>;
+  verticalMarkers?: Array<GanttEditorVerticalMarker>;
   markedRegion: GanttEditorMarkedRegion | null;
   isReadOnly: boolean;
   topContentPortion?: number;
@@ -39,6 +41,8 @@ export interface GanttEditorCanvasCallbacks {
   onHoverOnSlot?: (slotId: string) => void;
   onDoubleClickOnSlot?: (slotId: string) => void;
   onContextClickOnSlot?: (slotId: string) => void;
+  onVerticalMarkerChange?: (id: string, date: Date) => void;
+  onVerticalMarkerClick?: (id: string) => void;
 }
 
 /** Optional hooks for host UI state (Vue refs, Angular signals, etc.). */

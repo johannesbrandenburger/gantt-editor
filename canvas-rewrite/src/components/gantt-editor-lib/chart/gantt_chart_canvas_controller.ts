@@ -24,6 +24,7 @@ import {
   type SlotResizeEdge,
 } from "./canvas_slots";
 import { drawDepartureMarkers } from "./canvas_departure_markers";
+import { drawVerticalMarkers, hitTestVerticalMarker } from "./canvas_vertical_markers";
 import {
   computeUnifiedChartLayout,
   hitTestChart,
@@ -137,6 +138,9 @@ export class GanttChartCanvasController {
   /** Live bar geometry while resizing; cleared on mouseup. */
   private slotResizePreview: { slotId: string; openTime: Date; closeTime: Date } | null = null;
 
+  /** Active drag for a vertical marker line. */
+  private verticalMarkerDrag: { markerId: string; currentX: number } | null = null;
+
   /** Captured row positions before a resize commit; consumed when parent props echo new times. */
   private pendingSlotReflowFromResize: {
     capturedAtMs: number;
@@ -176,6 +180,10 @@ export class GanttChartCanvasController {
   private readonly boundStopResize = () => this.stopResize();
   private readonly boundSlotResizeMouseMove = (e: MouseEvent) => this.onSlotResizeMouseMove(e);
   private readonly boundSlotResizeMouseUp = (e: MouseEvent) => this.onSlotResizeMouseUp(e);
+  private readonly boundVerticalMarkerMouseMove = (e: MouseEvent) =>
+    this.onVerticalMarkerMouseMove(e);
+  private readonly boundVerticalMarkerMouseUp = (e: MouseEvent) =>
+    this.onVerticalMarkerMouseUp(e);
   private readonly boundBrushMouseMove = (e: MouseEvent) => this.onBrushMouseMove(e);
   private readonly boundBrushMouseUp = (e: MouseEvent) => this.onBrushMouseUp(e);
 
@@ -304,6 +312,8 @@ export class GanttChartCanvasController {
     this.pendingRedrawFollowsInteractive = false;
     document.removeEventListener("mousemove", this.boundSlotResizeMouseMove);
     document.removeEventListener("mouseup", this.boundSlotResizeMouseUp);
+    document.removeEventListener("mousemove", this.boundVerticalMarkerMouseMove);
+    document.removeEventListener("mouseup", this.boundVerticalMarkerMouseUp);
     document.removeEventListener("mousemove", this.boundTopContentResize);
     document.removeEventListener("mouseup", this.boundStopTopContentResize);
     document.removeEventListener("mousemove", this.boundResize);
@@ -316,6 +326,7 @@ export class GanttChartCanvasController {
     }
     this.slotResizeDrag = null;
     this.slotResizePreview = null;
+    this.verticalMarkerDrag = null;
     this.pendingSlotReflowFromResize = null;
     this.slotReflowAnimation = null;
     this.brushSelection = null;
@@ -371,26 +382,27 @@ export class GanttChartCanvasController {
 
     let hoveredSlotId: string | null = null;
     let ewResize = false;
+    let verticalMarkerDraggable = false;
     if (hit.type === "group") {
       const gr = layout.groupRects.get(hit.groupId);
       if (gr) {
+        const markerHit = this.hitVerticalMarkerForGroup(
+          hit.groupId,
+          pt.x,
+          pt.y,
+          layout.canvasCssWidth,
+        );
+        if (markerHit) {
+          hoveredSlotId = null;
+          verticalMarkerDraggable = markerHit.draggable;
+        }
+
         const scroll = this.verticalScrollOffsets.get(hit.groupId) || 0;
         const contentY = pt.y - gr.y + scroll;
         const groupTopics = this.topicsForGroup(hit.groupId);
-        hoveredSlotId =
-          hitTestSlotBar({
-            topics: groupTopics,
-            canvasX: pt.x,
-            contentY,
-            margin: MARGIN,
-            width: layout.canvasCssWidth,
-            rowHeight: this.rowHeight,
-            startTime: this.internalStartTime,
-            endTime: this.internalEndTime,
-          })?.slotId ?? null;
-        if (!this.props.isReadOnly) {
-          ewResize =
-            hitTestSlotResizeEdge({
+        if (!markerHit) {
+          hoveredSlotId =
+            hitTestSlotBar({
               topics: groupTopics,
               canvasX: pt.x,
               contentY,
@@ -399,8 +411,21 @@ export class GanttChartCanvasController {
               rowHeight: this.rowHeight,
               startTime: this.internalStartTime,
               endTime: this.internalEndTime,
-              isReadOnly: this.props.isReadOnly,
-            }) !== null;
+            })?.slotId ?? null;
+          if (!this.props.isReadOnly) {
+            ewResize =
+              hitTestSlotResizeEdge({
+                topics: groupTopics,
+                canvasX: pt.x,
+                contentY,
+                margin: MARGIN,
+                width: layout.canvasCssWidth,
+                rowHeight: this.rowHeight,
+                startTime: this.internalStartTime,
+                endTime: this.internalEndTime,
+                isReadOnly: this.props.isReadOnly,
+              }) !== null;
+          }
         }
       }
     }
@@ -408,6 +433,8 @@ export class GanttChartCanvasController {
 
     if (hit.type === "topResize" || hit.type === "betweenResize") {
       canvas.style.cursor = "ns-resize";
+    } else if (verticalMarkerDraggable) {
+      canvas.style.cursor = "ew-resize";
     } else if (ewResize) {
       canvas.style.cursor = "ew-resize";
     } else {
@@ -497,6 +524,27 @@ export class GanttChartCanvasController {
     const contentY = pt.y - gr.y + scroll;
     const groupTopics = this.topicsForGroup(hit.groupId);
 
+    const markerHit = this.hitVerticalMarkerForGroup(
+      hit.groupId,
+      pt.x,
+      pt.y,
+      layout.canvasCssWidth,
+    );
+    if (markerHit) {
+      if (markerHit.draggable) {
+        e.preventDefault();
+        this.suppressNextCanvasClick = true;
+        this.cancelSlotReflowAnimation();
+        this.verticalMarkerDrag = {
+          markerId: markerHit.id,
+          currentX: this.clampVerticalMarkerCanvasX(pt.x, layout.canvasCssWidth),
+        };
+        document.addEventListener("mousemove", this.boundVerticalMarkerMouseMove);
+        document.addEventListener("mouseup", this.boundVerticalMarkerMouseUp);
+      }
+      return;
+    }
+
     const rh = hitTestSlotResizeEdge({
       topics: groupTopics,
       canvasX: pt.x,
@@ -564,6 +612,17 @@ export class GanttChartCanvasController {
     if (e.button !== 0) return;
     const ctx = this.resolveGroupPointerContext(e.clientX, e.clientY);
     if (!ctx) return;
+
+    const markerHit = this.hitVerticalMarkerForGroup(
+      ctx.groupId,
+      ctx.point.x,
+      ctx.point.y,
+      ctx.layout.canvasCssWidth,
+    );
+    if (markerHit) {
+      this.callbacks.onVerticalMarkerClick?.(markerHit.id);
+      return;
+    }
 
     const slotHit = hitTestSlotBar({
       topics: ctx.groupTopics,
@@ -1205,6 +1264,37 @@ export class GanttChartCanvasController {
     }
   }
 
+  private onVerticalMarkerMouseMove(e: MouseEvent): void {
+    const drag = this.verticalMarkerDrag;
+    const layout = this.getChartLayout();
+    const canvas = this.canvas;
+    if (!drag || !layout || !canvas) return;
+
+    const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
+    drag.currentX = this.clampVerticalMarkerCanvasX(pt.x, layout.canvasCssWidth);
+    this.scheduleFrameRedraw(true);
+  }
+
+  private onVerticalMarkerMouseUp(e: MouseEvent): void {
+    document.removeEventListener("mousemove", this.boundVerticalMarkerMouseMove);
+    document.removeEventListener("mouseup", this.boundVerticalMarkerMouseUp);
+
+    const drag = this.verticalMarkerDrag;
+    this.verticalMarkerDrag = null;
+    if (!drag) return;
+
+    const layout = this.getChartLayout();
+    const canvas = this.canvas;
+    if (layout && canvas) {
+      const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
+      const x = this.clampVerticalMarkerCanvasX(pt.x, layout.canvasCssWidth);
+      const date = this.verticalMarkerDateFromCanvasX(x, layout.canvasCssWidth);
+      this.callbacks.onVerticalMarkerChange?.(drag.markerId, date);
+    }
+
+    this.redraw();
+  }
+
   private onBrushMouseMove(e: MouseEvent): void {
     const brush = this.brushSelection;
     const canvas = this.canvas;
@@ -1498,6 +1588,21 @@ export class GanttChartCanvasController {
         slotTimeOverride: this.slotResizePreview,
       });
 
+      drawVerticalMarkers({
+        ctx,
+        width: layout.canvasCssWidth,
+        margin: MARGIN,
+        startTime: this.internalStartTime,
+        endTime: this.internalEndTime,
+        markers: this.props.verticalMarkers ?? [],
+        isReadOnly: this.props.isReadOnly,
+        groupY: 0,
+        groupHeight: contentHeight,
+        draggingMarker: this.verticalMarkerDrag
+          ? { id: this.verticalMarkerDrag.markerId, x: this.verticalMarkerDrag.currentX }
+          : null,
+      });
+
       ctx.restore();
     }
 
@@ -1637,5 +1742,49 @@ export class GanttChartCanvasController {
 
   private redraw(): void {
     this.scheduleFrameRedraw(false);
+  }
+
+  private hitVerticalMarkerForGroup(
+    groupId: string,
+    canvasX: number,
+    canvasY: number,
+    width: number,
+  ) {
+    const layout = this.getChartLayout();
+    if (!layout) return null;
+    const gr = layout.groupRects.get(groupId);
+    if (!gr) return null;
+
+    return hitTestVerticalMarker({
+      markers: this.props.verticalMarkers ?? [],
+      margin: MARGIN,
+      width,
+      startTime: this.internalStartTime,
+      endTime: this.internalEndTime,
+      isReadOnly: this.props.isReadOnly,
+      canvasX,
+      canvasY,
+      groupY: gr.y,
+      groupHeight: gr.h,
+    });
+  }
+
+  private clampVerticalMarkerCanvasX(x: number, width: number): number {
+    const minX = MARGIN.left;
+    const maxX = width - MARGIN.right;
+    return Math.max(minX, Math.min(maxX, x));
+  }
+
+  private verticalMarkerDateFromCanvasX(x: number, width: number): Date {
+    const chartWidth = width - MARGIN.left - MARGIN.right;
+    if (chartWidth <= 0) return new Date(this.internalStartTime);
+
+    const clamped = this.clampVerticalMarkerCanvasX(x, width);
+    const innerX = clamped - MARGIN.left;
+    const startMs = this.internalStartTime.getTime();
+    const endMs = this.internalEndTime.getTime();
+    const spanMs = Math.max(0, endMs - startMs);
+    const ratio = Math.max(0, Math.min(1, innerX / chartWidth));
+    return new Date(startMs + spanMs * ratio);
   }
 }

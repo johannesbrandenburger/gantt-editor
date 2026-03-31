@@ -44,7 +44,9 @@ interface GanttEditorEmits {
   onHoverOnSlot: [string],
   onDoubleClickOnSlot: [string],
   onContextClickOnSlot: [string],
-  onTopContentPortionChange: [number, number]
+  onTopContentPortionChange: [number, number],
+  onChangeVerticalMarker: [string, Date],
+  onClickVerticalMarker: [string],
 }
 
 const props = defineProps<GanttEditorCanvasProps>();
@@ -63,6 +65,7 @@ function propsSnapshot(): GanttEditorCanvasProps {
     destinations: props.destinations,
     destinationGroups: props.destinationGroups,
     suggestions: props.suggestions,
+    verticalMarkers: props.verticalMarkers,
     markedRegion: props.markedRegion,
     isReadOnly: props.isReadOnly,
     topContentPortion: props.topContentPortion,
@@ -97,6 +100,12 @@ const controller = new GanttChartCanvasController(
     onContextClickOnSlot: (slotId) => {
       emit("onContextClickOnSlot", slotId);
     },
+    onVerticalMarkerChange: (id, date) => {
+      emit("onChangeVerticalMarker", id, date);
+    },
+    onVerticalMarkerClick: (id) => {
+      emit("onClickVerticalMarker", id);
+    },
   },
   {
     onTopContentHeightPx: (h) => {
@@ -113,6 +122,7 @@ watch(
     props.destinations,
     props.destinationGroups,
     props.suggestions,
+    props.verticalMarkers,
     props.markedRegion,
     props.isReadOnly,
     props.topContentPortion,

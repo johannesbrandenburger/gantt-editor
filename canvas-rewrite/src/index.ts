@@ -5,6 +5,7 @@ export type {
     GanttEditorDestinationGroup,
     GanttEditorMarkedRegion,
     GanttEditorSuggestion,
+    GanttEditorVerticalMarker,
     GanttEditorSlotWithUiAttributes,
     GanttEditorXAxisOptions,
 } from './components/gantt-editor-lib/chart/types.ts'
