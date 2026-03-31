@@ -1,7 +1,19 @@
 import * as d3 from "d3";
 import type { Topic, GanttEditorSlotWithUiAttributes } from "./types";
 import { mapSlotToStateColor } from "../helpers";
-import { computeTopicLayout } from "./canvas_topics";
+import {
+  computeTopicLayout,
+  scaledBoldSansFont,
+  TEXT_SCALE_BASE_ROW_HEIGHT,
+} from "./canvas_topics";
+
+function slotTextPaddingPx(rowHeight: number): number {
+  return Math.round(Math.max(2, (5 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT));
+}
+
+function minSlotWidthForTextPx(rowHeight: number): number {
+  return Math.max(8, Math.round((20 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT));
+}
 
 export interface SlotRect {
   x: number;
@@ -92,7 +104,8 @@ export function drawSlots(params: DrawSlotsParams) {
         }
 
         // Draw text (clipped to slot rect)
-        if (!topic.isCollapsed && slotDef.width > 20) {
+        const minTextW = minSlotWidthForTextPx(rowHeight);
+        if (!topic.isCollapsed && slotDef.width > minTextW) {
           ctx.save();
           ctx.beginPath();
           ctx.rect(slotDef.x, slotDef.y, slotDef.width, slotDef.height);
@@ -100,12 +113,12 @@ export function drawSlots(params: DrawSlotsParams) {
 
           ctx.globalAlpha = 1;
           ctx.fillStyle = "#ffffff";
-          ctx.font = "bold 12px sans-serif";
+          ctx.font = scaledBoldSansFont(rowHeight);
           ctx.textBaseline = "middle";
           ctx.textAlign = "left";
           ctx.fillText(
             slotDef.text,
-            slotDef.x + 5,
+            slotDef.x + slotTextPaddingPx(rowHeight),
             slotDef.y + slotDef.height / 2,
           );
           ctx.restore();

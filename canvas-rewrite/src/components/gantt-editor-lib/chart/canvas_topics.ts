@@ -1,5 +1,20 @@
 import type { Topic } from "./types";
 
+/** Matches default row height in GanttEditorComponentCanvas — fonts/padding scale from this baseline. */
+export const TEXT_SCALE_BASE_ROW_HEIGHT = 40;
+
+/** Bold label font for topic headers and slot names; scales with row height. */
+export function scaledBoldSansFont(rowHeight: number): string {
+  const px = Math.round(
+    Math.max(6, Math.min(36, (12 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT)),
+  );
+  return `bold ${px}px sans-serif`;
+}
+
+export function scaledLabelInsetX(rowHeight: number): number {
+  return Math.round((10 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT);
+}
+
 export interface TopicLayout {
   topic: Topic;
   /** Y position of the horizontal gridline at the top of this topic. */
@@ -50,7 +65,7 @@ export function computeTopicLayout(
   for (const topic of topics) {
     const gridlineY = currentY;
 
-    const labelX = 10; // absolute x (marginLeft area)
+    const labelX = scaledLabelInsetX(rowHeight);
     const labelY = currentY + step - bandwidth / 2;
 
     let labelText = "";
@@ -151,7 +166,7 @@ export function drawTopicLines(params: DrawTopicsParams) {
 
   // Draw topic header labels (bold, in the margin area)
   ctx.save();
-  ctx.font = "bold 12px sans-serif";
+  ctx.font = scaledBoldSansFont(rowHeight);
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
   for (const layout of layouts) {

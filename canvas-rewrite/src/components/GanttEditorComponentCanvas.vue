@@ -114,7 +114,10 @@ const containerWidth = ref(0);
 
 const X_AXIS_HEIGHT = 50;
 const DEFAULT_ROW_HEIGHT = 40;
-const rowHeight = ref(DEFAULT_ROW_HEIGHT);
+const MIN_ROW_HEIGHT = 5;
+const MAX_ROW_HEIGHT = 120;
+/** Sub-pixel values allowed so zoom steps can accumulate at min/max (integer rounding used to trap at MIN). */
+const rowHeight = ref<number>(DEFAULT_ROW_HEIGHT);
 
 // Internal time range (mutated during pan/scroll for immediate re-render)
 const internalStartTime = ref(new Date(props.startTime));
@@ -460,12 +463,56 @@ onMounted(() => {
       onTimeRangeChange: (start, end) => {
         internalStartTime.value = start;
         internalEndTime.value = end;
-        console.log("Hier")
       },
       onTimeRangeCommit: (start, end) => {
         internalStartTime.value = start;
         internalEndTime.value = end;
         emit('onChangeStartAndEndTime', start, end);
+      },
+      applyRowHeightZoomFactor: (
+        factor: number,
+        anchor: { clientX: number; clientY: number },
+      ) => {
+        const prevRowHeight = rowHeight.value;
+        const next = Math.max(
+          MIN_ROW_HEIGHT,
+          Math.min(MAX_ROW_HEIGHT, prevRowHeight * factor),
+        );
+        if (Math.abs(next - prevRowHeight) < 1e-4) return;
+
+        let focusedGroupId: string | null = null;
+        let anchorMouseY = 0;
+        const hit = document.elementFromPoint(anchor.clientX, anchor.clientY) as Element | null;
+        const ganttHost = hit?.closest?.("[id$='-gantt-container']") as HTMLElement | null;
+        if (ganttHost?.id?.endsWith("-gantt-container")) {
+          focusedGroupId = ganttHost.id.replace(/-gantt-container$/, "");
+          const rect = ganttHost.getBoundingClientRect();
+          anchorMouseY = Math.max(0, Math.min(rect.height, anchor.clientY - rect.top));
+        }
+
+        rowHeight.value = next;
+
+        props.destinationGroups.forEach((group) => {
+          const groupTopics = processedTopics.value.filter((t) => t.groupId === group.id);
+          const viewportHeight = heightMap.value.get(group.id) || 0;
+          const H_old = computeContentHeight(groupTopics, prevRowHeight);
+          const H_new = computeContentHeight(groupTopics, next);
+          if (H_old <= 0) return;
+
+          const s = verticalScrollOffsets.value.get(group.id) || 0;
+          const ratio = H_new / H_old;
+          const newScroll =
+            group.id === focusedGroupId
+              ? (s + anchorMouseY) * ratio - anchorMouseY
+              : s * ratio;
+          const maxOffset = Math.max(0, H_new - viewportHeight);
+          verticalScrollOffsets.value.set(
+            group.id,
+            Math.max(0, Math.min(maxOffset, newScroll)),
+          );
+        });
+
+        redraw();
       },
     });
   }
@@ -478,8 +525,8 @@ onMounted(() => {
     const onWheel = (event: WheelEvent) => {
       // Only handle vertical scroll (not horizontal, not zoom)
       if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
-      // ctrl or alt held → zoom, not scroll
-      if (event.ctrlKey || event.altKey) return;
+      // Modifier+wheel → uniform zoom on chart container, not vertical scroll
+      if (event.ctrlKey || event.shiftKey || event.altKey) return;
 
       event.preventDefault();
 
@@ -497,21 +544,6 @@ onMounted(() => {
 
     containerEl.addEventListener('wheel', onWheel, { passive: false });
     verticalScrollCleanups.push(() => containerEl.removeEventListener('wheel', onWheel));
-
-    // Vertical zoom: alt(option)+wheel
-    const onVerticalZoom = (event: WheelEvent) => {
-      if (!event.altKey) return;
-      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
-      event.preventDefault();
-
-      const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
-      const newHeight = Math.round(Math.max(5, Math.min(120, rowHeight.value * zoomFactor)));
-      rowHeight.value = newHeight;
-      redraw();
-    };
-
-    containerEl.addEventListener('wheel', onVerticalZoom, { passive: false });
-    verticalScrollCleanups.push(() => containerEl.removeEventListener('wheel', onVerticalZoom));
   });
 });
 
