@@ -86,8 +86,7 @@ interface GanttEditorProps {
   markedRegion: GanttEditorMarkedRegion | null,
   isReadOnly: boolean,
   topContentPortion?: number,
-  xAxisOptions?: GanttEditorXAxisOptions,
-  lazyRendering?: boolean
+  xAxisOptions?: GanttEditorXAxisOptions
 }
 
 interface GanttEditorEmits {
