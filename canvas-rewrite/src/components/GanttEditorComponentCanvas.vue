@@ -438,6 +438,7 @@ onMounted(() => {
       onTimeRangeChange: (start, end) => {
         internalStartTime.value = start;
         internalEndTime.value = end;
+        console.log("Hier")
       },
       onTimeRangeCommit: (start, end) => {
         internalStartTime.value = start;
@@ -478,10 +479,13 @@ defineExpose({
 }
 
 .x-axis-container {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   height: 50px;
   width: 100%;
-  flex-shrink: 0;
-  background-color: #f5f5f5;
+  overflow: hidden;
+  background-color: white;
 }
 
 .x-axis-container canvas {
@@ -489,9 +493,9 @@ defineExpose({
 }
 
 .gantt-canvas-container {
-  width: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  width: 100%;
   background-color: white;
 }
 
@@ -505,7 +509,6 @@ defineExpose({
   background-color: #e0e0e0;
   cursor: ns-resize;
   z-index: 10;
-  flex-shrink: 0;
 }
 
 .resize-handle:hover {
@@ -522,9 +525,37 @@ defineExpose({
   background-color: white;
 }
 
+/* New styling for the Vuetify pointer clipboard */
 .pointer-clipboard {
   position: fixed;
   z-index: 1000;
   pointer-events: none;
+}
+
+/* Keep any existing styles for clipboard chips if needed */
+.clipboard-chip text {
+  pointer-events: none;
+}
+
+@keyframes interval-marker-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+.slot-box.copied {
+  stroke: #000;
+  stroke-width: 1px;
+  stroke-dasharray: 5, 5;
+  animation: dash 1s linear infinite;
+
+  @keyframes dash {
+    0% {
+      stroke-dashoffset: 0;
+    }
+
+    100% {
+      stroke-dashoffset: 10;
+    }
+  }
 }
 </style>
