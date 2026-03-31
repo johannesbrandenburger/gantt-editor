@@ -23,6 +23,7 @@ import {
   slotTimesForResizeDragStep,
   type SlotResizeEdge,
 } from "./canvas_slots";
+import { drawDepartureMarkers } from "./canvas_departure_markers";
 import {
   computeUnifiedChartLayout,
   hitTestChart,
@@ -1481,6 +1482,20 @@ export class GanttChartCanvasController {
         topicLayouts,
         slotTimeOverride: this.slotResizePreview,
         slotYTransition,
+      });
+
+      drawDepartureMarkers({
+        ctx,
+        width: layout.canvasCssWidth,
+        topics: groupTopics,
+        margin: MARGIN,
+        rowHeight: this.rowHeight,
+        startTime: this.internalStartTime,
+        endTime: this.internalEndTime,
+        viewportTop: clampedOffset,
+        viewportHeight: viewportHeight,
+        topicLayouts,
+        slotTimeOverride: this.slotResizePreview,
       });
 
       ctx.restore();
