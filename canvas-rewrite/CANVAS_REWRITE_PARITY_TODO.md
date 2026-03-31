@@ -18,7 +18,7 @@ Use this list to drive implementation work in small, sequential commit steps.
 
 - [x] Implement deadline marker rendering in canvas, including STD/ETD lines, colors, and correct layer ordering.
 - [x] Implement vertical markers in canvas, including rendering, drag interaction, and marker callbacks.
-- [ ] Implement marked region highlighting in canvas, including destination-focused region scroll behavior.
+- [x] Implement marked region highlighting in canvas, including destination-focused region scroll behavior.
 - [ ] Implement suggestion UI in canvas, including suggestion affordance/button and apply-suggestion interaction.
 - [ ] Implement slot hover tooltip rendering in canvas so hoverData is shown as a visual tooltip.
 - [ ] Implement current-time indicator line rendering in canvas.

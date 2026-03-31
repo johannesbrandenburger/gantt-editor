@@ -67,6 +67,11 @@ function destinationGroupsSnapshot(
   return groups.map((g) => `${g.id}:${g.heightPortion}:${g.displayName}`).join("\0");
 }
 
+function markedRegionSnapshot(region: GanttEditorCanvasProps["markedRegion"]): string {
+  if (!region) return "";
+  return `${region.destinationId}:${region.startTime.getTime()}:${region.endTime.getTime()}`;
+}
+
 export class GanttChartCanvasController {
   private props: GanttEditorCanvasProps;
   private readonly callbacks: GanttEditorCanvasCallbacks;
@@ -100,6 +105,7 @@ export class GanttChartCanvasController {
   private lastSeenParentEndMs: number;
   private lastSeenParentTopPortion: number | undefined;
   private lastDestinationGroupsSnapshot: string;
+  private lastMarkedRegionSnapshot: string;
 
   private hoverResizeBand: string | null = null;
   private hoveredSlotId: string | null = null;
@@ -204,6 +210,7 @@ export class GanttChartCanvasController {
     this.lastDestinationGroupsSnapshot = destinationGroupsSnapshot(
       initialProps.destinationGroups,
     );
+    this.lastMarkedRegionSnapshot = markedRegionSnapshot(initialProps.markedRegion);
     this.initMapsFromGroups(initialProps.destinationGroups);
     this.panZoomCallbacks = this.buildPanZoomCallbacks();
   }
@@ -250,6 +257,12 @@ export class GanttChartCanvasController {
       this.syncDestinationGroupsFromProps();
     }
 
+    const markedSnap = markedRegionSnapshot(next.markedRegion);
+    if (markedSnap !== this.lastMarkedRegionSnapshot) {
+      this.lastMarkedRegionSnapshot = markedSnap;
+      this.scrollToMarkedRegionDestination(next.markedRegion);
+    }
+
     this.tryStartPendingSlotReflowAnimation(newFp);
 
     this.redraw();
@@ -294,6 +307,7 @@ export class GanttChartCanvasController {
 
     queueMicrotask(() => {
       this.reconcileUnifiedZoomRowHeight();
+      this.scrollToMarkedRegionDestination(this.props.markedRegion);
       this.drawUnifiedFrame();
       this.isInitialized = true;
       this.maybeNotifyTopContentLayout();
@@ -1603,6 +1617,8 @@ export class GanttChartCanvasController {
           : null,
       });
 
+      this.drawMarkedRegionOverlay(ctx, group.id, contentHeight, layout.canvasCssWidth);
+
       ctx.restore();
     }
 
@@ -1742,6 +1758,88 @@ export class GanttChartCanvasController {
 
   private redraw(): void {
     this.scheduleFrameRedraw(false);
+  }
+
+  private scrollToMarkedRegionDestination(
+    region: GanttEditorCanvasProps["markedRegion"],
+  ): void {
+    if (!region || region.destinationId === "multiple") return;
+
+    this.getProcessedTopics();
+    const topic = this.cachedProcessedTopics?.find((t) => t.id === region.destinationId);
+    if (!topic) return;
+
+    const layout = this.getChartLayout();
+    if (!layout) return;
+
+    const viewportHeight = layout.groupHeights.get(topic.groupId) || 0;
+    if (viewportHeight <= 0) return;
+
+    const groupTopics = this.topicsByGroupId.get(topic.groupId) ?? [];
+    const contentHeight = computeContentHeight(groupTopics, this.rowHeight);
+    const topicY = topic.yStart + (topic.yEnd - topic.yStart) / 2;
+    const target = topicY - viewportHeight / 2;
+    const maxOffset = Math.max(0, contentHeight - viewportHeight);
+    const clamped = Math.max(0, Math.min(maxOffset, target));
+    this.verticalScrollOffsets.set(topic.groupId, clamped);
+  }
+
+  private drawMarkedRegionOverlay(
+    ctx: CanvasRenderingContext2D,
+    groupId: string,
+    contentHeight: number,
+    width: number,
+  ): void {
+    const region = this.props.markedRegion;
+    if (!region) return;
+
+    const firstGroupId = this.props.destinationGroups[0]?.id;
+    let yStart = 0;
+    let yEnd = contentHeight;
+
+    if (region.destinationId === "multiple") {
+      if (!firstGroupId || groupId !== firstGroupId) return;
+      if (yEnd <= yStart) return;
+    } else {
+      const topic = (this.topicsByGroupId.get(groupId) ?? []).find(
+        (t) => t.id === region.destinationId,
+      );
+      if (!topic) return;
+      yStart = topic.yStart;
+      yEnd = topic.yEnd;
+      if (yEnd <= yStart) return;
+    }
+
+    const startMs = region.startTime.getTime();
+    const endMs = region.endTime.getTime();
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
+
+    const xStart = this.timeMsToCanvasX(startMs, width);
+    const xEnd = this.timeMsToCanvasX(endMs, width);
+    const markerWidth = xEnd - xStart;
+    if (markerWidth <= 0) return;
+
+    ctx.save();
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
+    ctx.strokeStyle = "rgba(255, 215, 0, 0.8)";
+    ctx.lineWidth = 2;
+    ctx.fillRect(xStart, yStart, markerWidth, yEnd - yStart);
+    ctx.strokeRect(xStart, yStart, markerWidth, yEnd - yStart);
+    ctx.restore();
+  }
+
+  private timeMsToCanvasX(timeMs: number, width: number): number {
+    const chartWidth = width - MARGIN.left - MARGIN.right;
+    if (chartWidth <= 0) return MARGIN.left;
+
+    const startMs = this.internalStartTime.getTime();
+    const endMs = this.internalEndTime.getTime();
+    const span = endMs - startMs;
+    if (span <= 0) return MARGIN.left;
+
+    const clamped = Math.max(startMs, Math.min(endMs, timeMs));
+    return MARGIN.left + ((clamped - startMs) / span) * chartWidth;
   }
 
   private hitVerticalMarkerForGroup(
