@@ -907,26 +907,38 @@ export class GanttChartCanvasController {
     ) {
       return;
     }
+    this.pendingSlotReflowFromResize = null;
+    this.startSlotReflowAnimationFromPreviousRows(pending.previousRowYBySlotId, now);
+  }
 
+  private buildSlotRowShiftMap(
+    previousRowYBySlotId: ReadonlyMap<string, number>,
+  ): Map<string, number> {
     const nextRows = this.captureSlotRowYById();
     const shiftsBySlotId = new Map<string, number>();
     nextRows.forEach((toY, slotId) => {
-      const fromY = pending.previousRowYBySlotId.get(slotId);
+      const fromY = previousRowYBySlotId.get(slotId);
       if (fromY === undefined) return;
       const shift = fromY - toY;
       if (Math.abs(shift) >= 0.5) {
         shiftsBySlotId.set(slotId, shift);
       }
     });
+    return shiftsBySlotId;
+  }
 
-    this.pendingSlotReflowFromResize = null;
+  private startSlotReflowAnimationFromPreviousRows(
+    previousRowYBySlotId: ReadonlyMap<string, number>,
+    startedAtMs = performance.now(),
+  ): void {
+    const shiftsBySlotId = this.buildSlotRowShiftMap(previousRowYBySlotId);
     if (shiftsBySlotId.size === 0) {
       this.slotReflowAnimation = null;
       return;
     }
 
     this.slotReflowAnimation = {
-      startedAtMs: now,
+      startedAtMs,
       durationMs: SLOT_REFLOW_ANIMATION_MS,
       shiftsBySlotId,
     };
@@ -1250,6 +1262,8 @@ export class GanttChartCanvasController {
     const clipboard = this.readClipboard();
     if (clipboard.length === 0) return;
 
+    const previousRowYBySlotId = this.captureSlotRowYById();
+
     let movedSomething = false;
     for (const copiedSlot of clipboard) {
       const target = this.props.slots.find((s) => s.id === copiedSlot.id);
@@ -1264,6 +1278,7 @@ export class GanttChartCanvasController {
     this.updateClipboard();
     if (movedSomething) {
       this.cachedProcessedTopics = null;
+      this.startSlotReflowAnimationFromPreviousRows(previousRowYBySlotId);
       this.redraw();
     }
   }
@@ -2108,8 +2123,11 @@ export class GanttChartCanvasController {
     const slot = this.props.slots.find((s) => s.id === slotId);
     if (!slot || slot.readOnly) return;
 
+    const previousRowYBySlotId = this.captureSlotRowYById();
+
     slot.destinationId = suggestion.alternativeDestinationId;
     this.cachedProcessedTopics = null;
+    this.startSlotReflowAnimationFromPreviousRows(previousRowYBySlotId);
     this.callbacks.onChangeDestinationId?.(slot.id, suggestion.alternativeDestinationId, true);
     this.redraw();
   }
