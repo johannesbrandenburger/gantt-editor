@@ -385,6 +385,8 @@ export function hitTestSlotResizeEdge(p: HitTestSlotResizeParams): SlotResizeHit
  * Hit-test slot bars (last-drawn slot wins), used for click/dblclick/context interactions.
  */
 export function hitTestSlotBar(p: HitTestSlotBarParams): SlotBarHit | null {
+  if (!slotsAllowLabelsAndInteraction(p.rowHeight)) return null;
+
   const chartWidth = p.width - p.margin.left - p.margin.right;
   if (chartWidth <= 0) return null;
 

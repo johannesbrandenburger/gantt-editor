@@ -399,6 +399,8 @@ export class GanttChartCanvasController {
     const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
     const hit = hitTestChart(layout, pt.x, pt.y);
 
+    const slotsInteractive = slotsAllowLabelsAndInteraction(this.rowHeight);
+
     let hoveredSlotId: string | null = null;
     let ewResize = false;
     let suggestionHit = false;
@@ -434,7 +436,7 @@ export class GanttChartCanvasController {
           verticalMarkerDraggable = markerHit.draggable;
         }
 
-        if (!suggestionHover && !markerHit) {
+        if (!suggestionHover && !markerHit && slotsInteractive) {
           hoveredSlotId =
             hitTestSlotBar({
               topics: groupTopics,
@@ -570,6 +572,7 @@ export class GanttChartCanvasController {
     const scroll = this.verticalScrollOffsets.get(hit.groupId) || 0;
     const contentY = pt.y - gr.y + scroll;
     const groupTopics = this.topicsForGroup(hit.groupId);
+    const slotsInteractive = slotsAllowLabelsAndInteraction(this.rowHeight);
 
     const suggestionHit = this.hitSuggestionForGroup(
       hit.groupId,
@@ -603,47 +606,49 @@ export class GanttChartCanvasController {
       return;
     }
 
-    const rh = hitTestSlotResizeEdge({
-      topics: groupTopics,
-      canvasX: pt.x,
-      contentY,
-      margin: MARGIN,
-      width: layout.canvasCssWidth,
-      rowHeight: this.rowHeight,
-      startTime: this.internalStartTime,
-      endTime: this.internalEndTime,
-      isReadOnly: this.props.isReadOnly,
-    });
-    if (rh) {
-      e.preventDefault();
-      this.suppressNextCanvasClick = true;
-      this.cancelSlotReflowAnimation();
-      const chartWidth = layout.canvasCssWidth - MARGIN.left - MARGIN.right;
-      this.slotResizeDrag = {
-        edge: rh.edge,
-        slotId: rh.slotId,
-        startClientX: e.clientX,
-        displayInnerLeft: rh.displayInnerLeft,
-        displayInnerWidth: rh.displayInnerWidth,
-        chartWidth,
-      };
-      document.addEventListener("mousemove", this.boundSlotResizeMouseMove);
-      document.addEventListener("mouseup", this.boundSlotResizeMouseUp);
-      return;
-    }
+    if (slotsInteractive) {
+      const rh = hitTestSlotResizeEdge({
+        topics: groupTopics,
+        canvasX: pt.x,
+        contentY,
+        margin: MARGIN,
+        width: layout.canvasCssWidth,
+        rowHeight: this.rowHeight,
+        startTime: this.internalStartTime,
+        endTime: this.internalEndTime,
+        isReadOnly: this.props.isReadOnly,
+      });
+      if (rh) {
+        e.preventDefault();
+        this.suppressNextCanvasClick = true;
+        this.cancelSlotReflowAnimation();
+        const chartWidth = layout.canvasCssWidth - MARGIN.left - MARGIN.right;
+        this.slotResizeDrag = {
+          edge: rh.edge,
+          slotId: rh.slotId,
+          startClientX: e.clientX,
+          displayInnerLeft: rh.displayInnerLeft,
+          displayInnerWidth: rh.displayInnerWidth,
+          chartWidth,
+        };
+        document.addEventListener("mousemove", this.boundSlotResizeMouseMove);
+        document.addEventListener("mouseup", this.boundSlotResizeMouseUp);
+        return;
+      }
 
-    const slotHit = hitTestSlotBar({
-      topics: groupTopics,
-      canvasX: pt.x,
-      contentY,
-      margin: MARGIN,
-      width: layout.canvasCssWidth,
-      rowHeight: this.rowHeight,
-      startTime: this.internalStartTime,
-      endTime: this.internalEndTime,
-    });
-    if (slotHit) {
-      return;
+      const slotHit = hitTestSlotBar({
+        topics: groupTopics,
+        canvasX: pt.x,
+        contentY,
+        margin: MARGIN,
+        width: layout.canvasCssWidth,
+        rowHeight: this.rowHeight,
+        startTime: this.internalStartTime,
+        endTime: this.internalEndTime,
+      });
+      if (slotHit) {
+        return;
+      }
     }
 
     if ((e.metaKey || e.ctrlKey) && !this.props.isReadOnly) {
@@ -694,16 +699,18 @@ export class GanttChartCanvasController {
       return;
     }
 
-    const slotHit = hitTestSlotBar({
-      topics: ctx.groupTopics,
-      canvasX: ctx.point.x,
-      contentY: ctx.contentY,
-      margin: MARGIN,
-      width: ctx.layout.canvasCssWidth,
-      rowHeight: this.rowHeight,
-      startTime: this.internalStartTime,
-      endTime: this.internalEndTime,
-    });
+    const slotHit = slotsAllowLabelsAndInteraction(this.rowHeight)
+      ? hitTestSlotBar({
+          topics: ctx.groupTopics,
+          canvasX: ctx.point.x,
+          contentY: ctx.contentY,
+          margin: MARGIN,
+          width: ctx.layout.canvasCssWidth,
+          rowHeight: this.rowHeight,
+          startTime: this.internalStartTime,
+          endTime: this.internalEndTime,
+        })
+      : null;
 
     if (slotHit) {
       this.onSlotPrimaryClick(slotHit.slotId, e.metaKey || e.ctrlKey);
@@ -722,6 +729,8 @@ export class GanttChartCanvasController {
   }
 
   onCanvasDoubleClick(e: MouseEvent): void {
+    if (!slotsAllowLabelsAndInteraction(this.rowHeight)) return;
+
     const ctx = this.resolveGroupPointerContext(e.clientX, e.clientY);
     if (!ctx) return;
     const slotHit = hitTestSlotBar({
@@ -739,6 +748,8 @@ export class GanttChartCanvasController {
   }
 
   onCanvasContextMenu(e: MouseEvent): void {
+    if (!slotsAllowLabelsAndInteraction(this.rowHeight)) return;
+
     const ctx = this.resolveGroupPointerContext(e.clientX, e.clientY);
     if (!ctx) return;
     const slotHit = hitTestSlotBar({
@@ -1553,9 +1564,16 @@ export class GanttChartCanvasController {
       }
     }
 
+    const hadSlotInteractions = slotsAllowLabelsAndInteraction(prevRowHeight);
+    const hasSlotInteractions = slotsAllowLabelsAndInteraction(next);
+
     this.rowHeight = next;
 
-    if (!slotsAllowLabelsAndInteraction(next) && this.slotResizeDrag) {
+    if (hadSlotInteractions && !hasSlotInteractions) {
+      this.resetHoverSlot();
+    }
+
+    if (!hasSlotInteractions && this.slotResizeDrag) {
       document.removeEventListener("mousemove", this.boundSlotResizeMouseMove);
       document.removeEventListener("mouseup", this.boundSlotResizeMouseUp);
       this.slotResizeDrag = null;
@@ -1871,6 +1889,7 @@ export class GanttChartCanvasController {
     ctx: CanvasRenderingContext2D,
     layout: UnifiedChartLayout,
   ): void {
+    if (!slotsAllowLabelsAndInteraction(this.rowHeight)) return;
     if (!this.pointerInChart) return;
     if (!this.hoveredSlotId) return;
 
