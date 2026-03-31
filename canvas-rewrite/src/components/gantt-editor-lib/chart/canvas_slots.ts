@@ -54,6 +54,8 @@ export interface DrawSlotsParams {
   topicLayouts?: TopicLayout[];
   /** Live preview while resizing a slot (does not mutate source data). */
   slotTimeOverride?: { slotId: string; openTime: Date; closeTime: Date } | null;
+  /** Transitional Y-shift animation for slots after row arrangement changes. */
+  slotYTransition?: { shiftsBySlotId: ReadonlyMap<string, number>; progress: number } | null;
 }
 
 /** First index of slot with closeTime > t (slots sorted by openTime ascending). */
@@ -89,6 +91,7 @@ export function drawSlots(params: DrawSlotsParams) {
     viewportHeight,
     topicLayouts,
     slotTimeOverride,
+    slotYTransition,
   } = params;
 
   const hasViewport = viewportTop !== undefined && viewportHeight !== undefined;
@@ -136,6 +139,13 @@ export function drawSlots(params: DrawSlotsParams) {
           topic.isCollapsed,
         );
         if (!slotDef) continue;
+
+        if (slotYTransition) {
+          const shift = slotYTransition.shiftsBySlotId.get(slot.id);
+          if (shift !== undefined) {
+            slotDef.y += shift * (1 - slotYTransition.progress);
+          }
+        }
 
         // Draw the filled bar
         ctx.globalAlpha = slotDef.opacity;

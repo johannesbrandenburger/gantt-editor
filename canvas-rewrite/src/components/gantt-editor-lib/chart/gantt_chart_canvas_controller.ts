@@ -41,6 +41,8 @@ const DEFAULT_ROW_HEIGHT = 40;
 /** Lower bound for unified zoom so many rows fit when fully zoomed out (band ≈ (1−padding)× this). */
 const MIN_ROW_HEIGHT = 1;
 const MAX_ROW_HEIGHT = 120;
+const SLOT_REFLOW_ANIMATION_MS = 180;
+const SLOT_REFLOW_PENDING_TTL_MS = 2_000;
 
 const MARGIN = { left: 200, right: 12 };
 
@@ -112,6 +114,19 @@ export class GanttChartCanvasController {
 
   /** Live bar geometry while resizing; cleared on mouseup. */
   private slotResizePreview: { slotId: string; openTime: Date; closeTime: Date } | null = null;
+
+  /** Captured row positions before a resize commit; consumed when parent props echo new times. */
+  private pendingSlotReflowFromResize: {
+    capturedAtMs: number;
+    previousRowYBySlotId: Map<string, number>;
+  } | null = null;
+
+  /** Short-lived row-shift animation for slots moved by post-resize reflow. */
+  private slotReflowAnimation: {
+    startedAtMs: number;
+    durationMs: number;
+    shiftsBySlotId: Map<string, number>;
+  } | null = null;
 
   private cachedCanvasEl: HTMLCanvasElement | null = null;
   private cachedCtx: CanvasRenderingContext2D | null = null;
@@ -198,6 +213,8 @@ export class GanttChartCanvasController {
       this.syncDestinationGroupsFromProps();
     }
 
+    this.tryStartPendingSlotReflowAnimation(newFp);
+
     this.redraw();
     this.maybeNotifyTopContentLayout();
   }
@@ -264,6 +281,8 @@ export class GanttChartCanvasController {
     document.removeEventListener("mouseup", this.boundStopResize);
     this.slotResizeDrag = null;
     this.slotResizePreview = null;
+    this.pendingSlotReflowFromResize = null;
+    this.slotReflowAnimation = null;
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
@@ -372,6 +391,8 @@ export class GanttChartCanvasController {
     const canvas = this.canvas;
     if (!canvas) return;
 
+    this.cancelSlotReflowAnimation();
+
     if (handlePanZoomWheelEvent(event, canvas, this.panZoomCallbacks)) {
       return;
     }
@@ -435,6 +456,7 @@ export class GanttChartCanvasController {
         });
         if (rh) {
           e.preventDefault();
+          this.cancelSlotReflowAnimation();
           const chartWidth = layout.canvasCssWidth - MARGIN.left - MARGIN.right;
           this.slotResizeDrag = {
             edge: rh.edge,
@@ -567,6 +589,92 @@ export class GanttChartCanvasController {
     this.syncProcessDataCacheWithLocalStorage();
     this.getProcessedTopics();
     return this.topicsByGroupId.get(groupId) ?? [];
+  }
+
+  private captureSlotRowYById(): Map<string, number> {
+    this.getProcessedTopics();
+    const rowsBySlotId = new Map<string, number>();
+    this.topicsByGroupId.forEach((topics) => {
+      const layouts = computeTopicLayout(topics, MARGIN.left, this.rowHeight);
+      for (const layout of layouts) {
+        layout.topic.rows.forEach((row, rowIndex) => {
+          const rowTop = layout.rowYs[rowIndex];
+          if (rowTop === undefined) return;
+          for (const slot of row.slots) {
+            rowsBySlotId.set(slot.id, rowTop);
+          }
+        });
+      }
+    });
+    return rowsBySlotId;
+  }
+
+  private tryStartPendingSlotReflowAnimation(nextFingerprint: number): void {
+    const pending = this.pendingSlotReflowFromResize;
+    if (!pending) return;
+
+    const now = performance.now();
+    if (now - pending.capturedAtMs > SLOT_REFLOW_PENDING_TTL_MS) {
+      this.pendingSlotReflowFromResize = null;
+      return;
+    }
+
+    if (
+      this.processDataDeepFingerprint === null ||
+      this.processDataDeepFingerprint === nextFingerprint
+    ) {
+      return;
+    }
+
+    const nextRows = this.captureSlotRowYById();
+    const shiftsBySlotId = new Map<string, number>();
+    nextRows.forEach((toY, slotId) => {
+      const fromY = pending.previousRowYBySlotId.get(slotId);
+      if (fromY === undefined) return;
+      const shift = fromY - toY;
+      if (Math.abs(shift) >= 0.5) {
+        shiftsBySlotId.set(slotId, shift);
+      }
+    });
+
+    this.pendingSlotReflowFromResize = null;
+    if (shiftsBySlotId.size === 0) {
+      this.slotReflowAnimation = null;
+      return;
+    }
+
+    this.slotReflowAnimation = {
+      startedAtMs: now,
+      durationMs: SLOT_REFLOW_ANIMATION_MS,
+      shiftsBySlotId,
+    };
+  }
+
+  private getActiveSlotYTransition(nowMs: number): {
+    shiftsBySlotId: ReadonlyMap<string, number>;
+    progress: number;
+  } | null {
+    const anim = this.slotReflowAnimation;
+    if (!anim || anim.shiftsBySlotId.size === 0) return null;
+
+    const rawProgress = (nowMs - anim.startedAtMs) / anim.durationMs;
+    if (rawProgress >= 1) {
+      this.slotReflowAnimation = null;
+      return null;
+    }
+
+    const clamped = Math.max(0, Math.min(1, rawProgress));
+    // Quick ease-out keeps the movement readable while minimizing frame count.
+    const eased = 1 - Math.pow(1 - clamped, 3);
+    return {
+      shiftsBySlotId: anim.shiftsBySlotId,
+      progress: eased,
+    };
+  }
+
+  private cancelSlotReflowAnimation(): void {
+    this.pendingSlotReflowFromResize = null;
+    this.slotReflowAnimation = null;
   }
 
   private getProcessedTopics(): Topic[] {
@@ -756,17 +864,24 @@ export class GanttChartCanvasController {
       this.internalStartTime,
       this.internalEndTime,
     );
+
+    const prev = this.props.slots.find((s) => s.id === d.slotId);
+    const shouldCommit =
+      !!prev &&
+      !prev.readOnly &&
+      (prev.openTime.getTime() !== openTime.getTime() ||
+        prev.closeTime.getTime() !== closeTime.getTime());
+    const previousRowYBySlotId = shouldCommit ? this.captureSlotRowYById() : null;
+
     this.slotResizeDrag = null;
     this.slotResizePreview = null;
     this.redraw();
 
-    const prev = this.props.slots.find((s) => s.id === d.slotId);
-    if (
-      prev &&
-      !prev.readOnly &&
-      (prev.openTime.getTime() !== openTime.getTime() ||
-        prev.closeTime.getTime() !== closeTime.getTime())
-    ) {
+    if (shouldCommit && previousRowYBySlotId) {
+      this.pendingSlotReflowFromResize = {
+        capturedAtMs: performance.now(),
+        previousRowYBySlotId,
+      };
       this.callbacks.onChangeSlotTime(d.slotId, openTime, closeTime);
     }
   }
@@ -872,6 +987,7 @@ export class GanttChartCanvasController {
       }),
       getChartWidth: () => this.containerWidth - MARGIN.left - MARGIN.right,
       onTimeRangeChange: (start: Date, end: Date, wheelZoomAnchor?: WheelZoomAnchor) => {
+        this.cancelSlotReflowAnimation();
         this.internalStartTime = start;
         this.internalEndTime = end;
         if (wheelZoomAnchor) {
@@ -880,6 +996,7 @@ export class GanttChartCanvasController {
         this.scheduleFrameRedraw(true);
       },
       onTimeRangeCommit: (start: Date, end: Date) => {
+        this.cancelSlotReflowAnimation();
         this.internalStartTime = start;
         this.internalEndTime = end;
         this.reconcileUnifiedZoomRowHeight();
@@ -920,6 +1037,8 @@ export class GanttChartCanvasController {
       xAxisOptions: this.props.xAxisOptions,
       offsetY: layout.axisRect.y,
     });
+
+    const slotYTransition = this.getActiveSlotYTransition(performance.now());
 
     for (const group of this.props.destinationGroups) {
       const gr = layout.groupRects.get(group.id);
@@ -969,9 +1088,14 @@ export class GanttChartCanvasController {
         viewportHeight: viewportHeight,
         topicLayouts,
         slotTimeOverride: this.slotResizePreview,
+        slotYTransition,
       });
 
       ctx.restore();
+    }
+
+    if (slotYTransition) {
+      this.scheduleFrameRedraw(false);
     }
   }
 
