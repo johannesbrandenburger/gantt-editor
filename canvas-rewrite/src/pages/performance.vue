@@ -5,6 +5,7 @@
             style="color: black; padding: 8px 16px; background: #f5f5f5; border-bottom: 1px solid #ddd; display: flex; gap: 12px; align-items: center; font-size: 14px; flex-shrink: 0;">
             <strong>⚡ Performance Test</strong>
             <span data-testid="total-slot-count">{{ slots.length }} slots</span>
+            <span>{{ numberOfDays }} days</span>
             <span>{{ numberOfDestinations }} destinations</span>
             <button
                 @click="toggleLazyRendering"
@@ -54,8 +55,18 @@ import type { GanttEditorSlot } from '../components/gantt-editor-lib/chart/types
 import GanttEditorComponent from '../components/GanttEditorComponentCanvas.vue';
 
 // Performance test parameters
-const numberOfSlots = 2000;
+const numberOfSlots = 10_000;
+const numberOfDays = 7;
 const numberOfDestinations = 50;
+
+function createDefaultTimeRange(): { start: Date; end: Date } {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + numberOfDays - 1);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+}
 
 // Lazy rendering toggle
 const lazyRendering = ref(false);
@@ -63,9 +74,9 @@ const toggleLazyRendering = () => {
     lazyRendering.value = !lazyRendering.value;
 };
 
-// Time range: today 00:00 - 23:59
-const startTime = ref(new Date(new Date().setHours(0, 0, 0, 0)));
-const endTime = ref(new Date(new Date().setHours(23, 59, 59, 999)));
+const { start: defaultStart, end: defaultEnd } = createDefaultTimeRange();
+const startTime = ref(defaultStart);
+const endTime = ref(defaultEnd);
 
 // Generate destinations
 const destinations = reactive([
@@ -84,16 +95,16 @@ const destinationGroups = reactive([
     { id: 'unallocated', displayName: 'UNALLOCATED', heightPortion: 0.1 },
 ]);
 
-// Generate many slots
+// Generate many slots spread across the visible [startTime, endTime] range (multiple days)
 const generateSlots = (count: number): GanttEditorSlot[] => {
-    const dayStart = startTime.value.getTime();
-    const dayEnd = endTime.value.getTime();
-    const dayRange = dayEnd - dayStart;
+    const rangeStartMs = startTime.value.getTime();
+    const rangeEndMs = endTime.value.getTime();
+    const rangeMs = rangeEndMs - rangeStartMs;
 
     return Array.from({ length: count }, (_, index) => {
-        const slotStartMs = dayStart + Math.random() * dayRange * 0.8;
+        const slotStartMs = rangeStartMs + Math.random() * rangeMs * 0.8;
         const duration = 30 * 60 * 1000 + Math.random() * 2 * 60 * 60 * 1000; // 30min - 2.5h
-        const slotEndMs = Math.min(slotStartMs + duration, dayEnd);
+        const slotEndMs = Math.min(slotStartMs + duration, rangeEndMs);
 
         const destIndex = index % numberOfDestinations;
         const flightNumber = `PF${String(index + 1).padStart(5, '0')}`;
