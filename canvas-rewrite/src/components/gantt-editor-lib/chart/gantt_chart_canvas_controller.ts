@@ -10,6 +10,7 @@ import {
 import {
   computeRowHeightForUnifiedZoom,
   SLOT_RENDER_RATIO,
+  destinationLabelsVisible,
   slotsAllowLabelsAndInteraction,
 } from "./canvas_slot_scale";
 import { processData } from "./process-data";
@@ -953,7 +954,7 @@ export class GanttChartCanvasController {
         viewportTop: clampedOffset,
         viewportHeight: viewportHeight,
         layouts: topicLayouts,
-        showTopicHeaderText: slotsAllowLabelsAndInteraction(this.rowHeight),
+        showTopicHeaderText: destinationLabelsVisible(this.rowHeight),
       });
 
       drawSlots({

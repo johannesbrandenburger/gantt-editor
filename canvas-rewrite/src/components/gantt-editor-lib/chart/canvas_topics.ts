@@ -14,6 +14,17 @@ export function scaledBoldSansFont(rowHeight: number): string {
   return `bold ${px}px sans-serif`;
 }
 
+/**
+ * Destination/topic headers should remain readable in overview zoom.
+ * Keep normal size at default row height while using a higher minimum than slot text.
+ */
+export function scaledTopicHeaderFont(rowHeight: number): string {
+  const px = Math.round(
+    Math.max(8, Math.min(24, 6 + (6 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT)),
+  );
+  return `bold ${px}px sans-serif`;
+}
+
 export function scaledLabelInsetX(rowHeight: number): number {
   return Math.round((10 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT);
 }
@@ -183,7 +194,7 @@ export function drawTopicLines(params: DrawTopicsParams) {
   // Draw topic header labels (bold, in the margin area)
   if (showTopicHeaderText) {
     ctx.save();
-    ctx.font = scaledBoldSansFont(rowHeight);
+    ctx.font = scaledTopicHeaderFont(rowHeight);
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
     for (const layout of layouts) {
