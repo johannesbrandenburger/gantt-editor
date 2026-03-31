@@ -466,7 +466,9 @@ export class GanttChartCanvasController {
         }
       }
     }
+    const previousHoveredSlotId = this.hoveredSlotId;
     this.updateHoverSlot(hoveredSlotId);
+    const hoverSlotChanged = previousHoveredSlotId !== this.hoveredSlotId;
 
     if (hit.type === "topResize" || hit.type === "betweenResize") {
       canvas.style.cursor = "ns-resize";
@@ -480,7 +482,13 @@ export class GanttChartCanvasController {
       canvas.style.cursor = "";
     }
 
-    if (hoverChanged || this.clipboardItems.length > 0 || this.brushSelection || this.hoveredSlotId) {
+    if (
+      hoverChanged ||
+      hoverSlotChanged ||
+      this.clipboardItems.length > 0 ||
+      this.brushSelection ||
+      this.hoveredSlotId
+    ) {
       this.scheduleFrameRedraw(true);
     }
   }
