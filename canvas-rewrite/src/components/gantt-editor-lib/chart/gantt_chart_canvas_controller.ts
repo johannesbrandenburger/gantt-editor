@@ -455,6 +455,9 @@ export class GanttChartCanvasController {
                 endTime: this.internalEndTime,
                 isReadOnly: this.props.isReadOnly,
               }) !== null;
+            if (ewResize) {
+              hoveredSlotId = null;
+            }
           }
         }
       }
@@ -473,7 +476,7 @@ export class GanttChartCanvasController {
       canvas.style.cursor = "";
     }
 
-    if (hoverChanged || this.clipboardItems.length > 0 || this.brushSelection) {
+    if (hoverChanged || this.clipboardItems.length > 0 || this.brushSelection || this.hoveredSlotId) {
       this.scheduleFrameRedraw(true);
     }
   }
@@ -1679,6 +1682,7 @@ export class GanttChartCanvasController {
 
     this.drawBrushSelectionOverlay(ctx, layout);
     this.drawClipboardPreviewOverlay(ctx, layout);
+    this.drawSlotHoverTooltipOverlay(ctx, layout);
 
     if (slotYTransition) {
       this.scheduleFrameRedraw(false);
@@ -1787,6 +1791,119 @@ export class GanttChartCanvasController {
     });
 
     ctx.restore();
+  }
+
+  private drawSlotHoverTooltipOverlay(
+    ctx: CanvasRenderingContext2D,
+    layout: UnifiedChartLayout,
+  ): void {
+    if (!this.pointerInChart) return;
+    if (!this.hoveredSlotId) return;
+
+    const tooltipText = this.hoveredSlotHoverData();
+    if (!tooltipText) return;
+
+    ctx.save();
+    ctx.font = "12px sans-serif";
+
+    const lines = this.wrapTooltipText(ctx, tooltipText, 260);
+    if (lines.length === 0) {
+      ctx.restore();
+      return;
+    }
+
+    const lineHeight = 16;
+    const padX = 8;
+    const padY = 8;
+
+    const textWidth = lines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
+    const boxWidth = Math.ceil(textWidth + padX * 2);
+    const boxHeight = Math.ceil(lines.length * lineHeight + padY * 2);
+
+    const margin = 6;
+    const preferredX = this.pointerCanvasX + 10;
+    const preferredY = this.pointerCanvasY - boxHeight - 10;
+    const x = Math.max(margin, Math.min(layout.canvasCssWidth - boxWidth - margin, preferredX));
+    const y = Math.max(margin, Math.min(layout.canvasCssHeight - boxHeight - margin, preferredY));
+
+    const radius = 4;
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + boxWidth - radius, y);
+    ctx.quadraticCurveTo(x + boxWidth, y, x + boxWidth, y + radius);
+    ctx.lineTo(x + boxWidth, y + boxHeight - radius);
+    ctx.quadraticCurveTo(x + boxWidth, y + boxHeight, x + boxWidth - radius, y + boxHeight);
+    ctx.lineTo(x + radius, y + boxHeight);
+    ctx.quadraticCurveTo(x, y + boxHeight, x, y + boxHeight - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+    ctx.fill();
+    ctx.strokeStyle = "#dddddd";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = "#111111";
+    lines.forEach((line, idx) => {
+      const baseline = y + padY + idx * lineHeight + 11;
+      ctx.fillText(line, x + padX, baseline);
+    });
+
+    ctx.restore();
+  }
+
+  private hoveredSlotHoverData(): string | null {
+    const slotId = this.hoveredSlotId;
+    if (!slotId) return null;
+
+    for (const topics of Array.from(this.topicsByGroupId.values())) {
+      for (const topic of topics) {
+        for (const row of topic.rows) {
+          const slot = row.slots.find((s) => s.id === slotId);
+          if (!slot) continue;
+          return slot.hoverData ?? null;
+        }
+      }
+    }
+
+    const baseSlot = this.props.slots.find((s) => s.id === slotId);
+    return baseSlot?.hoverData ?? null;
+  }
+
+  private wrapTooltipText(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    maxWidth: number,
+  ): string[] {
+    const normalized = text
+      .replace(/<br\s*\/?\s*>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .trim();
+    if (!normalized) return [];
+
+    const result: string[] = [];
+    const paragraphs = normalized.split(/\n+/);
+
+    for (const paragraph of paragraphs) {
+      const words = paragraph.split(/\s+/).filter(Boolean);
+      if (words.length === 0) continue;
+
+      let line = words[0] || "";
+      for (let i = 1; i < words.length; i++) {
+        const candidate = `${line} ${words[i]}`;
+        if (ctx.measureText(candidate).width <= maxWidth) {
+          line = candidate;
+        } else {
+          result.push(line);
+          line = words[i] || "";
+        }
+      }
+      result.push(line);
+    }
+
+    return result;
   }
 
   /**

@@ -20,7 +20,7 @@ Use this list to drive implementation work in small, sequential commit steps.
 - [x] Implement vertical markers in canvas, including rendering, drag interaction, and marker callbacks.
 - [x] Implement marked region highlighting in canvas, including destination-focused region scroll behavior.
 - [x] Implement suggestion UI in canvas, including suggestion affordance/button and apply-suggestion interaction.
-- [ ] Implement slot hover tooltip rendering in canvas so hoverData is shown as a visual tooltip.
+- [x] Implement slot hover tooltip rendering in canvas so hoverData is shown as a visual tooltip.
 - [ ] Implement current-time indicator line rendering in canvas.
 - [ ] Implement weekday/background overlay layer rendering in canvas.
 - [ ] Implement topic collapse and expand interaction from the left label area in canvas.
