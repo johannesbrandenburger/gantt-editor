@@ -194,6 +194,7 @@ export class GanttChartCanvasController {
     this.onVerticalMarkerMouseUp(e);
   private readonly boundBrushMouseMove = (e: MouseEvent) => this.onBrushMouseMove(e);
   private readonly boundBrushMouseUp = (e: MouseEvent) => this.onBrushMouseUp(e);
+  private readonly boundDocumentKeyDown = (e: KeyboardEvent) => this.onDocumentKeyDown(e);
 
   constructor(
     initialProps: GanttEditorCanvasProps,
@@ -306,6 +307,7 @@ export class GanttChartCanvasController {
     this.resizeObserver.observe(container);
 
     canvas.addEventListener("wheel", this.boundCanvasWheel, { passive: false });
+    document.addEventListener("keydown", this.boundDocumentKeyDown);
 
     queueMicrotask(() => {
       this.reconcileUnifiedZoomRowHeight();
@@ -359,6 +361,7 @@ export class GanttChartCanvasController {
     if (this.canvas) {
       this.canvas.removeEventListener("wheel", this.boundCanvasWheel);
     }
+    document.removeEventListener("keydown", this.boundDocumentKeyDown);
     clearPanZoomWheelDebounce();
     this.container = null;
     this.canvas = null;
@@ -1455,6 +1458,13 @@ export class GanttChartCanvasController {
 
     this.brushSelection = null;
     this.redraw();
+  }
+
+  private onDocumentKeyDown(e: KeyboardEvent): void {
+    if (e.key !== "Escape" && e.keyCode !== 27) return;
+    if (this.readClipboard().length === 0) return;
+    e.preventDefault();
+    this.clearClipboard();
   }
 
   private ensureCanvasContext(

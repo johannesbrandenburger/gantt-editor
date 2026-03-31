@@ -24,5 +24,5 @@ Use this list to drive implementation work in small, sequential commit steps.
 - [x] Implement current-time indicator line rendering in canvas.
 - [x] Implement weekday/background overlay layer rendering in canvas.
 - [x] Implement topic collapse and expand interaction from the left label area in canvas.
-- [ ] Implement missing keyboard shortcut parity in canvas, including Escape-to-clear-clipboard.
+- [x] Implement missing keyboard shortcut parity in canvas, including Escape-to-clear-clipboard.
 - [ ] Implement missing pan parity in canvas, including middle-mouse drag pan.
