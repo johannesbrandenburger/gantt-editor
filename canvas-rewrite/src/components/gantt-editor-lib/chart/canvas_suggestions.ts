@@ -1,6 +1,6 @@
-import * as d3 from "d3";
 import type { GanttEditorSuggestion, Topic } from "./types";
 import { computeTopicLayout, type TopicLayout } from "./canvas_topics";
+import { createTimeScale } from "./time_scale";
 
 const SUGGESTION_ICON = "💡";
 const SUGGESTION_HIT_RADIUS = 10;
@@ -54,7 +54,7 @@ function buildSuggestionDefinitions(
   if (chartWidth <= 0 || suggestions.length === 0) return [];
 
   const hasViewport = viewportTop !== undefined && viewportHeight !== undefined;
-  const xScale = d3.scaleTime().domain([startTime, endTime]).range([0, chartWidth]).clamp(true);
+  const xScale = createTimeScale(startTime, endTime, 0, chartWidth, true);
   const layouts = topicLayouts ?? computeTopicLayout(topics, margin.left, rowHeight);
   const suggestionsBySlotId = new Map(suggestions.map((s) => [s.slotId, s]));
 

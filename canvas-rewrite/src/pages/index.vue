@@ -31,11 +31,11 @@
             :x-axis-options="{
                 upper: {
                     tickFormat: formatUpperAxisTick,
-                    ticks: d3.timeHour.every(3) || undefined // every 3 hours
+                    ticks: timeHour.every(3) // every 3 hours
                 },
                 lower: {
                     tickFormat: formatLowerAxisTick,
-                    ticks: d3.timeHour.every(1) || undefined // every hour
+                    ticks: timeHour.every(1) // every hour
                 }
             }"
         >
@@ -129,9 +129,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
-import * as d3 from 'd3';
 import type { GanttEditorSlot } from '../components/gantt-editor-lib/chart/types';
 import GanttEditorComponent from '../components/GanttEditorComponentCanvas.vue';
+import { timeHour, type TimeDomainValue } from '../components/gantt-editor-lib/chart/time_scale';
 
 const upperAxisFormatter = new Intl.DateTimeFormat(undefined, {
     month: 'short',
@@ -145,12 +145,12 @@ const lowerAxisFormatter = new Intl.DateTimeFormat(undefined, {
     minute: '2-digit',
 });
 
-const formatUpperAxisTick = (domainValue: Date | d3.NumberValue): string => {
+const formatUpperAxisTick = (domainValue: TimeDomainValue): string => {
     const dateValue = domainValue instanceof Date ? domainValue : new Date(domainValue as number);
     return upperAxisFormatter.format(dateValue);
 };
 
-const formatLowerAxisTick = (domainValue: Date | d3.NumberValue): string => {
+const formatLowerAxisTick = (domainValue: TimeDomainValue): string => {
     const dateValue = domainValue instanceof Date ? domainValue : new Date(domainValue as number);
     return lowerAxisFormatter.format(dateValue);
 };

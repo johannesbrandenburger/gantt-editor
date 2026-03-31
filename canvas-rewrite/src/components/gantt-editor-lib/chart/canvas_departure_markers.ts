@@ -1,5 +1,5 @@
-import * as d3 from "d3";
 import type { Topic } from "./types";
+import { createTimeScale } from "./time_scale";
 import {
   computeTopicLayout,
   TOPIC_BAND_PADDING,
@@ -71,7 +71,7 @@ export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
   const chartWidth = width - margin.left - margin.right;
   if (chartWidth <= 0) return;
 
-  const xScale = d3.scaleTime().domain([startTime, endTime]).range([0, chartWidth]).clamp(true);
+  const xScale = createTimeScale(startTime, endTime, 0, chartWidth, true);
 
   const hasViewport = viewportTop !== undefined && viewportHeight !== undefined;
   const step = rowHeight;

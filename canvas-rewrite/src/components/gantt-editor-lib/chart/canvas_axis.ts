@@ -1,5 +1,15 @@
-import * as d3 from "d3";
 import type { GanttEditorXAxisOptions } from "./types";
+import { createTimeScale, timeDay, type TimeDomainValue } from "./time_scale";
+
+const defaultUpperFormatter = new Intl.DateTimeFormat(undefined, {
+  day: "2-digit",
+  month: "2-digit",
+});
+
+const defaultLowerFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 export interface DrawXAxisParams {
   ctx: CanvasRenderingContext2D;
@@ -18,10 +28,7 @@ export function drawXAxisOnCanvas(params: DrawXAxisParams) {
   const offsetY = params.offsetY ?? 0;
 
   const chartWidth = width - margin.left - margin.right;
-  const xScale = d3.scaleTime()
-    .domain([startTime, endTime])
-    .range([0, chartWidth])
-    .clamp(true);
+  const xScale = createTimeScale(startTime, endTime, 0, chartWidth, true);
 
   // Clear axis band
   ctx.clearRect(0, offsetY, width, height);
@@ -29,16 +36,17 @@ export function drawXAxisOnCanvas(params: DrawXAxisParams) {
   ctx.fillRect(0, offsetY, width, height);
 
   // Formatters (matching original axis.ts defaults)
-  const dateFormatter = xAxisOptions?.upper?.tickFormat ?? ((d: Date | d3.NumberValue) => {
-    return d instanceof Date ? d3.timeFormat("%d.%m.")(d) : "";
+  const dateFormatter = xAxisOptions?.upper?.tickFormat ?? ((d: TimeDomainValue) => {
+    const date = d instanceof Date ? d : new Date(d);
+    return defaultUpperFormatter.format(date);
   });
-  const timeFormatter = xAxisOptions?.lower?.tickFormat ?? ((d: Date | d3.NumberValue) => {
-    return d instanceof Date ? d3.timeFormat("%H:%M")(d) : "";
+  const timeFormatter = xAxisOptions?.lower?.tickFormat ?? ((d: TimeDomainValue) => {
+    const date = d instanceof Date ? d : new Date(d);
+    return defaultLowerFormatter.format(date);
   });
 
-  // Generate ticks using d3
-  const upperTicks = xScale.ticks(xAxisOptions?.upper?.ticks ?? d3.timeDay.every(1)!);
-  const lowerTicks = xScale.ticks(xAxisOptions?.lower?.ticks as any);
+  const upperTicks = xScale.ticks(xAxisOptions?.upper?.ticks ?? timeDay.every(1));
+  const lowerTicks = xScale.ticks(xAxisOptions?.lower?.ticks);
 
   // Layout constants (matching original SVG: margin.top=40, upper at y=-20, lower at y=0)
   // In canvas the x-axis container is 50px tall.

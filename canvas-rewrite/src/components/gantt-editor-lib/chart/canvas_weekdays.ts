@@ -1,4 +1,4 @@
-import * as d3 from "d3";
+import { createTimeScale, timeDay } from "./time_scale";
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 const WEEKDAY_NAMES = [
@@ -33,8 +33,8 @@ export function drawWeekdayOverlay(params: DrawWeekdayOverlayParams): void {
   const chartWidth = width - margin.left - margin.right;
   if (chartWidth <= 0 || height <= 0) return;
 
-  const xScale = d3.scaleTime().domain([startTime, endTime]).range([0, chartWidth]).clamp(true);
-  const days = d3.timeDay.range(startTime, endTime).filter((d) => d.getHours() === 0);
+  const xScale = createTimeScale(startTime, endTime, 0, chartWidth, true);
+  const days = timeDay.range(startTime, endTime);
   if (days.length === 0) return;
 
   ctx.save();

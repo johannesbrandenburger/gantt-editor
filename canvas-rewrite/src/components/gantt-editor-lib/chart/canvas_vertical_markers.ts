@@ -1,5 +1,5 @@
-import * as d3 from "d3";
 import type { GanttEditorVerticalMarker } from "./types";
+import { createTimeScale } from "./time_scale";
 
 const MARKER_HIT_HALF_WIDTH = 7;
 
@@ -41,7 +41,7 @@ function buildVisibleVerticalMarkerModels(
   const chartWidth = width - margin.left - margin.right;
   if (chartWidth <= 0 || markers.length === 0) return [];
 
-  const xScale = d3.scaleTime().domain([startTime, endTime]).range([0, chartWidth]).clamp(true);
+  const xScale = createTimeScale(startTime, endTime, 0, chartWidth, true);
   const start = startTime.getTime();
   const end = endTime.getTime();
 

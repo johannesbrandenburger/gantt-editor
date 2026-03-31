@@ -1,4 +1,3 @@
-import * as d3 from "d3";
 import type { Topic, GanttEditorSlotWithUiAttributes } from "./types";
 import { mapSlotToStateColor } from "../helpers";
 import {
@@ -9,6 +8,7 @@ import {
   type TopicLayout,
 } from "./canvas_topics";
 import { slotsAllowLabelsAndInteraction } from "./canvas_slot_scale";
+import { createTimeScale, type TimeScale } from "./time_scale";
 
 function slotTextPaddingPx(rowHeight: number): number {
   return Math.round(Math.max(2, (5 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT));
@@ -97,10 +97,7 @@ export function drawSlots(params: DrawSlotsParams) {
   const hasViewport = viewportTop !== undefined && viewportHeight !== undefined;
 
   const chartWidth = width - margin.left - margin.right;
-  const xScale = d3.scaleTime()
-    .domain([startTime, endTime])
-    .range([0, chartWidth])
-    .clamp(true);
+  const xScale = createTimeScale(startTime, endTime, 0, chartWidth, true);
 
   // d3.scaleBand equivalent
   const padding = TOPIC_BAND_PADDING;
@@ -202,7 +199,7 @@ export function drawSlots(params: DrawSlotsParams) {
 
 export function computeSlotRect(
   slot: GanttEditorSlotWithUiAttributes,
-  xScale: d3.ScaleTime<number, number>,
+  xScale: TimeScale,
   chartWidth: number,
   marginLeft: number,
   rowTop: number,
@@ -309,11 +306,7 @@ export function hitTestSlotResizeEdge(p: HitTestSlotResizeParams): SlotResizeHit
   const chartWidth = p.width - p.margin.left - p.margin.right;
   if (chartWidth <= 0) return null;
 
-  const xScale = d3
-    .scaleTime()
-    .domain([p.startTime, p.endTime])
-    .range([0, chartWidth])
-    .clamp(true);
+  const xScale = createTimeScale(p.startTime, p.endTime, 0, chartWidth, true);
 
   const padding = TOPIC_BAND_PADDING;
   const step = p.rowHeight;
@@ -390,11 +383,7 @@ export function hitTestSlotBar(p: HitTestSlotBarParams): SlotBarHit | null {
   const chartWidth = p.width - p.margin.left - p.margin.right;
   if (chartWidth <= 0) return null;
 
-  const xScale = d3
-    .scaleTime()
-    .domain([p.startTime, p.endTime])
-    .range([0, chartWidth])
-    .clamp(true);
+  const xScale = createTimeScale(p.startTime, p.endTime, 0, chartWidth, true);
 
   const padding = TOPIC_BAND_PADDING;
   const step = p.rowHeight;
@@ -464,11 +453,7 @@ export function collectSlotsFullyInsideRect(
   const x1 = Math.max(p.selectionRect.x0, p.selectionRect.x1);
   const y1 = Math.max(p.selectionRect.y0, p.selectionRect.y1);
 
-  const xScale = d3
-    .scaleTime()
-    .domain([p.startTime, p.endTime])
-    .range([0, chartWidth])
-    .clamp(true);
+  const xScale = createTimeScale(p.startTime, p.endTime, 0, chartWidth, true);
 
   const padding = TOPIC_BAND_PADDING;
   const step = p.rowHeight;
@@ -524,7 +509,7 @@ export function slotTimesAfterResizeDrag(
   displayInnerLeft: number,
   displayInnerWidth: number,
   chartWidth: number,
-  xScale: d3.ScaleTime<number, number>,
+  xScale: TimeScale,
 ): { openTime: Date; closeTime: Date } {
   if (edge === "left") {
     const newInnerLeft = Math.min(
@@ -558,11 +543,7 @@ export function slotTimesForResizeDragStep(
   startTime: Date,
   endTime: Date,
 ): { openTime: Date; closeTime: Date } {
-  const xScale = d3
-    .scaleTime()
-    .domain([startTime, endTime])
-    .range([0, chartWidth])
-    .clamp(true);
+  const xScale = createTimeScale(startTime, endTime, 0, chartWidth, true);
   return slotTimesAfterResizeDrag(
     edge,
     dxPx,
