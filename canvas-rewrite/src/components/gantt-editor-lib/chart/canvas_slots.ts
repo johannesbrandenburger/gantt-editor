@@ -17,6 +17,12 @@ function minSlotWidthForTextPx(rowHeight: number): number {
   return Math.max(8, Math.round((20 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT));
 }
 
+/** Matches SVG resize handles: 8px wide, centered on bar edges. */
+export const SLOT_RESIZE_HANDLE_WIDTH_PX = 8;
+export const SLOT_RESIZE_HANDLE_HALF_PX = SLOT_RESIZE_HANDLE_WIDTH_PX / 2;
+/** Minimum bar width in inner chart pixels (matches update-chart.ts). */
+export const SLOT_MIN_INNER_WIDTH_PX = 10;
+
 export interface SlotRect {
   x: number;
   y: number;
@@ -27,6 +33,10 @@ export interface SlotRect {
   text: string;
   isCopied: boolean;
   isHighlighted: boolean;
+  slotId: string;
+  slot: GanttEditorSlotWithUiAttributes;
+  isStartInView: boolean;
+  isEndInView: boolean;
 }
 
 export interface DrawSlotsParams {
@@ -41,6 +51,8 @@ export interface DrawSlotsParams {
   viewportHeight?: number;
   /** When set, skips internal computeTopicLayout (caller computed once per frame). */
   topicLayouts?: TopicLayout[];
+  /** Live preview while resizing a slot (does not mutate source data). */
+  slotTimeOverride?: { slotId: string; openTime: Date; closeTime: Date } | null;
 }
 
 /** First index of slot with closeTime > t (slots sorted by openTime ascending). */
@@ -64,7 +76,19 @@ function firstSlotIndexCloseAfter(
  * Assumes the topic gridlines/labels have already been drawn on this context.
  */
 export function drawSlots(params: DrawSlotsParams) {
-  const { ctx, width, topics, margin, rowHeight, startTime, endTime, viewportTop, viewportHeight, topicLayouts } = params;
+  const {
+    ctx,
+    width,
+    topics,
+    margin,
+    rowHeight,
+    startTime,
+    endTime,
+    viewportTop,
+    viewportHeight,
+    topicLayouts,
+    slotTimeOverride,
+  } = params;
 
   const hasViewport = viewportTop !== undefined && viewportHeight !== undefined;
 
@@ -98,8 +122,16 @@ export function drawSlots(params: DrawSlotsParams) {
         const slot = slots[i]!;
         if (slot.openTime >= endTime) break;
 
+        const slotForGeom =
+          slotTimeOverride && slotTimeOverride.slotId === slot.id
+            ? {
+                ...slot,
+                openTime: slotTimeOverride.openTime,
+                closeTime: slotTimeOverride.closeTime,
+              }
+            : slot;
         const slotDef = computeSlotRect(
-          slot, xScale, chartWidth, margin.left, rowTop, bandwidth, gap,
+          slotForGeom, xScale, chartWidth, margin.left, rowTop, bandwidth, gap,
           topic.isCollapsed,
         );
         if (!slotDef) continue;
@@ -153,7 +185,7 @@ export function drawSlots(params: DrawSlotsParams) {
   ctx.restore();
 }
 
-function computeSlotRect(
+export function computeSlotRect(
   slot: GanttEditorSlotWithUiAttributes,
   xScale: d3.ScaleTime<number, number>,
   chartWidth: number,
@@ -190,5 +222,173 @@ function computeSlotRect(
     text: slot.displayName,
     isCopied: !!slot.isCopied,
     isHighlighted: false,
+    slotId: slot.id,
+    slot,
+    isStartInView,
+    isEndInView,
   };
+}
+
+export type SlotResizeEdge = "left" | "right";
+
+export interface HitTestSlotResizeParams {
+  topics: Topic[];
+  canvasX: number;
+  /** Content Y: same space as `rowTop` in drawSlots (viewport scroll applied). */
+  contentY: number;
+  margin: { left: number; right: number };
+  width: number;
+  rowHeight: number;
+  startTime: Date;
+  endTime: Date;
+  isReadOnly: boolean;
+}
+
+/**
+ * Hit-test left/right resize handles (8px bands on bar edges), last-drawn slot wins.
+ */
+export type SlotResizeHit = {
+  slotId: string;
+  edge: SlotResizeEdge;
+  slot: GanttEditorSlotWithUiAttributes;
+  /** Left edge in inner chart pixels (matches SVG slot `x`). */
+  displayInnerLeft: number;
+  /** Bar width in inner chart pixels. */
+  displayInnerWidth: number;
+};
+
+export function hitTestSlotResizeEdge(p: HitTestSlotResizeParams): SlotResizeHit | null {
+  if (p.isReadOnly) return null;
+
+  const chartWidth = p.width - p.margin.left - p.margin.right;
+  if (chartWidth <= 0) return null;
+
+  const xScale = d3
+    .scaleTime()
+    .domain([p.startTime, p.endTime])
+    .range([0, chartWidth])
+    .clamp(true);
+
+  const padding = TOPIC_BAND_PADDING;
+  const step = p.rowHeight;
+  const bandwidth = step * (1 - padding);
+  const gap = step - bandwidth;
+
+  const layouts = computeTopicLayout(p.topics, p.margin.left, p.rowHeight);
+  let hit: SlotResizeHit | null = null;
+
+  for (const layout of layouts) {
+    const topic = layout.topic;
+    topic.rows.forEach((row, rowIndex) => {
+      const rowTop = layout.rowYs[rowIndex];
+      if (rowTop === undefined) return;
+
+      const y0 = rowTop;
+      const y1 = rowTop + bandwidth;
+      if (p.contentY < y0 || p.contentY >= y1) return;
+
+      const slots = row.slots;
+      const i0 = firstSlotIndexCloseAfter(slots, p.startTime);
+      for (let i = i0; i < slots.length; i++) {
+        const slot = slots[i]!;
+        if (slot.openTime >= p.endTime) break;
+
+        if (slot.readOnly) continue;
+
+        const def = computeSlotRect(
+          slot,
+          xScale,
+          chartWidth,
+          p.margin.left,
+          rowTop,
+          bandwidth,
+          gap,
+          topic.isCollapsed,
+        );
+        if (!def) continue;
+
+        const half = SLOT_RESIZE_HANDLE_HALF_PX;
+        let edgeHit: SlotResizeEdge | null = null;
+        if (def.isStartInView) {
+          const left0 = def.x - half;
+          const left1 = def.x + half;
+          if (p.canvasX >= left0 && p.canvasX <= left1) edgeHit = "left";
+        }
+        if (def.isEndInView && edgeHit === null) {
+          const right0 = def.x + def.width - half;
+          const right1 = def.x + def.width + half;
+          if (p.canvasX >= right0 && p.canvasX <= right1) edgeHit = "right";
+        }
+        if (edgeHit) {
+          hit = {
+            slotId: slot.id,
+            edge: edgeHit,
+            slot,
+            displayInnerLeft: def.x - p.margin.left,
+            displayInnerWidth: def.width,
+          };
+        }
+      }
+    });
+  }
+
+  return hit;
+}
+
+/**
+ * Final open/close after a resize drag (inner-chart geometry, same as SVG `dragLeftRightEnd`).
+ */
+export function slotTimesAfterResizeDrag(
+  edge: SlotResizeEdge,
+  dxPx: number,
+  displayInnerLeft: number,
+  displayInnerWidth: number,
+  chartWidth: number,
+  xScale: d3.ScaleTime<number, number>,
+): { openTime: Date; closeTime: Date } {
+  if (edge === "left") {
+    const newInnerLeft = Math.min(
+      displayInnerLeft + displayInnerWidth - SLOT_MIN_INNER_WIDTH_PX,
+      displayInnerLeft + dxPx,
+    );
+    const newInnerRight = displayInnerLeft + displayInnerWidth;
+    return {
+      openTime: xScale.invert(newInnerLeft),
+      closeTime: xScale.invert(newInnerRight),
+    };
+  }
+  const newInnerWidth = Math.max(
+    SLOT_MIN_INNER_WIDTH_PX,
+    Math.min(chartWidth - displayInnerLeft, displayInnerWidth + dxPx),
+  );
+  const newInnerRight = displayInnerLeft + newInnerWidth;
+  return {
+    openTime: xScale.invert(displayInnerLeft),
+    closeTime: xScale.invert(newInnerRight),
+  };
+}
+
+/** Build scale from visible range and return {@link slotTimesAfterResizeDrag}. */
+export function slotTimesForResizeDragStep(
+  edge: SlotResizeEdge,
+  dxPx: number,
+  displayInnerLeft: number,
+  displayInnerWidth: number,
+  chartWidth: number,
+  startTime: Date,
+  endTime: Date,
+): { openTime: Date; closeTime: Date } {
+  const xScale = d3
+    .scaleTime()
+    .domain([startTime, endTime])
+    .range([0, chartWidth])
+    .clamp(true);
+  return slotTimesAfterResizeDrag(
+    edge,
+    dxPx,
+    displayInnerLeft,
+    displayInnerWidth,
+    chartWidth,
+    xScale,
+  );
 }

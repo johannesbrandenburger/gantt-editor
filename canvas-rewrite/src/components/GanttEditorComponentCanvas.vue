@@ -65,7 +65,12 @@ import {
 } from "./gantt-editor-lib/chart/canvas_slot_scale";
 import { processData } from "./gantt-editor-lib/chart/process-data";
 import { drawTopicLines, computeContentHeight, computeTopicLayout } from "./gantt-editor-lib/chart/canvas_topics";
-import { drawSlots } from "./gantt-editor-lib/chart/canvas_slots";
+import {
+  drawSlots,
+  hitTestSlotResizeEdge,
+  slotTimesForResizeDragStep,
+  type SlotResizeEdge,
+} from "./gantt-editor-lib/chart/canvas_slots";
 import {
   computeUnifiedChartLayout,
   hitTestChart,
@@ -323,8 +328,31 @@ const onChartMouseMove = (e: MouseEvent) => {
   }
   const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
   const hit = hitTestChart(layout, pt.x, pt.y);
+  let ewResize = false;
+  if (hit.type === "group" && !props.isReadOnly) {
+    const gr = layout.groupRects.get(hit.groupId);
+    if (gr) {
+      const scroll = verticalScrollOffsets.value.get(hit.groupId) || 0;
+      const contentY = pt.y - gr.y + scroll;
+      const groupTopics = processedTopics.value.filter((t) => t.groupId === hit.groupId);
+      ewResize =
+        hitTestSlotResizeEdge({
+          topics: groupTopics,
+          canvasX: pt.x,
+          contentY,
+          margin: MARGIN,
+          width: layout.canvasCssWidth,
+          rowHeight: rowHeight.value,
+          startTime: internalStartTime.value,
+          endTime: internalEndTime.value,
+          isReadOnly: props.isReadOnly,
+        }) !== null;
+    }
+  }
   if (hit.type === "topResize" || hit.type === "betweenResize") {
     canvas.style.cursor = "ns-resize";
+  } else if (ewResize) {
+    canvas.style.cursor = "ew-resize";
   } else {
     canvas.style.cursor = "";
   }
@@ -343,6 +371,19 @@ const clearClipboard = () => {
 };
 
 let resizeObserver: ResizeObserver | null = null;
+
+/** Active left/right slot edge drag (canvas CSS pixels / inner chart width). */
+let slotResizeDrag: {
+  edge: SlotResizeEdge;
+  slotId: string;
+  startClientX: number;
+  displayInnerLeft: number;
+  displayInnerWidth: number;
+  chartWidth: number;
+} | null = null;
+
+/** Live bar geometry while resizing; cleared on mouseup. */
+let slotResizePreview: { slotId: string; openTime: Date; closeTime: Date } | null = null;
 
 let cachedCanvasEl: HTMLCanvasElement | null = null;
 let cachedCtx: CanvasRenderingContext2D | null = null;
@@ -547,6 +588,55 @@ const onCanvasWheel = (event: WheelEvent) => {
   redraw();
 };
 
+function onSlotResizeMouseMove(e: MouseEvent) {
+  if (!slotResizeDrag) return;
+  const dx = e.clientX - slotResizeDrag.startClientX;
+  const d = slotResizeDrag;
+  slotResizePreview = {
+    slotId: d.slotId,
+    ...slotTimesForResizeDragStep(
+      d.edge,
+      dx,
+      d.displayInnerLeft,
+      d.displayInnerWidth,
+      d.chartWidth,
+      internalStartTime.value,
+      internalEndTime.value,
+    ),
+  };
+  redraw();
+}
+
+function onSlotResizeMouseUp(e: MouseEvent) {
+  document.removeEventListener("mousemove", onSlotResizeMouseMove);
+  document.removeEventListener("mouseup", onSlotResizeMouseUp);
+  if (!slotResizeDrag) return;
+  const d = slotResizeDrag;
+  const dx = e.clientX - d.startClientX;
+  const { openTime, closeTime } = slotTimesForResizeDragStep(
+    d.edge,
+    dx,
+    d.displayInnerLeft,
+    d.displayInnerWidth,
+    d.chartWidth,
+    internalStartTime.value,
+    internalEndTime.value,
+  );
+  slotResizeDrag = null;
+  slotResizePreview = null;
+  redraw();
+
+  const prev = props.slots.find((s) => s.id === d.slotId);
+  if (
+    prev &&
+    !prev.readOnly &&
+    (prev.openTime.getTime() !== openTime.getTime() ||
+      prev.closeTime.getTime() !== closeTime.getTime())
+  ) {
+    emit("onChangeSlotTime", d.slotId, openTime, closeTime);
+  }
+}
+
 const onCanvasMouseDown = (e: MouseEvent) => {
   if (e.button !== 0) return;
   const layout = chartLayout.value;
@@ -560,6 +650,41 @@ const onCanvasMouseDown = (e: MouseEvent) => {
   }
   if (hit.type === "betweenResize") {
     startResize(e, hit.groupIdAbove);
+    return;
+  }
+  if (hit.type === "group") {
+    const gr = layout.groupRects.get(hit.groupId);
+    if (gr) {
+      const scroll = verticalScrollOffsets.value.get(hit.groupId) || 0;
+      const contentY = pt.y - gr.y + scroll;
+      const groupTopics = processedTopics.value.filter((t) => t.groupId === hit.groupId);
+      const rh = hitTestSlotResizeEdge({
+        topics: groupTopics,
+        canvasX: pt.x,
+        contentY,
+        margin: MARGIN,
+        width: layout.canvasCssWidth,
+        rowHeight: rowHeight.value,
+        startTime: internalStartTime.value,
+        endTime: internalEndTime.value,
+        isReadOnly: props.isReadOnly,
+      });
+      if (rh) {
+        e.preventDefault();
+        const chartWidth = layout.canvasCssWidth - MARGIN.left - MARGIN.right;
+        slotResizeDrag = {
+          edge: rh.edge,
+          slotId: rh.slotId,
+          startClientX: e.clientX,
+          displayInnerLeft: rh.displayInnerLeft,
+          displayInnerWidth: rh.displayInnerWidth,
+          chartWidth,
+        };
+        document.addEventListener("mousemove", onSlotResizeMouseMove);
+        document.addEventListener("mouseup", onSlotResizeMouseUp);
+        return;
+      }
+    }
   }
 };
 
@@ -637,6 +762,7 @@ const drawUnifiedFrame = () => {
       viewportTop: clampedOffset,
       viewportHeight: viewportHeight,
       topicLayouts,
+      slotTimeOverride: slotResizePreview,
     });
 
     ctx.restore();
@@ -701,6 +827,10 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  document.removeEventListener("mousemove", onSlotResizeMouseMove);
+  document.removeEventListener("mouseup", onSlotResizeMouseUp);
+  slotResizeDrag = null;
+  slotResizePreview = null;
   if (resizeObserver) {
     resizeObserver.disconnect();
     resizeObserver = null;
