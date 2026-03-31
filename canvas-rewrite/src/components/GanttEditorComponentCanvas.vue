@@ -354,15 +354,21 @@ const setupCanvas = (canvas: HTMLCanvasElement, width: number, height: number) =
 
 const MARGIN = { left: 200, right: 60 };
 
+// processData only uses slots, destinations, and settings.compactView; it does not use the view
+// time range or row height. Omitting those reactive deps keeps pan/zoom from re-running O(n) work
+// (row assignment + conflict detection) on every wheel tick.
+const PROCESS_DATA_VIEW_PLACEHOLDER_START = new Date(0);
+const PROCESS_DATA_VIEW_PLACEHOLDER_END = new Date(86400000);
+
 const processedTopics = computed(() => {
   const { processedData_ } = processData(
     props.slots,
     props.destinations,
-    props.startTime,
-    props.endTime,
+    PROCESS_DATA_VIEW_PLACEHOLDER_START,
+    PROCESS_DATA_VIEW_PLACEHOLDER_END,
     {
       groupBy: "destinationId",
-      rowHeight: rowHeight.value,
+      rowHeight: 0,
       progressChartsDisplay: "None",
       collapseGroups: false,
       editable: !props.isReadOnly,
@@ -434,8 +440,16 @@ function buildPanZoomCallbacks() {
 
       rowHeight.value = next;
 
+      const topics = processedTopics.value;
+      const topicsByGroupId = new Map<string, typeof topics>();
+      for (const t of topics) {
+        const list = topicsByGroupId.get(t.groupId);
+        if (list) list.push(t);
+        else topicsByGroupId.set(t.groupId, [t]);
+      }
+
       props.destinationGroups.forEach((group) => {
-        const groupTopics = processedTopics.value.filter((t) => t.groupId === group.id);
+        const groupTopics = topicsByGroupId.get(group.id) ?? [];
         const viewportHeight = heightMap.value.get(group.id) || 0;
         const H_old = computeContentHeight(groupTopics, prevRowHeight);
         const H_new = computeContentHeight(groupTopics, next);
@@ -463,7 +477,7 @@ const onCanvasWheel = (event: WheelEvent) => {
 
   const callbacks = buildPanZoomCallbacks();
   if (handlePanZoomWheelEvent(event, canvas, callbacks)) {
-    redraw();
+    // internalStartTime / internalEndTime / rowHeight updates already schedule redraw via watch.
     return;
   }
 
