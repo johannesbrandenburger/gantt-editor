@@ -131,7 +131,7 @@ watch(
   () => {
     controller.refreshModel(propsSnapshot());
   },
-  // { deep: true }, // TODO: check if deep needed
+  { deep: true },
 );
 
 onMounted(() => {
