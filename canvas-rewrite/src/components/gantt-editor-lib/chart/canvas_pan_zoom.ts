@@ -4,17 +4,20 @@ import * as d3 from "d3";
 export type WheelZoomAnchor = { clientX: number; clientY: number };
 
 export interface PanZoomCallbacks {
-  /** Immediate re-render with new time range (no data fetch). */
-  onTimeRangeChange: (start: Date, end: Date) => void;
   /**
-   * Final commit after scroll/drag ends — triggers data fetch via parent emit.
-   * `wheelAnchor` is set for modifier+wheel time zoom so row height can track the same zoom anchor.
+   * Immediate re-render with new time range (no parent emit).
+   * Pass `wheelZoomAnchor` for modifier+wheel zoom so row height tracks the time scale under the cursor.
    */
-  onTimeRangeCommit: (
+  onTimeRangeChange: (
     start: Date,
     end: Date,
-    wheelAnchor?: WheelZoomAnchor,
+    wheelZoomAnchor?: WheelZoomAnchor,
   ) => void;
+  /**
+   * Sync visible range to the parent after a gesture settles (debounced wheel, end of drag-pan).
+   * Local time/row state is already applied via {@link onTimeRangeChange}.
+   */
+  onTimeRangeCommit: (start: Date, end: Date) => void;
   /** Returns the current visible time range. */
   getCurrentTimeRange: () => { start: Date; end: Date };
   /** Returns chart width excluding margins. */
@@ -62,7 +65,15 @@ function horizontalWheelDeltaToMs(
 }
 
 let sharedScrollTimeout: ReturnType<typeof setTimeout> | null = null;
-let sharedLastScrollDates: { start: Date; end: Date } | null = null;
+
+function scheduleTimeRangeParentCommit(callbacks: PanZoomCallbacks, delayMs: number): void {
+  if (sharedScrollTimeout) clearTimeout(sharedScrollTimeout);
+  sharedScrollTimeout = setTimeout(() => {
+    const { start, end } = callbacks.getCurrentTimeRange();
+    callbacks.onTimeRangeCommit(start, end);
+    sharedScrollTimeout = null;
+  }, delayMs);
+}
 
 /**
  * Horizontal trackpad pan or modifier+wheel zoom. Returns true if the event was consumed.
@@ -89,17 +100,8 @@ export function handlePanZoomWheelEvent(
     const newStart = new Date(start.getTime() + panMs);
     const newEnd = new Date(end.getTime() + panMs);
 
-    sharedLastScrollDates = { start: newStart, end: newEnd };
     callbacks.onTimeRangeChange(newStart, newEnd);
-
-    if (sharedScrollTimeout) clearTimeout(sharedScrollTimeout);
-    sharedScrollTimeout = setTimeout(() => {
-      if (sharedLastScrollDates) {
-        callbacks.onTimeRangeCommit(sharedLastScrollDates.start, sharedLastScrollDates.end);
-        sharedLastScrollDates = null;
-      }
-      sharedScrollTimeout = null;
-    }, 150);
+    scheduleTimeRangeParentCommit(callbacks, 150);
     return true;
   }
 
@@ -132,10 +134,11 @@ export function handlePanZoomWheelEvent(
   const newStart = new Date(mouseTime.getTime() - constrainedTimeRange * mouseOffset);
   const newEnd = new Date(newStart.getTime() + constrainedTimeRange);
 
-  callbacks.onTimeRangeCommit(newStart, newEnd, {
+  callbacks.onTimeRangeChange(newStart, newEnd, {
     clientX: event.clientX,
     clientY: event.clientY,
   });
+  scheduleTimeRangeParentCommit(callbacks, 150);
   return true;
 }
 
@@ -218,9 +221,8 @@ export function setupCanvasPanZoom(
   };
 }
 
-/** Call from the chart component on unmount so debounced horizontal pan does not fire after teardown. */
+/** Call from the chart component on unmount so debounced wheel commit does not fire after teardown. */
 export function clearPanZoomWheelDebounce(): void {
   if (sharedScrollTimeout) clearTimeout(sharedScrollTimeout);
   sharedScrollTimeout = null;
-  sharedLastScrollDates = null;
 }
