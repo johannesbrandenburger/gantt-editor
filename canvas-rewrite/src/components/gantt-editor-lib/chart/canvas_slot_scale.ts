@@ -35,6 +35,15 @@ export function departureMarkersVisible(rowHeight: number): boolean {
 }
 
 /**
+ * Suggestion markers follow slot zoom and are hidden at overview levels to avoid clutter.
+ */
+export const SUGGESTION_MIN_ROW_HEIGHT_PX = 10;
+
+export function suggestionsVisible(rowHeight: number): boolean {
+  return rowHeight > SUGGESTION_MIN_ROW_HEIGHT_PX;
+}
+
+/**
  * Destination/topic labels stay visible longer than slot text so users can still orient when zoomed out.
  */
 export const DESTINATION_LABEL_MIN_ROW_HEIGHT_PX = 6;

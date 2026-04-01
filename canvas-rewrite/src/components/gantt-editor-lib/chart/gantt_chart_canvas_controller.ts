@@ -12,6 +12,7 @@ import {
   SLOT_RENDER_RATIO,
   departureMarkersVisible,
   destinationLabelsVisible,
+  suggestionsVisible,
   slotsAllowLabelsAndInteraction,
 } from "./canvas_slot_scale";
 import { processData } from "./process-data";
@@ -405,6 +406,7 @@ export class GanttChartCanvasController {
 
     const slotsInteractive = slotsAllowLabelsAndInteraction(this.rowHeight);
     const showDepartureMarkers = departureMarkersVisible(this.rowHeight);
+    const showSuggestions = suggestionsVisible(this.rowHeight);
 
     let hoveredSlotId: string | null = null;
     let hoveredSuggestion: SuggestionButtonDefinition | null = null;
@@ -417,13 +419,15 @@ export class GanttChartCanvasController {
         const scroll = this.verticalScrollOffsets.get(hit.groupId) || 0;
         const contentY = pt.y - gr.y + scroll;
         const groupTopics = this.topicsForGroup(hit.groupId);
-        const suggestionHover = this.hitSuggestionForGroup(
-          hit.groupId,
-          pt.x,
-          contentY,
-          layout.canvasCssWidth,
-          groupTopics,
-        );
+        const suggestionHover = showSuggestions
+          ? this.hitSuggestionForGroup(
+              hit.groupId,
+              pt.x,
+              contentY,
+              layout.canvasCssWidth,
+              groupTopics,
+            )
+          : null;
         if (suggestionHover) {
           suggestionHit = true;
           hoveredSuggestion = suggestionHover;
@@ -1595,11 +1599,17 @@ export class GanttChartCanvasController {
 
     const hadSlotInteractions = slotsAllowLabelsAndInteraction(prevRowHeight);
     const hasSlotInteractions = slotsAllowLabelsAndInteraction(next);
+    const hadSuggestions = suggestionsVisible(prevRowHeight);
+    const hasSuggestions = suggestionsVisible(next);
 
     this.rowHeight = next;
 
     if (hadSlotInteractions && !hasSlotInteractions) {
       this.resetHoverSlot();
+    }
+
+    if (hadSuggestions && !hasSuggestions) {
+      this.hoveredSuggestion = null;
     }
 
     if (!hasSlotInteractions && this.slotResizeDrag) {
@@ -1775,20 +1785,22 @@ export class GanttChartCanvasController {
 
       this.drawMarkedRegionOverlay(ctx, group.id, contentHeight, layout.canvasCssWidth);
 
-      drawSuggestionButtons({
-        ctx,
-        width: layout.canvasCssWidth,
-        topics: groupTopics,
-        suggestions: this.props.suggestions,
-        margin: MARGIN,
-        rowHeight: this.rowHeight,
-        startTime: this.internalStartTime,
-        endTime: this.internalEndTime,
-        viewportTop: clampedOffset,
-        viewportHeight: viewportHeight,
-        topicLayouts,
-        hoveredSlotId: this.hoveredSuggestion?.slotId ?? null,
-      });
+      if (suggestionsVisible(this.rowHeight)) {
+        drawSuggestionButtons({
+          ctx,
+          width: layout.canvasCssWidth,
+          topics: groupTopics,
+          suggestions: this.props.suggestions,
+          margin: MARGIN,
+          rowHeight: this.rowHeight,
+          startTime: this.internalStartTime,
+          endTime: this.internalEndTime,
+          viewportTop: clampedOffset,
+          viewportHeight: viewportHeight,
+          topicLayouts,
+          hoveredSlotId: this.hoveredSuggestion?.slotId ?? null,
+        });
+      }
 
       ctx.restore();
     }
@@ -1820,14 +1832,14 @@ export class GanttChartCanvasController {
     ctx: CanvasRenderingContext2D,
     layout: UnifiedChartLayout,
   ): void {
+    if (!suggestionsVisible(this.rowHeight)) return;
     const suggestion = this.hoveredSuggestion;
     if (!this.pointerInChart || !suggestion) return;
 
     ctx.save();
     ctx.font = "12px sans-serif";
 
-    const bodyLines = this.wrapTooltipText(ctx, suggestion.text, 260);
-    const lines = [...bodyLines, "Click to apply suggestion"];
+    const lines = this.wrapTooltipText(ctx, suggestion.text, 260);
     if (lines.length === 0) {
       ctx.restore();
       return;
@@ -2277,6 +2289,7 @@ export class GanttChartCanvasController {
     width: number,
     groupTopics: Topic[],
   ) {
+    if (!suggestionsVisible(this.rowHeight)) return null;
     return hitTestSuggestionButton({
       width,
       topics: groupTopics,
