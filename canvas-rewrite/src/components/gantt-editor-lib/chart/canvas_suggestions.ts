@@ -27,6 +27,7 @@ interface SuggestionLayoutParams {
 
 export interface DrawSuggestionButtonsParams extends SuggestionLayoutParams {
   ctx: CanvasRenderingContext2D;
+  hoveredSlotId?: string | null;
 }
 
 export interface HitTestSuggestionButtonParams extends SuggestionLayoutParams {
@@ -90,17 +91,18 @@ function buildSuggestionDefinitions(
 }
 
 export function drawSuggestionButtons(params: DrawSuggestionButtonsParams): void {
-  const { ctx } = params;
+  const { ctx, hoveredSlotId = null } = params;
   const defs = buildSuggestionDefinitions(params);
   if (defs.length === 0) return;
 
   ctx.save();
-  ctx.font = "18px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = "#f0ad4e";
 
   for (const def of defs) {
+    const isHovered = hoveredSlotId === def.slotId;
+    ctx.font = isHovered ? "30px sans-serif" : "18px sans-serif";
+    ctx.fillStyle = "#f0ad4e";
     ctx.fillText(SUGGESTION_ICON, def.x, def.y);
   }
 

@@ -15,6 +15,6 @@ Execution rules:
 
 - [x] Colored departure lines
 - [x] Hover is only available on the slot and not also on the area between the slot and the last deadline/departure marker
-- [ ] Hover menu for suggestions
+- [x] Hover menu for suggestions
 - [ ] Clickable Flight-Numbers on the left (at the destination)
 - [ ] Paste field for slots in the clipboard (preview slots)

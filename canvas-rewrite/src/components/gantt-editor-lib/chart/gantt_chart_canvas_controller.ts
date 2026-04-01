@@ -25,6 +25,7 @@ import {
 } from "./canvas_slots";
 import { drawDepartureMarkers, hitTestDepartureGap } from "./canvas_departure_markers";
 import { drawVerticalMarkers, hitTestVerticalMarker } from "./canvas_vertical_markers";
+import type { SuggestionButtonDefinition } from "./canvas_suggestions";
 import { drawSuggestionButtons, hitTestSuggestionButton } from "./canvas_suggestions";
 import { drawWeekdayOverlay } from "./canvas_weekdays";
 import {
@@ -111,6 +112,7 @@ export class GanttChartCanvasController {
 
   private hoverResizeBand: string | null = null;
   private hoveredSlotId: string | null = null;
+  private hoveredSuggestion: SuggestionButtonDefinition | null = null;
   private hoverTimeout: ReturnType<typeof setTimeout> | null = null;
   private suppressNextCanvasClick = false;
 
@@ -349,6 +351,7 @@ export class GanttChartCanvasController {
     this.slotReflowAnimation = null;
     this.brushSelection = null;
     this.hoveredSlotId = null;
+    this.hoveredSuggestion = null;
     this.pointerInChart = false;
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
@@ -402,6 +405,7 @@ export class GanttChartCanvasController {
     const slotsInteractive = slotsAllowLabelsAndInteraction(this.rowHeight);
 
     let hoveredSlotId: string | null = null;
+    let hoveredSuggestion: SuggestionButtonDefinition | null = null;
     let ewResize = false;
     let suggestionHit = false;
     let verticalMarkerDraggable = false;
@@ -420,6 +424,7 @@ export class GanttChartCanvasController {
         );
         if (suggestionHover) {
           suggestionHit = true;
+          hoveredSuggestion = suggestionHover;
           hoveredSlotId = null;
         }
 
@@ -481,8 +486,12 @@ export class GanttChartCanvasController {
       }
     }
     const previousHoveredSlotId = this.hoveredSlotId;
+    const previousHoveredSuggestionSlotId = this.hoveredSuggestion?.slotId ?? null;
     this.updateHoverSlot(hoveredSlotId);
+    this.hoveredSuggestion = hoveredSuggestion;
     const hoverSlotChanged = previousHoveredSlotId !== this.hoveredSlotId;
+    const hoverSuggestionChanged =
+      previousHoveredSuggestionSlotId !== (this.hoveredSuggestion?.slotId ?? null);
 
     if (hit.type === "topResize" || hit.type === "betweenResize") {
       canvas.style.cursor = "ns-resize";
@@ -499,6 +508,7 @@ export class GanttChartCanvasController {
     if (
       hoverChanged ||
       hoverSlotChanged ||
+      hoverSuggestionChanged ||
       this.clipboardItems.length > 0 ||
       this.brushSelection ||
       this.hoveredSlotId
@@ -510,6 +520,7 @@ export class GanttChartCanvasController {
   onChartMouseLeave(): void {
     this.hoverResizeBand = null;
     this.pointerInChart = false;
+    this.hoveredSuggestion = null;
     this.resetHoverSlot();
     const canvas = this.canvas;
     if (canvas) canvas.style.cursor = "";
@@ -522,6 +533,7 @@ export class GanttChartCanvasController {
 
   onMouseLeave(): void {
     this.pointerInChart = false;
+    this.hoveredSuggestion = null;
     this.resetHoverSlot();
     this.host.onClipboardVisibility?.(false);
     this.redraw();
@@ -1768,6 +1780,7 @@ export class GanttChartCanvasController {
         viewportTop: clampedOffset,
         viewportHeight: viewportHeight,
         topicLayouts,
+        hoveredSlotId: this.hoveredSuggestion?.slotId ?? null,
       });
 
       ctx.restore();
@@ -1788,11 +1801,76 @@ export class GanttChartCanvasController {
 
     this.drawBrushSelectionOverlay(ctx, layout);
     this.drawClipboardPreviewOverlay(ctx, layout);
+    this.drawSuggestionHoverOverlay(ctx, layout);
     this.drawSlotHoverTooltipOverlay(ctx, layout);
 
     if (slotYTransition) {
       this.scheduleFrameRedraw(false);
     }
+  }
+
+  private drawSuggestionHoverOverlay(
+    ctx: CanvasRenderingContext2D,
+    layout: UnifiedChartLayout,
+  ): void {
+    const suggestion = this.hoveredSuggestion;
+    if (!this.pointerInChart || !suggestion) return;
+
+    ctx.save();
+    ctx.font = "12px sans-serif";
+
+    const bodyLines = this.wrapTooltipText(ctx, suggestion.text, 260);
+    const lines = [...bodyLines, "Click to apply suggestion"];
+    if (lines.length === 0) {
+      ctx.restore();
+      return;
+    }
+
+    const lineHeight = 16;
+    const padX = 10;
+    const padY = 8;
+    const textWidth = lines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
+    const boxWidth = Math.ceil(textWidth + padX * 2);
+    const boxHeight = Math.ceil(lines.length * lineHeight + padY * 2);
+
+    const margin = 8;
+    const preferredX = this.pointerCanvasX - boxWidth - 14;
+    const preferredY = this.pointerCanvasY - boxHeight / 2;
+    const x = Math.max(
+      margin,
+      Math.min(layout.canvasCssWidth - boxWidth - margin, preferredX),
+    );
+    const y = Math.max(
+      margin,
+      Math.min(layout.canvasCssHeight - boxHeight - margin, preferredY),
+    );
+
+    const radius = 6;
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + boxWidth - radius, y);
+    ctx.quadraticCurveTo(x + boxWidth, y, x + boxWidth, y + radius);
+    ctx.lineTo(x + boxWidth, y + boxHeight - radius);
+    ctx.quadraticCurveTo(x + boxWidth, y + boxHeight, x + boxWidth - radius, y + boxHeight);
+    ctx.lineTo(x + radius, y + boxHeight);
+    ctx.quadraticCurveTo(x, y + boxHeight, x, y + boxHeight - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.97)";
+    ctx.fill();
+    ctx.strokeStyle = "#d4d4d8";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    lines.forEach((line, idx) => {
+      const baseline = y + padY + idx * lineHeight + 11;
+      ctx.fillStyle = idx === lines.length - 1 ? "#0f766e" : "#111827";
+      ctx.fillText(line, x + padX, baseline);
+    });
+
+    ctx.restore();
   }
 
   private drawBrushSelectionOverlay(
