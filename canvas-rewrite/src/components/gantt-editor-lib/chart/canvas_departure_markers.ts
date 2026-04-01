@@ -210,10 +210,10 @@ export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
 }
 
 /**
- * Returns true when the pointer is in the horizontal connector region between a slot bar's
- * right edge and its furthest visible departure marker (STD/ETD) to the right.
+ * Returns the slot id when the pointer is inside a departure-marker hover corridor
+ * (the area between slot end and a visible marker, with small margins at both ends).
  */
-export function hitTestDepartureGap(params: HitTestDepartureGapParams): boolean {
+export function hitTestDepartureGap(params: HitTestDepartureGapParams): string | null {
   const {
     width,
     topics,
@@ -226,7 +226,7 @@ export function hitTestDepartureGap(params: HitTestDepartureGapParams): boolean 
   } = params;
 
   const chartWidth = width - margin.left - margin.right;
-  if (chartWidth <= 0) return false;
+  if (chartWidth <= 0) return null;
 
   const xScale = createTimeScale(startTime, endTime, 0, chartWidth, true);
   const step = rowHeight;
@@ -265,24 +265,24 @@ export function hitTestDepartureGap(params: HitTestDepartureGapParams): boolean 
         );
         if (!slotRect) continue;
 
-        const markerDates = [slot.deadline, slot.secondaryDeadline]
-          .filter((d): d is Date => !!d)
-          .filter((d) => d >= startTime && d <= endTime);
+        const markerDates = [slot.deadline, slot.secondaryDeadline].filter(
+          (d): d is Date => !!d && d >= startTime && d <= endTime,
+        );
         if (markerDates.length === 0) continue;
 
         const barEndX = slotRect.x + slotRect.width;
-        let rightMostMarkerX = barEndX;
         for (const markerDate of markerDates) {
-          rightMostMarkerX = Math.max(rightMostMarkerX, margin.left + xScale(markerDate));
-        }
-
-        if (rightMostMarkerX <= barEndX) continue;
-        if (canvasX > barEndX && canvasX <= rightMostMarkerX) {
-          return true;
+          const markerX = margin.left + xScale(markerDate);
+          const x0 = Math.min(barEndX, markerX) + 4;
+          const x1 = Math.max(barEndX, markerX) - 4;
+          if (x1 <= x0) continue;
+          if (canvasX >= x0 && canvasX <= x1) {
+            return slot.id;
+          }
         }
       }
     }
   }
 
-  return false;
+  return null;
 }

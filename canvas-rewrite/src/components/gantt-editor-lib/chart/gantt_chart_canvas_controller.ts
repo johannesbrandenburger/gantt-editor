@@ -448,7 +448,7 @@ export class GanttChartCanvasController {
         }
 
         if (!suggestionHover && !markerHit && slotsInteractive) {
-          const inDepartureGap =
+          const departureGapSlotId =
             showDepartureMarkers
               ? hitTestDepartureGap({
                   width: layout.canvasCssWidth,
@@ -460,10 +460,10 @@ export class GanttChartCanvasController {
                   canvasX: pt.x,
                   contentY,
                 })
-              : false;
+              : null;
           hoveredSlotId =
-            showDepartureMarkers && inDepartureGap
-              ? null
+            showDepartureMarkers && departureGapSlotId
+              ? departureGapSlotId
               : (hitTestSlotBar({
                   topics: groupTopics,
                   canvasX: pt.x,
