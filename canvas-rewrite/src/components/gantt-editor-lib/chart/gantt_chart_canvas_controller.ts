@@ -23,7 +23,7 @@ import {
   slotTimesForResizeDragStep,
   type SlotResizeEdge,
 } from "./canvas_slots";
-import { drawDepartureMarkers } from "./canvas_departure_markers";
+import { drawDepartureMarkers, hitTestDepartureGap } from "./canvas_departure_markers";
 import { drawVerticalMarkers, hitTestVerticalMarker } from "./canvas_vertical_markers";
 import { drawSuggestionButtons, hitTestSuggestionButton } from "./canvas_suggestions";
 import { drawWeekdayOverlay } from "./canvas_weekdays";
@@ -437,17 +437,29 @@ export class GanttChartCanvasController {
         }
 
         if (!suggestionHover && !markerHit && slotsInteractive) {
+          const inDepartureGap = hitTestDepartureGap({
+            width: layout.canvasCssWidth,
+            topics: groupTopics,
+            margin: MARGIN,
+            rowHeight: this.rowHeight,
+            startTime: this.internalStartTime,
+            endTime: this.internalEndTime,
+            canvasX: pt.x,
+            contentY,
+          });
           hoveredSlotId =
-            hitTestSlotBar({
-              topics: groupTopics,
-              canvasX: pt.x,
-              contentY,
-              margin: MARGIN,
-              width: layout.canvasCssWidth,
-              rowHeight: this.rowHeight,
-              startTime: this.internalStartTime,
-              endTime: this.internalEndTime,
-            })?.slotId ?? null;
+            inDepartureGap
+              ? null
+              : (hitTestSlotBar({
+                  topics: groupTopics,
+                  canvasX: pt.x,
+                  contentY,
+                  margin: MARGIN,
+                  width: layout.canvasCssWidth,
+                  rowHeight: this.rowHeight,
+                  startTime: this.internalStartTime,
+                  endTime: this.internalEndTime,
+                })?.slotId ?? null);
           if (!this.props.isReadOnly) {
             ewResize =
               hitTestSlotResizeEdge({

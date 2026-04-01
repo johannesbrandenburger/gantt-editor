@@ -33,6 +33,18 @@ export interface DrawDepartureMarkersParams {
   slotTimeOverride?: { slotId: string; openTime: Date; closeTime: Date } | null;
 }
 
+export interface HitTestDepartureGapParams {
+  width: number;
+  topics: Topic[];
+  margin: { left: number; right: number };
+  rowHeight: number;
+  startTime: Date;
+  endTime: Date;
+  canvasX: number;
+  /** Content Y: same coordinate space as slot rowTop (viewport scroll already applied). */
+  contentY: number;
+}
+
 /** First index of slot with closeTime > t (slots sorted by openTime ascending). */
 function firstSlotIndexCloseAfter(
   slots: { openTime: Date; closeTime: Date }[],
@@ -195,4 +207,82 @@ export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
 
   ctx.setLineDash([]);
   ctx.globalAlpha = 1;
+}
+
+/**
+ * Returns true when the pointer is in the horizontal connector region between a slot bar's
+ * right edge and its furthest visible departure marker (STD/ETD) to the right.
+ */
+export function hitTestDepartureGap(params: HitTestDepartureGapParams): boolean {
+  const {
+    width,
+    topics,
+    margin,
+    rowHeight,
+    startTime,
+    endTime,
+    canvasX,
+    contentY,
+  } = params;
+
+  const chartWidth = width - margin.left - margin.right;
+  if (chartWidth <= 0) return false;
+
+  const xScale = createTimeScale(startTime, endTime, 0, chartWidth, true);
+  const step = rowHeight;
+  const bandwidth = step * (1 - TOPIC_BAND_PADDING);
+  const gap = step - bandwidth;
+  const layouts = computeTopicLayout(topics, margin.left, rowHeight);
+
+  for (const layout of layouts) {
+    const topic = layout.topic;
+    if (topic.isCollapsed) continue;
+
+    for (let rowIndex = 0; rowIndex < topic.rows.length; rowIndex++) {
+      const row = topic.rows[rowIndex]!;
+      const rowTop = layout.rowYs[rowIndex];
+      if (rowTop === undefined) continue;
+
+      const y0 = rowTop;
+      const y1 = rowTop + bandwidth;
+      if (contentY < y0 || contentY > y1) continue;
+
+      const slots = row.slots;
+      const i0 = firstSlotIndexCloseAfter(slots, startTime);
+      for (let i = i0; i < slots.length; i++) {
+        const slot = slots[i]!;
+        if (slot.openTime >= endTime) break;
+
+        const slotRect = computeSlotRect(
+          slot,
+          xScale,
+          chartWidth,
+          margin.left,
+          rowTop,
+          bandwidth,
+          gap,
+          topic.isCollapsed,
+        );
+        if (!slotRect) continue;
+
+        const markerDates = [slot.deadline, slot.secondaryDeadline]
+          .filter((d): d is Date => !!d)
+          .filter((d) => d >= startTime && d <= endTime);
+        if (markerDates.length === 0) continue;
+
+        const barEndX = slotRect.x + slotRect.width;
+        let rightMostMarkerX = barEndX;
+        for (const markerDate of markerDates) {
+          rightMostMarkerX = Math.max(rightMostMarkerX, margin.left + xScale(markerDate));
+        }
+
+        if (rightMostMarkerX <= barEndX) continue;
+        if (canvasX > barEndX && canvasX <= rightMostMarkerX) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
 }

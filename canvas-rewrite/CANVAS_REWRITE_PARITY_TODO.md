@@ -9,11 +9,12 @@ Execution rules:
 5. After each feature, perform compaction before starting the next feature to not bloat the context window.
 6. Do not skip validation. Run relevant build after each feature and fix regressions immediately.
 7. Do a commit after each feature with a short but clear commit message. DO NOT PUSH!
+8. Do not stop (do not send the completion signal) until all items are implemented and ticked. 
 
 # Canvas Rewrite Parity Backlog
 
 - [x] Colored departure lines
-- [ ] Hover is only available on the slot and not also on the area between the slot and the last deadline/departure marker
+- [x] Hover is only available on the slot and not also on the area between the slot and the last deadline/departure marker
 - [ ] Hover menu for suggestions
 - [ ] Clickable Flight-Numbers on the left (at the destination)
 - [ ] Paste field for slots in the clipboard (preview slots)
