@@ -28,16 +28,6 @@
             @onContextClickOnSlot="handleContextClickOnSlot"
             :topContentPortion="topContentPortion"
             @onTopContentPortionChange="(newPortion: number, newHeight: number) => topContentPortion = newPortion"
-            :x-axis-options="{
-                upper: {
-                    tickFormat: formatUpperAxisTick,
-                    ticks: timeHour.every(3) // every 3 hours
-                },
-                lower: {
-                    tickFormat: formatLowerAxisTick,
-                    ticks: timeHour.every(1) // every hour
-                }
-            }"
         >
             <template
                 #top-content
