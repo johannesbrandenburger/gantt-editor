@@ -10,6 +10,7 @@ import {
 import {
   computeRowHeightForUnifiedZoom,
   SLOT_RENDER_RATIO,
+  departureMarkersVisible,
   destinationLabelsVisible,
   slotsAllowLabelsAndInteraction,
 } from "./canvas_slot_scale";
@@ -403,6 +404,7 @@ export class GanttChartCanvasController {
     const hit = hitTestChart(layout, pt.x, pt.y);
 
     const slotsInteractive = slotsAllowLabelsAndInteraction(this.rowHeight);
+    const showDepartureMarkers = departureMarkersVisible(this.rowHeight);
 
     let hoveredSlotId: string | null = null;
     let hoveredSuggestion: SuggestionButtonDefinition | null = null;
@@ -442,18 +444,21 @@ export class GanttChartCanvasController {
         }
 
         if (!suggestionHover && !markerHit && slotsInteractive) {
-          const inDepartureGap = hitTestDepartureGap({
-            width: layout.canvasCssWidth,
-            topics: groupTopics,
-            margin: MARGIN,
-            rowHeight: this.rowHeight,
-            startTime: this.internalStartTime,
-            endTime: this.internalEndTime,
-            canvasX: pt.x,
-            contentY,
-          });
+          const inDepartureGap =
+            showDepartureMarkers
+              ? hitTestDepartureGap({
+                  width: layout.canvasCssWidth,
+                  topics: groupTopics,
+                  margin: MARGIN,
+                  rowHeight: this.rowHeight,
+                  startTime: this.internalStartTime,
+                  endTime: this.internalEndTime,
+                  canvasX: pt.x,
+                  contentY,
+                })
+              : false;
           hoveredSlotId =
-            inDepartureGap
+            showDepartureMarkers && inDepartureGap
               ? null
               : (hitTestSlotBar({
                   topics: groupTopics,
@@ -1737,19 +1742,21 @@ export class GanttChartCanvasController {
         slotYTransition,
       });
 
-      drawDepartureMarkers({
-        ctx,
-        width: layout.canvasCssWidth,
-        topics: groupTopics,
-        margin: MARGIN,
-        rowHeight: this.rowHeight,
-        startTime: this.internalStartTime,
-        endTime: this.internalEndTime,
-        viewportTop: clampedOffset,
-        viewportHeight: viewportHeight,
-        topicLayouts,
-        slotTimeOverride: this.slotResizePreview,
-      });
+      if (departureMarkersVisible(this.rowHeight)) {
+        drawDepartureMarkers({
+          ctx,
+          width: layout.canvasCssWidth,
+          topics: groupTopics,
+          margin: MARGIN,
+          rowHeight: this.rowHeight,
+          startTime: this.internalStartTime,
+          endTime: this.internalEndTime,
+          viewportTop: clampedOffset,
+          viewportHeight: viewportHeight,
+          topicLayouts,
+          slotTimeOverride: this.slotResizePreview,
+        });
+      }
 
       drawVerticalMarkers({
         ctx,

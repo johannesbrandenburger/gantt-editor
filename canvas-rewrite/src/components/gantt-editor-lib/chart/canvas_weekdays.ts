@@ -44,7 +44,7 @@ export function drawWeekdayOverlay(params: DrawWeekdayOverlayParams): void {
   for (const day of days) {
     const x = margin.left + xScale(day);
     ctx.strokeStyle = "rgba(0, 128, 0, 0.3)";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(x, lineTop);
     ctx.lineTo(x, lineBottom);

@@ -25,6 +25,16 @@ export function slotsAllowLabelsAndInteraction(rowHeight: number): boolean {
 }
 
 /**
+ * Departure markers can remain visible a bit longer than slot interactions, but are hidden
+ * before extreme overview zoom levels to reduce visual clutter.
+ */
+export const DEPARTURE_MARKER_MIN_ROW_HEIGHT_PX = 10;
+
+export function departureMarkersVisible(rowHeight: number): boolean {
+  return rowHeight > DEPARTURE_MARKER_MIN_ROW_HEIGHT_PX;
+}
+
+/**
  * Destination/topic labels stay visible longer than slot text so users can still orient when zoomed out.
  */
 export const DESTINATION_LABEL_MIN_ROW_HEIGHT_PX = 6;
