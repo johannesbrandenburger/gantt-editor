@@ -47,6 +47,15 @@ export interface HitTestSuggestionButtonParams extends SuggestionLayoutParams {
   contentY: number;
 }
 
+function slotIntersectsVisibleTimeRange(
+  openTime: Date,
+  closeTime: Date,
+  startTime: Date,
+  endTime: Date,
+): boolean {
+  return closeTime > startTime && openTime < endTime;
+}
+
 function buildSuggestionDefinitions(
   params: SuggestionLayoutParams,
 ): SuggestionButtonDefinition[] {
@@ -91,6 +100,9 @@ function buildSuggestionDefinitions(
       for (const slot of row.slots) {
         const suggestion = suggestionsBySlotId.get(slot.id);
         if (!suggestion) continue;
+        if (!slotIntersectsVisibleTimeRange(slot.openTime, slot.closeTime, startTime, endTime)) {
+          continue;
+        }
 
         const displayName =
           suggestion.alternativeDestinationDisplayName || suggestion.alternativeDestinationId;
