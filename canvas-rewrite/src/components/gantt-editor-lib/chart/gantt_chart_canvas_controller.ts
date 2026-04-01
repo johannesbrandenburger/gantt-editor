@@ -1758,8 +1758,6 @@ export class GanttChartCanvasController {
         topicLayouts,
       });
 
-      this.drawCurrentTimeIndicator(ctx, contentHeight, layout.canvasCssWidth);
-
       ctx.restore();
     }
 
@@ -1768,11 +1766,13 @@ export class GanttChartCanvasController {
       width: layout.canvasCssWidth,
       lineTop: layout.axisRect.y,
       lineBottom: layout.canvasCssHeight,
-      labelY: layout.axisRect.y + layout.axisRect.h / 6,
+      labelY: layout.axisRect.y + layout.axisRect.h / 8,
       margin: MARGIN,
       startTime: this.internalStartTime,
       endTime: this.internalEndTime,
     });
+
+    this.drawCurrentTimeIndicator(ctx, layout);
 
     this.drawBrushSelectionOverlay(ctx, layout);
     this.drawClipboardPreviewOverlay(ctx, layout);
@@ -2098,32 +2098,41 @@ export class GanttChartCanvasController {
 
   private drawCurrentTimeIndicator(
     ctx: CanvasRenderingContext2D,
-    contentHeight: number,
-    width: number,
+    layout: UnifiedChartLayout,
   ): void {
     const now = new Date();
     if (now < this.internalStartTime || now > this.internalEndTime) return;
 
-    const x = this.timeMsToCanvasX(now.getTime(), width);
+    const x = this.timeMsToCanvasX(now.getTime(), layout.canvasCssWidth);
+    const axisRowHeight = layout.axisRect.h / 4;
+    const labelY = layout.axisRect.y + axisRowHeight * 3.5;
+    const labelText = this.formatCurrentTimeLabel(now);
     ctx.save();
 
     ctx.strokeStyle = "red";
     ctx.lineWidth = 1;
     ctx.setLineDash([5, 5]);
     ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, contentHeight);
+    ctx.moveTo(x, layout.axisRect.y);
+    ctx.lineTo(x, layout.canvasCssHeight);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    ctx.fillStyle = "rgba(255, 0, 0, 0.7)";
-    ctx.fillRect(x, 0, 40, 20);
+    ctx.font = "bold 10px sans-serif";
+    const textWidth = ctx.measureText(labelText).width;
+    const labelPadX = 4;
+    const labelWidth = textWidth + labelPadX * 2;
+    const labelHeight = Math.max(10, axisRowHeight - 2);
+    const labelTop = labelY - labelHeight / 2;
+
+    ctx.fillStyle = "rgba(255, 0, 0, 0.75)";
+    ctx.fillRect(x, labelTop, labelWidth, labelHeight);
 
     ctx.fillStyle = "white";
-    ctx.font = "bold 12px sans-serif";
+    ctx.font = "bold 10px sans-serif";
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
-    ctx.fillText(this.formatCurrentTimeLabel(now), x + 5, 10);
+    ctx.fillText(labelText, x + labelPadX, labelY);
 
     ctx.restore();
   }
@@ -2131,9 +2140,7 @@ export class GanttChartCanvasController {
   private formatCurrentTimeLabel(value: Date): string {
     const hh = `${value.getHours()}`.padStart(2, "0");
     const mm = `${value.getMinutes()}`.padStart(2, "0");
-    const dd = `${value.getDate()}`.padStart(2, "0");
-    const month = `${value.getMonth() + 1}`.padStart(2, "0");
-    return `${hh}:${mm} ${dd}.${month}`;
+    return `${hh}:${mm}`;
   }
 
   private applySuggestionForSlot(slotId: string): void {

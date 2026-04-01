@@ -48,11 +48,11 @@ export function drawXAxisOnCanvas(params: DrawXAxisParams) {
   const upperTicks = xScale.ticks(xAxisOptions?.upper?.ticks ?? timeDay.every(1));
   const lowerTicks = xScale.ticks(xAxisOptions?.lower?.ticks);
 
-  // Split axis height into three equal rows:
-  // 1) weekday overlay label (drawn elsewhere), 2) date row, 3) time row.
-  const oneThird = height / 3;
-  const upperY = offsetY + oneThird * 1.5;
-  const lowerY = offsetY + oneThird * 2.5;
+  // Split axis height into four equal rows:
+  // 1) weekday overlay label, 2) date row, 3) time row, 4) current-time label.
+  const oneQuarter = height / 4;
+  const upperY = offsetY + oneQuarter * 1.5;
+  const lowerY = offsetY + oneQuarter * 2.5;
   const tickLineTop = offsetY + height;
   const tickLineBottom = offsetY + height - 5;
 
