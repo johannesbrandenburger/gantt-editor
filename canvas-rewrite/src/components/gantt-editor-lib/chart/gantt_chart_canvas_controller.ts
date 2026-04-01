@@ -1698,15 +1698,6 @@ export class GanttChartCanvasController {
         showTopicHeaderText: destinationLabelsVisible(this.rowHeight),
       });
 
-      drawWeekdayOverlay({
-        ctx,
-        width: layout.canvasCssWidth,
-        height: contentHeight,
-        margin: MARGIN,
-        startTime: this.internalStartTime,
-        endTime: this.internalEndTime,
-      });
-
       drawSlots({
         ctx,
         width: layout.canvasCssWidth,
@@ -1771,6 +1762,17 @@ export class GanttChartCanvasController {
 
       ctx.restore();
     }
+
+    drawWeekdayOverlay({
+      ctx,
+      width: layout.canvasCssWidth,
+      lineTop: layout.axisRect.y,
+      lineBottom: layout.canvasCssHeight,
+      labelY: layout.axisRect.y + layout.axisRect.h / 6,
+      margin: MARGIN,
+      startTime: this.internalStartTime,
+      endTime: this.internalEndTime,
+    });
 
     this.drawBrushSelectionOverlay(ctx, layout);
     this.drawClipboardPreviewOverlay(ctx, layout);

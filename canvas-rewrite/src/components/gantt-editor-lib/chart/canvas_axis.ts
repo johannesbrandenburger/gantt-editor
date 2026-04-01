@@ -48,13 +48,11 @@ export function drawXAxisOnCanvas(params: DrawXAxisParams) {
   const upperTicks = xScale.ticks(xAxisOptions?.upper?.ticks ?? timeDay.every(1));
   const lowerTicks = xScale.ticks(xAxisOptions?.lower?.ticks);
 
-  // Layout constants (matching original SVG: margin.top=40, upper at y=-20, lower at y=0)
-  // In canvas the x-axis container is 50px tall.
-  // Original SVG: xAxisGroup translated to (margin.left, 40). Upper axis at y=-20, lower at y=0.
-  // So upper text ~ y=20 (40-20), lower text ~ y=40 (40+0). Tick lines from y=40 downward.
-  // We map: upper row center = 14, lower row center = 36, tick lines end at 50.
-  const upperY = offsetY + 14;
-  const lowerY = offsetY + 36;
+  // Split axis height into three equal rows:
+  // 1) weekday overlay label (drawn elsewhere), 2) date row, 3) time row.
+  const oneThird = height / 3;
+  const upperY = offsetY + oneThird * 1.5;
+  const lowerY = offsetY + oneThird * 2.5;
   const tickLineTop = offsetY + height;
   const tickLineBottom = offsetY + height - 5;
 
