@@ -18,6 +18,24 @@ type HarnessConfig = {
 
 type HarnessEvents = Record<string, unknown[]>;
 
+type CanvasStateRecord = Record<string, unknown>;
+
+type CanvasTestApi = {
+  flush: () => void;
+  getState: () => CanvasStateRecord;
+};
+
+type E2eHarnessApi = {
+  getConfig: () => HarnessConfig;
+  getEvents: () => HarnessEvents;
+  clearEvents: () => void;
+};
+
+type HarnessWindow = Window & {
+  __ganttCanvasTestApi?: CanvasTestApi;
+  __ganttE2eHarness?: Partial<E2eHarnessApi>;
+};
+
 export async function openE2eHarness(page: Page, options?: OpenHarnessOptions): Promise<Locator> {
   const fixture = options?.fixture ?? "core";
   const queryParams = new URLSearchParams({ fixture });
@@ -31,16 +49,16 @@ export async function openE2eHarness(page: Page, options?: OpenHarnessOptions): 
   await expect(canvas).toBeVisible();
   await waitForCanvasApi(page);
   await page.evaluate(() => {
-    (window as Window & { __ganttCanvasTestApi?: { flush: () => void } }).__ganttCanvasTestApi?.flush();
+    (window as HarnessWindow).__ganttCanvasTestApi?.flush();
   });
   return canvas;
 }
 
 export async function waitForCanvasApi(page: Page): Promise<void> {
   await page.waitForFunction(() => {
-    const api = (window as Window & {
-      __ganttCanvasTestApi?: { getState: () => TestApiState };
-    }).__ganttCanvasTestApi;
+    const api = (window as HarnessWindow).__ganttCanvasTestApi as
+      | (CanvasTestApi & { getState: () => TestApiState })
+      | undefined;
     return !!api?.getState()?.layout;
   });
 }
@@ -52,15 +70,14 @@ export async function findSlotPoint(
 ): Promise<{ x: number; y: number }> {
   const point = await page.evaluate(
     ({ currentSlotId, currentMode }) => {
-      const api = (window as Window & {
-        __ganttCanvasTestApi?: {
-          flush: () => void;
-          findSlotPoint: (
-            slotId: string,
-            mode?: "center" | "left-edge" | "right-edge",
-          ) => { x: number; y: number } | null;
-        };
-      }).__ganttCanvasTestApi;
+      const api = (window as HarnessWindow).__ganttCanvasTestApi as
+        | (CanvasTestApi & {
+            findSlotPoint: (
+              slotId: string,
+              mode?: "center" | "left-edge" | "right-edge",
+            ) => { x: number; y: number } | null;
+          })
+        | undefined;
       api?.flush();
       return api?.findSlotPoint(currentSlotId, currentMode) ?? null;
     },
@@ -115,51 +132,74 @@ export async function dispatchCanvasMouseEvent(
   );
 }
 
+export async function getCanvasState<TState extends CanvasStateRecord>(page: Page): Promise<TState | null> {
+  return await page.evaluate(() => {
+    const api = (window as HarnessWindow).__ganttCanvasTestApi;
+    api?.flush();
+    return (api?.getState() ?? null) as TState | null;
+  });
+}
+
+export async function getCanvasStateField<TValue>(page: Page, field: string): Promise<TValue | null> {
+  return await page.evaluate((fieldName) => {
+    const api = (window as HarnessWindow).__ganttCanvasTestApi;
+    api?.flush();
+    const state = api?.getState();
+    if (!state || !(fieldName in state)) {
+      return null;
+    }
+    return state[fieldName] as TValue;
+  }, field);
+}
+
 export async function getHarnessConfig(page: Page): Promise<HarnessConfig> {
   return await page.evaluate(() => {
-    const harness = (window as Window & {
-      __ganttE2eHarness?: {
-        getConfig: () => HarnessConfig;
-      };
-    }).__ganttE2eHarness;
+    const harness = (window as HarnessWindow).__ganttE2eHarness as
+      | Pick<E2eHarnessApi, "getConfig">
+      | undefined;
     return harness?.getConfig() ?? { slots: [] };
   });
 }
 
+export async function getHarnessSlotCloseTimeMs(page: Page, slotId: string): Promise<number | null> {
+  return await page.evaluate((currentSlotId) => {
+    const harness = (window as HarnessWindow).__ganttE2eHarness as
+      | Pick<E2eHarnessApi, "getConfig">
+      | undefined;
+    const slot = harness?.getConfig().slots.find((item) => item.id === currentSlotId);
+    return slot ? new Date(slot.closeTime).getTime() : null;
+  }, slotId);
+}
+
 export async function getHarnessEvents(page: Page): Promise<HarnessEvents> {
   return await page.evaluate(() => {
-    const harness = (window as Window & {
-      __ganttE2eHarness?: {
-        getEvents: () => HarnessEvents;
-      };
-    }).__ganttE2eHarness;
+    const harness = (window as HarnessWindow).__ganttE2eHarness as
+      | Pick<E2eHarnessApi, "getEvents">
+      | undefined;
     return harness?.getEvents() ?? {};
   });
 }
 
 export async function clearHarnessEvents(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const harness = (window as Window & {
-      __ganttE2eHarness?: {
-        clearEvents: () => void;
-      };
-    }).__ganttE2eHarness;
+    const harness = (window as HarnessWindow).__ganttE2eHarness as
+      | Pick<E2eHarnessApi, "clearEvents">
+      | undefined;
     harness?.clearEvents();
   });
 }
 
 export async function findVerticalMarkerPoint(page: Page, markerId: string): Promise<{ x: number; y: number }> {
   const point = await page.evaluate((targetMarkerId) => {
-    const api = (window as Window & {
-      __ganttCanvasTestApi?: {
-        flush: () => void;
-        getState: () => {
-          layout: { canvasCssWidth: number; canvasCssHeight: number } | null;
-          margin: { left: number; right: number };
-        };
-        probeCanvasPoint: (x: number, y: number) => { verticalMarkerId: string | null };
-      };
-    }).__ganttCanvasTestApi;
+    const api = (window as HarnessWindow).__ganttCanvasTestApi as
+      | (CanvasTestApi & {
+          getState: () => {
+            layout: { canvasCssWidth: number; canvasCssHeight: number } | null;
+            margin: { left: number; right: number };
+          };
+          probeCanvasPoint: (x: number, y: number) => { verticalMarkerId: string | null };
+        })
+      | undefined;
 
     api?.flush();
     const state = api?.getState();
@@ -187,16 +227,15 @@ export async function findVerticalMarkerPoint(page: Page, markerId: string): Pro
 
 export async function findSuggestionPoint(page: Page, slotId: string): Promise<{ x: number; y: number }> {
   const point = await page.evaluate((targetSlotId) => {
-    const api = (window as Window & {
-      __ganttCanvasTestApi?: {
-        flush: () => void;
-        getState: () => {
-          layout: { canvasCssWidth: number; canvasCssHeight: number } | null;
-          margin: { left: number; right: number };
-        };
-        probeCanvasPoint: (x: number, y: number) => { suggestionSlotId: string | null };
-      };
-    }).__ganttCanvasTestApi;
+    const api = (window as HarnessWindow).__ganttCanvasTestApi as
+      | (CanvasTestApi & {
+          getState: () => {
+            layout: { canvasCssWidth: number; canvasCssHeight: number } | null;
+            margin: { left: number; right: number };
+          };
+          probeCanvasPoint: (x: number, y: number) => { suggestionSlotId: string | null };
+        })
+      | undefined;
 
     api?.flush();
     const state = api?.getState();
@@ -226,16 +265,15 @@ export async function findTopicTogglePoint(
   page: Page,
 ): Promise<{ x: number; y: number; topicId: string }> {
   const point = await page.evaluate(() => {
-    const api = (window as Window & {
-      __ganttCanvasTestApi?: {
-        flush: () => void;
-        getState: () => {
-          layout: { canvasCssWidth: number; canvasCssHeight: number } | null;
-          margin: { left: number; right: number };
-        };
-        probeCanvasPoint: (x: number, y: number) => { topicId: string | null };
-      };
-    }).__ganttCanvasTestApi;
+    const api = (window as HarnessWindow).__ganttCanvasTestApi as
+      | (CanvasTestApi & {
+          getState: () => {
+            layout: { canvasCssWidth: number; canvasCssHeight: number } | null;
+            margin: { left: number; right: number };
+          };
+          probeCanvasPoint: (x: number, y: number) => { topicId: string | null };
+        })
+      | undefined;
 
     api?.flush();
     const state = api?.getState();

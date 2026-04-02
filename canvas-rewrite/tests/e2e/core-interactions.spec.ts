@@ -3,6 +3,9 @@ import {
   canvasPointToPagePoint,
   dispatchCanvasMouseEvent,
   findSlotPoint,
+  getCanvasState,
+  getCanvasStateField,
+  getHarnessSlotCloseTimeMs,
   mouseDrag,
   openE2eHarness,
 } from "./helpers";
@@ -20,49 +23,19 @@ test.describe("canvas rewrite core interactions", () => {
 
     await expect
       .poll(
-        async () =>
-          await page.evaluate(() => {
-            const api = (window as Window & {
-              __ganttCanvasTestApi?: {
-                flush: () => void;
-                getState: () => { lastClickedSlotId: string | null };
-              };
-            }).__ganttCanvasTestApi;
-            api?.flush();
-            return api?.getState().lastClickedSlotId ?? null;
-          }),
+        async () => await getCanvasStateField<string | null>(page, "lastClickedSlotId"),
         { timeout: 2000 },
       )
       .toBe(SLOT_ID);
     await expect
       .poll(
-        async () =>
-          await page.evaluate(() => {
-            const api = (window as Window & {
-              __ganttCanvasTestApi?: {
-                flush: () => void;
-                getState: () => { lastDoubleClickedSlotId: string | null };
-              };
-            }).__ganttCanvasTestApi;
-            api?.flush();
-            return api?.getState().lastDoubleClickedSlotId ?? null;
-          }),
+        async () => await getCanvasStateField<string | null>(page, "lastDoubleClickedSlotId"),
         { timeout: 2000 },
       )
       .toBe(SLOT_ID);
     await expect
       .poll(
-        async () =>
-          await page.evaluate(() => {
-            const api = (window as Window & {
-              __ganttCanvasTestApi?: {
-                flush: () => void;
-                getState: () => { lastContextClickedSlotId: string | null };
-              };
-            }).__ganttCanvasTestApi;
-            api?.flush();
-            return api?.getState().lastContextClickedSlotId ?? null;
-          }),
+        async () => await getCanvasStateField<string | null>(page, "lastContextClickedSlotId"),
         { timeout: 2000 },
       )
       .toBe(SLOT_ID);
@@ -70,15 +43,7 @@ test.describe("canvas rewrite core interactions", () => {
 
   test("supports resizing a slot edge with drag", async ({ page }) => {
     const canvas = await openE2eHarness(page);
-    const beforeCloseTimeMs = await page.evaluate((slotId) => {
-      const harness = (window as Window & {
-        __ganttE2eHarness?: {
-          getConfig: () => { slots: Array<{ id: string; closeTime: Date | string }> };
-        };
-      }).__ganttE2eHarness;
-      const slot = harness?.getConfig().slots.find((item) => item.id === slotId);
-      return slot ? new Date(slot.closeTime).getTime() : null;
-    }, SLOT_ID);
+    const beforeCloseTimeMs = await getHarnessSlotCloseTimeMs(page, SLOT_ID);
     expect(beforeCloseTimeMs).not.toBeNull();
 
     const edgePoint = await findSlotPoint(page, SLOT_ID, "right-edge");
@@ -89,16 +54,7 @@ test.describe("canvas rewrite core interactions", () => {
 
     await expect
       .poll(
-        async () =>
-          await page.evaluate((slotId) => {
-            const harness = (window as Window & {
-              __ganttE2eHarness?: {
-                getConfig: () => { slots: Array<{ id: string; closeTime: Date | string }> };
-              };
-            }).__ganttE2eHarness;
-            const slot = harness?.getConfig().slots.find((item) => item.id === slotId);
-            return slot ? new Date(slot.closeTime).getTime() : null;
-          }, SLOT_ID),
+        async () => await getHarnessSlotCloseTimeMs(page, SLOT_ID),
         { timeout: 2000 },
       )
       .not.toBe(beforeCloseTimeMs);
@@ -107,23 +63,17 @@ test.describe("canvas rewrite core interactions", () => {
   test("supports brush selection via Meta drag and stores clipboard", async ({ page }) => {
     const canvas = await openE2eHarness(page);
 
-    const state = await page.evaluate(() => {
-      const api = (window as Window & {
-        __ganttCanvasTestApi?: {
-          flush: () => void;
-          getState: () => { margin: { left: number }; rowHeight: number; layout: unknown };
-        };
-      }).__ganttCanvasTestApi;
-      localStorage.removeItem("pointerClipboard");
-      api?.flush();
-      return api?.getState() ?? null;
-    });
-    expect(state).not.toBeNull();
+    await page.evaluate(() => localStorage.removeItem("pointerClipboard"));
+    const canvasState = await getCanvasState<{ margin: { left: number }; rowHeight: number }>(page);
+    expect(canvasState).not.toBeNull();
+    if (!canvasState) {
+      throw new Error("Expected canvas state to be available");
+    }
 
     const center = await findSlotPoint(page, SLOT_ID, "center");
     const startCanvas = {
-      x: Math.max((state as { margin: { left: number } }).margin.left + 12, center.x - 320),
-      y: Math.max(40, center.y - Math.max(18, (state as { rowHeight: number }).rowHeight * 0.35)),
+      x: Math.max(canvasState.margin.left + 12, center.x - 320),
+      y: Math.max(40, center.y - Math.max(18, canvasState.rowHeight * 0.35)),
     };
     const endCanvas = { x: center.x + 45, y: center.y + 14 };
 
@@ -136,17 +86,7 @@ test.describe("canvas rewrite core interactions", () => {
 
     await expect
       .poll(
-        async () =>
-          await page.evaluate(() => {
-            const api = (window as Window & {
-              __ganttCanvasTestApi?: {
-                flush: () => void;
-                getState: () => { clipboardSlotIds: string[] };
-              };
-            }).__ganttCanvasTestApi;
-            api?.flush();
-            return api?.getState().clipboardSlotIds ?? [];
-          }),
+        async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [],
         { timeout: 2000 },
       )
       .toContain(SLOT_ID);
