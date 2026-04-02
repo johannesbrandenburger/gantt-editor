@@ -20,9 +20,9 @@ type HarnessEvents = Record<string, unknown[]>;
 
 type CanvasStateRecord = Record<string, unknown>;
 
-type CanvasTestApi = {
+type CanvasTestApi<TState = unknown> = {
   flush: () => void;
-  getState: () => CanvasStateRecord;
+  getState: () => TState;
 };
 
 type E2eHarnessApi = {
@@ -35,6 +35,79 @@ type HarnessWindow = Window & {
   __ganttCanvasTestApi?: CanvasTestApi;
   __ganttE2eHarness?: Partial<E2eHarnessApi>;
 };
+
+type ProbeField = "verticalMarkerId" | "suggestionSlotId" | "topicId";
+
+type ProbeCanvasState = {
+  layout: { canvasCssWidth: number; canvasCssHeight: number } | null;
+  margin: { left: number; right: number };
+};
+
+type ProbeCanvasApi = CanvasTestApi<ProbeCanvasState> & {
+  probeCanvasPoint: (x: number, y: number) => Record<ProbeField, string | null>;
+};
+
+type ProbeScanOptions = {
+  field: ProbeField;
+  targetId?: string;
+  scanOrder: "x-first" | "y-first";
+  xStep: number;
+  yStep: number;
+  xMode: "inside-chart" | "topic-gutter";
+};
+
+async function findProbePoint(
+  page: Page,
+  options: ProbeScanOptions,
+): Promise<{ x: number; y: number; probeId: string } | null> {
+  return await page.evaluate((scan) => {
+    const api = (window as HarnessWindow).__ganttCanvasTestApi as ProbeCanvasApi | undefined;
+
+    api?.flush();
+    const state = api?.getState();
+    if (!api || !state?.layout) return null;
+
+    const minX =
+      scan.xMode === "topic-gutter"
+        ? Math.max(1, Math.floor(state.margin.left - 8))
+        : Math.max(1, state.margin.left + 1);
+    const maxX =
+      scan.xMode === "topic-gutter"
+        ? minX
+        : Math.max(minX, state.layout.canvasCssWidth - state.margin.right - 1);
+    const maxY = Math.max(1, state.layout.canvasCssHeight - 1);
+
+    const matches = (probeId: string | null): probeId is string => {
+      if (scan.targetId) {
+        return probeId === scan.targetId;
+      }
+      return !!probeId;
+    };
+
+    if (scan.scanOrder === "x-first") {
+      for (let x = minX; x <= maxX; x += scan.xStep) {
+        for (let y = 1; y <= maxY; y += scan.yStep) {
+          const probeId = api.probeCanvasPoint(x, y)[scan.field];
+          if (matches(probeId)) {
+            return { x, y, probeId };
+          }
+        }
+      }
+      return null;
+    }
+
+    for (let y = 1; y <= maxY; y += scan.yStep) {
+      for (let x = minX; x <= maxX; x += scan.xStep) {
+        const probeId = api.probeCanvasPoint(x, y)[scan.field];
+        if (matches(probeId)) {
+          return { x, y, probeId };
+        }
+      }
+    }
+
+    return null;
+  }, options);
+}
 
 export async function openE2eHarness(page: Page, options?: OpenHarnessOptions): Promise<Locator> {
   const fixture = options?.fixture ?? "core";
@@ -57,7 +130,7 @@ export async function openE2eHarness(page: Page, options?: OpenHarnessOptions): 
 export async function waitForCanvasApi(page: Page): Promise<void> {
   await page.waitForFunction(() => {
     const api = (window as HarnessWindow).__ganttCanvasTestApi as
-      | (CanvasTestApi & { getState: () => TestApiState })
+      | CanvasTestApi<TestApiState>
       | undefined;
     return !!api?.getState()?.layout;
   });
@@ -111,9 +184,10 @@ export async function dispatchCanvasMouseEvent(
   page: Page,
   canvasPoint: { x: number; y: number },
   type: "click" | "dblclick" | "contextmenu",
+  modifiers?: { ctrlKey?: boolean; metaKey?: boolean },
 ): Promise<void> {
   await page.evaluate(
-    ({ x, y, eventType }) => {
+    ({ x, y, eventType, eventModifiers }) => {
       const canvas = document.querySelector("canvas.chart-canvas") as HTMLCanvasElement | null;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
@@ -125,16 +199,18 @@ export async function dispatchCanvasMouseEvent(
           clientX: rect.left + x,
           clientY: rect.top + y,
           button,
+          ctrlKey: !!eventModifiers?.ctrlKey,
+          metaKey: !!eventModifiers?.metaKey,
         }),
       );
     },
-    { x: canvasPoint.x, y: canvasPoint.y, eventType: type },
+    { x: canvasPoint.x, y: canvasPoint.y, eventType: type, eventModifiers: modifiers ?? {} },
   );
 }
 
 export async function getCanvasState<TState extends CanvasStateRecord>(page: Page): Promise<TState | null> {
   return await page.evaluate(() => {
-    const api = (window as HarnessWindow).__ganttCanvasTestApi;
+    const api = (window as HarnessWindow).__ganttCanvasTestApi as CanvasTestApi<CanvasStateRecord> | undefined;
     api?.flush();
     return (api?.getState() ?? null) as TState | null;
   });
@@ -142,7 +218,7 @@ export async function getCanvasState<TState extends CanvasStateRecord>(page: Pag
 
 export async function getCanvasStateField<TValue>(page: Page, field: string): Promise<TValue | null> {
   return await page.evaluate((fieldName) => {
-    const api = (window as HarnessWindow).__ganttCanvasTestApi;
+    const api = (window as HarnessWindow).__ganttCanvasTestApi as CanvasTestApi<CanvasStateRecord> | undefined;
     api?.flush();
     const state = api?.getState();
     if (!state || !(fieldName in state)) {
@@ -190,72 +266,28 @@ export async function clearHarnessEvents(page: Page): Promise<void> {
 }
 
 export async function findVerticalMarkerPoint(page: Page, markerId: string): Promise<{ x: number; y: number }> {
-  const point = await page.evaluate((targetMarkerId) => {
-    const api = (window as HarnessWindow).__ganttCanvasTestApi as
-      | (CanvasTestApi & {
-          getState: () => {
-            layout: { canvasCssWidth: number; canvasCssHeight: number } | null;
-            margin: { left: number; right: number };
-          };
-          probeCanvasPoint: (x: number, y: number) => { verticalMarkerId: string | null };
-        })
-      | undefined;
-
-    api?.flush();
-    const state = api?.getState();
-    if (!api || !state?.layout) return null;
-
-    const minX = Math.max(1, state.margin.left + 1);
-    const maxX = Math.max(minX, state.layout.canvasCssWidth - state.margin.right - 1);
-    const maxY = Math.max(1, state.layout.canvasCssHeight - 1);
-
-    for (let x = minX; x <= maxX; x += 2) {
-      for (let y = 1; y <= maxY; y += 3) {
-        const probe = api.probeCanvasPoint(x, y);
-        if (probe.verticalMarkerId === targetMarkerId) {
-          return { x, y };
-        }
-      }
-    }
-
-    return null;
-  }, markerId);
+  const point = await findProbePoint(page, {
+    field: "verticalMarkerId",
+    targetId: markerId,
+    scanOrder: "x-first",
+    xStep: 2,
+    yStep: 3,
+    xMode: "inside-chart",
+  });
 
   expect(point, `Expected to find vertical marker point for ${markerId}`).not.toBeNull();
   return point as { x: number; y: number };
 }
 
 export async function findSuggestionPoint(page: Page, slotId: string): Promise<{ x: number; y: number }> {
-  const point = await page.evaluate((targetSlotId) => {
-    const api = (window as HarnessWindow).__ganttCanvasTestApi as
-      | (CanvasTestApi & {
-          getState: () => {
-            layout: { canvasCssWidth: number; canvasCssHeight: number } | null;
-            margin: { left: number; right: number };
-          };
-          probeCanvasPoint: (x: number, y: number) => { suggestionSlotId: string | null };
-        })
-      | undefined;
-
-    api?.flush();
-    const state = api?.getState();
-    if (!api || !state?.layout) return null;
-
-    const minX = Math.max(1, state.margin.left + 1);
-    const maxX = Math.max(minX, state.layout.canvasCssWidth - state.margin.right - 1);
-    const maxY = Math.max(1, state.layout.canvasCssHeight - 1);
-
-    for (let y = 1; y <= maxY; y += 2) {
-      for (let x = minX; x <= maxX; x += 2) {
-        const probe = api.probeCanvasPoint(x, y);
-        if (probe.suggestionSlotId === targetSlotId) {
-          return { x, y };
-        }
-      }
-    }
-
-    return null;
-  }, slotId);
+  const point = await findProbePoint(page, {
+    field: "suggestionSlotId",
+    targetId: slotId,
+    scanOrder: "y-first",
+    xStep: 2,
+    yStep: 2,
+    xMode: "inside-chart",
+  });
 
   expect(point, `Expected to find suggestion point for ${slotId}`).not.toBeNull();
   return point as { x: number; y: number };
@@ -264,34 +296,18 @@ export async function findSuggestionPoint(page: Page, slotId: string): Promise<{
 export async function findTopicTogglePoint(
   page: Page,
 ): Promise<{ x: number; y: number; topicId: string }> {
-  const point = await page.evaluate(() => {
-    const api = (window as HarnessWindow).__ganttCanvasTestApi as
-      | (CanvasTestApi & {
-          getState: () => {
-            layout: { canvasCssWidth: number; canvasCssHeight: number } | null;
-            margin: { left: number; right: number };
-          };
-          probeCanvasPoint: (x: number, y: number) => { topicId: string | null };
-        })
-      | undefined;
-
-    api?.flush();
-    const state = api?.getState();
-    if (!api || !state?.layout) return null;
-
-    const x = Math.max(1, Math.floor(state.margin.left - 8));
-    const maxY = Math.max(1, state.layout.canvasCssHeight - 1);
-
-    for (let y = 1; y <= maxY; y += 2) {
-      const probe = api.probeCanvasPoint(x, y);
-      if (probe.topicId) {
-        return { x, y, topicId: probe.topicId };
-      }
-    }
-
-    return null;
+  const point = await findProbePoint(page, {
+    field: "topicId",
+    scanOrder: "y-first",
+    xStep: 1,
+    yStep: 2,
+    xMode: "topic-gutter",
   });
 
   expect(point, "Expected to find topic toggle point in left label gutter").not.toBeNull();
-  return point as { x: number; y: number; topicId: string };
+  return {
+    x: (point as { x: number; y: number }).x,
+    y: (point as { x: number; y: number }).y,
+    topicId: (point as { probeId: string }).probeId,
+  };
 }

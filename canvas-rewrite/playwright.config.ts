@@ -6,10 +6,16 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: "html",
+  reporter: [
+    ["html", { open: "never" }],
+    ["json", { outputFile: "test-results/results.json" }],
+    ["./tests/e2e/reporters/ordered-screenshots-reporter.mjs", { outputDir: "test-results/ordered-screenshots" }],
+  ],
+  preserveOutput: "always",
   use: {
     baseURL: "http://localhost:5173",
-    trace: "on-first-retry",
+    trace: "on",
+    screenshot: "on",
   },
   projects: [
     {
