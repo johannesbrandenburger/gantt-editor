@@ -117,6 +117,9 @@ export class GanttChartCanvasController {
   private hoveredSuggestion: SuggestionButtonDefinition | null = null;
   private hoverTimeout: ReturnType<typeof setTimeout> | null = null;
   private suppressNextCanvasClick = false;
+  private lastClickedSlotId: string | null = null;
+  private lastDoubleClickedSlotId: string | null = null;
+  private lastContextClickedSlotId: string | null = null;
 
   private pointerInChart = false;
   private pointerCanvasX = 0;
@@ -747,6 +750,7 @@ export class GanttChartCanvasController {
 
     if (slotHit) {
       this.onSlotPrimaryClick(slotHit.slotId, e.metaKey || e.ctrlKey);
+      this.lastClickedSlotId = slotHit.slotId;
       this.callbacks.onClickOnSlot?.(slotHit.slotId);
       return;
     }
@@ -777,6 +781,7 @@ export class GanttChartCanvasController {
       endTime: this.internalEndTime,
     });
     if (!slotHit) return;
+    this.lastDoubleClickedSlotId = slotHit.slotId;
     this.callbacks.onDoubleClickOnSlot?.(slotHit.slotId);
   }
 
@@ -796,6 +801,7 @@ export class GanttChartCanvasController {
       endTime: this.internalEndTime,
     });
     if (!slotHit) return;
+    this.lastContextClickedSlotId = slotHit.slotId;
     this.callbacks.onContextClickOnSlot?.(slotHit.slotId);
   }
 
@@ -806,6 +812,266 @@ export class GanttChartCanvasController {
   /** For bindings that only need layout metrics without running a full draw. */
   getCurrentTopContentHeightPx(): number {
     return this.getChartLayout()?.currentTopContentHeight ?? 0;
+  }
+
+  /** Test-only snapshot for canvas e2e probes. Returns serializable state only. */
+  getTestState(): {
+    rowHeight: number;
+    hoveredSlotId: string | null;
+    pointerInChart: boolean;
+    clipboardSlotIds: string[];
+    lastClickedSlotId: string | null;
+    lastDoubleClickedSlotId: string | null;
+    lastContextClickedSlotId: string | null;
+    internalStartTimeMs: number;
+    internalEndTimeMs: number;
+    margin: { left: number; right: number };
+    layout: {
+      canvasCssWidth: number;
+      canvasCssHeight: number;
+      axisRect: { y: number; h: number };
+      groups: Array<{ id: string; y: number; h: number; scrollOffset: number }>;
+    } | null;
+  } {
+    const layout = this.getChartLayout();
+    return {
+      rowHeight: this.rowHeight,
+      hoveredSlotId: this.hoveredSlotId,
+      pointerInChart: this.pointerInChart,
+      clipboardSlotIds: this.clipboardItems.map((slot) => slot.id),
+      lastClickedSlotId: this.lastClickedSlotId,
+      lastDoubleClickedSlotId: this.lastDoubleClickedSlotId,
+      lastContextClickedSlotId: this.lastContextClickedSlotId,
+      internalStartTimeMs: this.internalStartTime.getTime(),
+      internalEndTimeMs: this.internalEndTime.getTime(),
+      margin: { left: MARGIN.left, right: MARGIN.right },
+      layout: layout
+        ? {
+            canvasCssWidth: layout.canvasCssWidth,
+            canvasCssHeight: layout.canvasCssHeight,
+            axisRect: {
+              y: layout.axisRect.y,
+              h: layout.axisRect.h,
+            },
+            groups: Array.from(layout.groupRects.entries()).map(([id, rect]) => ({
+              id,
+              y: rect.y,
+              h: rect.h,
+              scrollOffset: this.verticalScrollOffsets.get(id) || 0,
+            })),
+          }
+        : null,
+    };
+  }
+
+  /** Test-only hit probe in canvas-local coordinates. */
+  probeCanvasPoint(canvasX: number, canvasY: number): {
+    point: { x: number; y: number };
+    chartHitType: string;
+    groupId: string | null;
+    contentY: number | null;
+    slotId: string | null;
+    slotResize: { slotId: string; edge: SlotResizeEdge } | null;
+    departureGapSlotId: string | null;
+    verticalMarkerId: string | null;
+    suggestionSlotId: string | null;
+    topicId: string | null;
+  } {
+    const layout = this.getChartLayout();
+    if (!layout) {
+      return {
+        point: { x: canvasX, y: canvasY },
+        chartHitType: "none",
+        groupId: null,
+        contentY: null,
+        slotId: null,
+        slotResize: null,
+        departureGapSlotId: null,
+        verticalMarkerId: null,
+        suggestionSlotId: null,
+        topicId: null,
+      };
+    }
+
+    const x = Math.max(0, Math.min(layout.canvasCssWidth, canvasX));
+    const y = Math.max(0, Math.min(layout.canvasCssHeight, canvasY));
+    const hit = hitTestChart(layout, x, y);
+    if (hit.type !== "group") {
+      return {
+        point: { x, y },
+        chartHitType: hit.type,
+        groupId: null,
+        contentY: null,
+        slotId: null,
+        slotResize: null,
+        departureGapSlotId: null,
+        verticalMarkerId: null,
+        suggestionSlotId: null,
+        topicId: null,
+      };
+    }
+
+    const gr = layout.groupRects.get(hit.groupId);
+    if (!gr) {
+      return {
+        point: { x, y },
+        chartHitType: "group",
+        groupId: hit.groupId,
+        contentY: null,
+        slotId: null,
+        slotResize: null,
+        departureGapSlotId: null,
+        verticalMarkerId: null,
+        suggestionSlotId: null,
+        topicId: null,
+      };
+    }
+
+    const scroll = this.verticalScrollOffsets.get(hit.groupId) || 0;
+    const contentY = y - gr.y + scroll;
+    const groupTopics = this.topicsForGroup(hit.groupId);
+
+    const suggestion = this.hitSuggestionForGroup(
+      hit.groupId,
+      x,
+      contentY,
+      layout.canvasCssWidth,
+      groupTopics,
+    );
+
+    const verticalMarker = this.hitVerticalMarkerForGroup(
+      hit.groupId,
+      x,
+      y,
+      layout.canvasCssWidth,
+    );
+
+    const slot = slotsAllowLabelsAndInteraction(this.rowHeight)
+      ? hitTestSlotBar({
+          topics: groupTopics,
+          canvasX: x,
+          contentY,
+          margin: MARGIN,
+          width: layout.canvasCssWidth,
+          rowHeight: this.rowHeight,
+          startTime: this.internalStartTime,
+          endTime: this.internalEndTime,
+        })
+      : null;
+
+    const slotResize = slotsAllowLabelsAndInteraction(this.rowHeight)
+      ? hitTestSlotResizeEdge({
+          topics: groupTopics,
+          canvasX: x,
+          contentY,
+          margin: MARGIN,
+          width: layout.canvasCssWidth,
+          rowHeight: this.rowHeight,
+          startTime: this.internalStartTime,
+          endTime: this.internalEndTime,
+          isReadOnly: this.props.isReadOnly,
+        })
+      : null;
+
+    const departureGap = departureMarkersVisible(this.rowHeight)
+      ? hitTestDepartureGap({
+          width: layout.canvasCssWidth,
+          topics: groupTopics,
+          margin: MARGIN,
+          rowHeight: this.rowHeight,
+          startTime: this.internalStartTime,
+          endTime: this.internalEndTime,
+          canvasX: x,
+          contentY,
+        })
+      : null;
+
+    return {
+      point: { x, y },
+      chartHitType: "group",
+      groupId: hit.groupId,
+      contentY,
+      slotId: slot?.slotId ?? null,
+      slotResize: slotResize ? { slotId: slotResize.slotId, edge: slotResize.edge } : null,
+      departureGapSlotId: departureGap,
+      verticalMarkerId: verticalMarker?.id ?? null,
+      suggestionSlotId: suggestion?.slotId ?? null,
+      topicId: this.topicIdAtContentY(hit.groupId, contentY),
+    };
+  }
+
+  /** Test-only utility to locate a point for a slot interaction. */
+  findSlotPoint(
+    slotId: string,
+    mode: "center" | "left-edge" | "right-edge" = "center",
+  ): { x: number; y: number } | null {
+    const layout = this.getChartLayout();
+    if (!layout || !slotsAllowLabelsAndInteraction(this.rowHeight)) return null;
+
+    for (const group of this.props.destinationGroups) {
+      const gr = layout.groupRects.get(group.id);
+      if (!gr) continue;
+
+      const topics = this.topicsForGroup(group.id);
+      const scroll = this.verticalScrollOffsets.get(group.id) || 0;
+      const minX = Math.max(MARGIN.left + 1, 1);
+      const maxX = Math.max(minX, layout.canvasCssWidth - MARGIN.right - 1);
+      const minY = Math.max(1, gr.y + 1);
+      const maxY = Math.max(minY, gr.y + gr.h - 1);
+
+      for (let y = minY; y <= maxY; y += 2) {
+        const contentY = y - gr.y + scroll;
+        for (let x = minX; x <= maxX; x += 2) {
+          if (mode === "center") {
+            const hit = hitTestSlotBar({
+              topics,
+              canvasX: x,
+              contentY,
+              margin: MARGIN,
+              width: layout.canvasCssWidth,
+              rowHeight: this.rowHeight,
+              startTime: this.internalStartTime,
+              endTime: this.internalEndTime,
+            });
+            if (hit?.slotId === slotId) {
+              return { x, y };
+            }
+            continue;
+          }
+
+          const edgeHit = hitTestSlotResizeEdge({
+            topics,
+            canvasX: x,
+            contentY,
+            margin: MARGIN,
+            width: layout.canvasCssWidth,
+            rowHeight: this.rowHeight,
+            startTime: this.internalStartTime,
+            endTime: this.internalEndTime,
+            isReadOnly: this.props.isReadOnly,
+          });
+          if (!edgeHit || edgeHit.slotId !== slotId) continue;
+          if (mode === "left-edge" && edgeHit.edge === "left") {
+            return { x, y };
+          }
+          if (mode === "right-edge" && edgeHit.edge === "right") {
+            return { x, y };
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /** Force a synchronous redraw from tests to reduce timing flake around queued rAF updates. */
+  flushForTests(): void {
+    if (this.frameRedrawRaf !== null) {
+      cancelAnimationFrame(this.frameRedrawRaf);
+      this.frameRedrawRaf = null;
+    }
+    this.pendingRedrawFollowsInteractive = false;
+    this.drawUnifiedFrame();
   }
 
   private initMapsFromGroups(groups: GanttEditorCanvasProps["destinationGroups"]): void {

@@ -56,6 +56,39 @@ const chartContainerRef = ref<HTMLElement | null>(null);
 const chartCanvasRef = ref<HTMLCanvasElement | null>(null);
 
 const currentTopContentHeight = ref(0);
+const exposeTestApi = import.meta.env.DEV || import.meta.env.MODE === "test";
+
+type GanttCanvasTestApi = {
+  flush: () => void;
+  getState: () => ReturnType<GanttChartCanvasController["getTestState"]>;
+  probeCanvasPoint: (x: number, y: number) => ReturnType<GanttChartCanvasController["probeCanvasPoint"]>;
+  findSlotPoint: (
+    slotId: string,
+    mode?: "center" | "left-edge" | "right-edge",
+  ) => ReturnType<GanttChartCanvasController["findSlotPoint"]>;
+};
+
+let registeredTestApi: GanttCanvasTestApi | null = null;
+
+const installTestApi = () => {
+  if (!exposeTestApi) return;
+  registeredTestApi = {
+    flush: () => controller.flushForTests(),
+    getState: () => controller.getTestState(),
+    probeCanvasPoint: (x, y) => controller.probeCanvasPoint(x, y),
+    findSlotPoint: (slotId, mode = "center") => controller.findSlotPoint(slotId, mode),
+  };
+  (window as Window & { __ganttCanvasTestApi?: GanttCanvasTestApi }).__ganttCanvasTestApi = registeredTestApi;
+};
+
+const uninstallTestApi = () => {
+  if (!exposeTestApi) return;
+  const w = window as Window & { __ganttCanvasTestApi?: GanttCanvasTestApi };
+  if (w.__ganttCanvasTestApi === registeredTestApi) {
+    delete w.__ganttCanvasTestApi;
+  }
+  registeredTestApi = null;
+};
 
 function propsSnapshot(): GanttEditorCanvasProps {
   return {
@@ -141,9 +174,11 @@ onMounted(() => {
   if (root && canvas) {
     controller.attach(root, canvas);
   }
+  installTestApi();
 });
 
 onBeforeUnmount(() => {
+  uninstallTestApi();
   controller.detach();
 });
 
@@ -182,6 +217,13 @@ const clearClipboard = () => {
 defineExpose({
   clearClipboard,
   chartCanvas: chartCanvasRef,
+  ganttCanvasTestApi: {
+    flush: () => controller.flushForTests(),
+    getState: () => controller.getTestState(),
+    probeCanvasPoint: (x: number, y: number) => controller.probeCanvasPoint(x, y),
+    findSlotPoint: (slotId: string, mode?: "center" | "left-edge" | "right-edge") =>
+      controller.findSlotPoint(slotId, mode),
+  },
 });
 </script>
 
