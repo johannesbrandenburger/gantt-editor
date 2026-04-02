@@ -441,7 +441,6 @@ watch(
 );
 
 onMounted(() => {
-  localStorage.removeItem("collapsedTopics");
   (window as Window & { __ganttE2eHarness?: HarnessApi }).__ganttE2eHarness = testApi;
 });
 

@@ -7,6 +7,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: [
+    ["line"],
     ["html", { open: "never" }],
     ["json", { outputFile: "test-results/results.json" }],
     ["./tests/e2e/reporters/ordered-screenshots-reporter.mjs", { outputDir: "test-results/ordered-screenshots" }],
