@@ -13,7 +13,23 @@ type OpenHarnessOptions = {
 };
 
 type HarnessConfig = {
-  slots: Array<{ id: string; destinationId: string; closeTime: Date | string }>;
+  slots: Array<{
+    id: string;
+    displayName?: string;
+    destinationId: string;
+    openTime?: Date | string;
+    closeTime: Date | string;
+  }>;
+  isReadOnly?: boolean;
+  topContentPortion?: number;
+  suggestions?: Array<{ slotId: string; alternativeDestinationId: string }>;
+  verticalMarkers?: Array<{ id: string; date: Date | string; color?: string }>;
+  destinations?: Array<{ id: string; displayName?: string; groupId?: string }>;
+  markedRegion?: {
+    startTime: Date | string;
+    endTime: Date | string;
+    destinationId: string;
+  } | null;
 };
 
 type HarnessEvents = Record<string, unknown[]>;
@@ -27,6 +43,8 @@ type CanvasTestApi<TState = unknown> = {
 
 type E2eHarnessApi = {
   getConfig: () => HarnessConfig;
+  setConfig: (partial: Partial<HarnessConfig>) => HarnessConfig;
+  applyQuery: (query: Record<string, string | number | boolean | null | undefined>) => Promise<void>;
   getEvents: () => HarnessEvents;
   clearEvents: () => void;
 };
@@ -237,6 +255,30 @@ export async function getHarnessConfig(page: Page): Promise<HarnessConfig> {
   });
 }
 
+export async function setHarnessConfig(
+  page: Page,
+  partial: Partial<HarnessConfig>,
+): Promise<HarnessConfig> {
+  return await page.evaluate((nextPartial) => {
+    const harness = (window as HarnessWindow).__ganttE2eHarness as
+      | Pick<E2eHarnessApi, "setConfig">
+      | undefined;
+    return harness?.setConfig(nextPartial) ?? { slots: [] };
+  }, partial);
+}
+
+export async function applyHarnessQuery(
+  page: Page,
+  query: Record<string, string | number | boolean | null | undefined>,
+): Promise<void> {
+  await page.evaluate(async (nextQuery) => {
+    const harness = (window as HarnessWindow).__ganttE2eHarness as
+      | Pick<E2eHarnessApi, "applyQuery">
+      | undefined;
+    await harness?.applyQuery(nextQuery);
+  }, query);
+}
+
 export async function getHarnessSlotCloseTimeMs(page: Page, slotId: string): Promise<number | null> {
   return await page.evaluate((currentSlotId) => {
     const harness = (window as HarnessWindow).__ganttE2eHarness as
@@ -244,6 +286,18 @@ export async function getHarnessSlotCloseTimeMs(page: Page, slotId: string): Pro
       | undefined;
     const slot = harness?.getConfig().slots.find((item) => item.id === currentSlotId);
     return slot ? new Date(slot.closeTime).getTime() : null;
+  }, slotId);
+}
+
+export async function getHarnessSlotOpenTimeMs(page: Page, slotId: string): Promise<number | null> {
+  return await page.evaluate((currentSlotId) => {
+    const harness = (window as HarnessWindow).__ganttE2eHarness as
+      | Pick<E2eHarnessApi, "getConfig">
+      | undefined;
+    const slot = harness?.getConfig().slots.find((item) => item.id === currentSlotId) as
+      | { openTime?: Date | string }
+      | undefined;
+    return slot?.openTime ? new Date(slot.openTime).getTime() : null;
   }, slotId);
 }
 
