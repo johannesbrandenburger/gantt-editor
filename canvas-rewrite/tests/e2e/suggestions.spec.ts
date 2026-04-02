@@ -116,8 +116,10 @@ test.describe("canvas rewrite suggestions", () => {
       .toBe(0);
   });
 
-  test.skip(
-    "suggestion tooltip and hover-size visuals",
-    "Skipping: tooltip and icon-size animation are canvas raster effects not exposed through deterministic DOM/test API selectors.",
-  );
+  test("suggestion tooltip and hover-size visuals", async () => {
+    test.skip(
+      true,
+      "Skipping: tooltip and icon-size animation are canvas raster effects not exposed through deterministic DOM/test API selectors.",
+    );
+  });
 });

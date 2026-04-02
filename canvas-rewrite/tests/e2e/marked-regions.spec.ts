@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { getCanvasState, getHarnessConfig, openE2eHarness } from "./helpers";
 
 type CanvasState = {
@@ -23,10 +23,10 @@ function timeToCanvasX(state: CanvasState, dateMs: number): number {
 }
 
 async function sampleCanvasPixel(
-  page: Parameters<typeof test>[0]["page"],
+  page: Page,
   point: { x: number; y: number },
 ): Promise<Rgba> {
-  return await page.evaluate(({ x, y }) => {
+  return await page.evaluate(({ x, y }: { x: number; y: number }) => {
     const canvas = document.querySelector("canvas.chart-canvas") as HTMLCanvasElement | null;
     if (!canvas) throw new Error("Expected chart canvas");
     const context = canvas.getContext("2d", { willReadFrequently: true });
@@ -42,10 +42,10 @@ async function sampleCanvasPixel(
 }
 
 async function findTopicProbePoint(
-  page: Parameters<typeof test>[0]["page"],
+  page: Page,
   topicId: string,
 ): Promise<{ x: number; y: number }> {
-  const point = await page.evaluate((targetTopicId) => {
+  const point = await page.evaluate((targetTopicId: string) => {
     const api = (window as Window & {
       __ganttCanvasTestApi?: {
         flush: () => void;

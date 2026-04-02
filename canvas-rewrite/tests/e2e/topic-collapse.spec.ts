@@ -53,8 +53,10 @@ test.describe("canvas rewrite topic collapse", () => {
     await expect.poll(async () => await getCollapsedTopics(page)).toContain(togglePoint.topicId);
   });
 
-  test.skip(
-    "collapsed topic renders slots with reduced opacity",
-    "Skipping: slot opacity is rasterized in canvas and not directly introspectable via deterministic DOM/test API selectors.",
-  );
+  test("collapsed topic renders slots with reduced opacity", async () => {
+    test.skip(
+      true,
+      "Skipping: slot opacity is rasterized in canvas and not directly introspectable via deterministic DOM/test API selectors.",
+    );
+  });
 });

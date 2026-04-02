@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { findSlotPoint, getCanvasState, waitForCanvasApi } from "./helpers";
 
 type CanvasState = {
@@ -29,8 +29,8 @@ function colorDistance(actual: Rgba, expected: { r: number; g: number; b: number
   return Math.sqrt(dr * dr + dg * dg + db * db);
 }
 
-async function sampleCanvasPixel(page: Parameters<typeof test>[0]["page"], point: { x: number; y: number }): Promise<Rgba> {
-  return await page.evaluate(({ x, y }) => {
+async function sampleCanvasPixel(page: Page, point: { x: number; y: number }): Promise<Rgba> {
+  return await page.evaluate(({ x, y }: { x: number; y: number }) => {
     const canvas = document.querySelector("canvas.chart-canvas") as HTMLCanvasElement | null;
     if (!canvas) {
       throw new Error("Expected chart canvas to exist");

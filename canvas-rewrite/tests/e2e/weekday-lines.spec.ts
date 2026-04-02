@@ -79,8 +79,10 @@ test.describe("canvas rewrite weekday lines", () => {
     expect(isGreenish(pixel as Pixel)).toBe(false);
   });
 
-  test.skip(
-    "weekday labels display day names",
-    "Skipping: weekday label text is rasterized on canvas and not directly introspectable via deterministic DOM/test API selectors.",
-  );
+  test("weekday labels display day names", async () => {
+    test.skip(
+      true,
+      "Skipping: weekday label text is rasterized on canvas and not directly introspectable via deterministic DOM/test API selectors.",
+    );
+  });
 });

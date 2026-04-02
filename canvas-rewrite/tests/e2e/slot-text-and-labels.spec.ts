@@ -60,8 +60,10 @@ test.describe("canvas rewrite slot text and topic labels", () => {
     expect(point.y).toBeGreaterThan(0);
   });
 
-  test.skip(
-    "slot names are listed below each topic label",
-    "Skipping: canvas text layout is rasterized and not directly inspectable via deterministic DOM/test API selectors.",
-  );
+  test("slot names are listed below each topic label", async () => {
+    test.skip(
+      true,
+      "Skipping: canvas text layout is rasterized and not directly inspectable via deterministic DOM/test API selectors.",
+    );
+  });
 });
