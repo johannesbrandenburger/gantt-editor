@@ -28,6 +28,6 @@ test-results
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
-canvas-rewrite/playwright-report/
-canvas-rewrite/test-results/
-canvas-rewrite/dist/
+playwright-report/
+test-results/
+dist/

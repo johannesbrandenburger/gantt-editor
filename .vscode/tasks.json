@@ -25,31 +25,6 @@
         "reveal": "always",
         "panel": "dedicated"
       }
-    },
-    {
-      "label": "dev:canvas-rewrite",
-      "type": "shell",
-      "command": "npm run dev",
-      "isBackground": true,
-      "options": {
-        "cwd": "${workspaceFolder}/canvas-rewrite"
-      },
-      "problemMatcher": {
-        "owner": "custom",
-        "fileLocation": "absolute",
-        "pattern": {
-          "regexp": "^(?!x)x$"
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": ".",
-          "endsPattern": "http://(localhost|127\\.0\\.0\\.1):517\\d/"
-        }
-      },
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated"
-      }
     }
   ]
 }

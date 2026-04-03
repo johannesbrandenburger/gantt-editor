@@ -9,15 +9,6 @@
             "url": "http://localhost:3000",
             "webRoot": "${workspaceFolder}",
             "sourceMaps": true
-        },
-        {
-            "name": "Canvas Rewrite (5173)",
-            "type": "chrome",
-            "request": "launch",
-            "preLaunchTask": "dev:canvas-rewrite",
-            "url": "http://localhost:5173",
-            "webRoot": "${workspaceFolder}/canvas-rewrite",
-            "sourceMaps": true
         }
     ]
 }
