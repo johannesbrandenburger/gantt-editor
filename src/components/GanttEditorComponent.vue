@@ -2,13 +2,11 @@
   <div
     ref="chartContainerRef"
     class="chart-container"
-    :data-lazy-rendering="props.lazyRendering === true"
-    @mousemove="updateCursorPosition"
+    @mousemove="onContainerMouseMove"
     @mouseenter="onMouseEnter"
     @mouseleave="onMouseLeave"
   >
 
-    <!-- Top content slot (e.g., for LoadChart) -->
     <div
       v-if="$slots['top-content'] || topContentPortion"
       class="top-content-container"
@@ -17,78 +15,26 @@
       <slot name="top-content"></slot>
     </div>
 
-    <!-- Resize handle for top content -->
-    <div
-      v-if="$slots['top-content'] || topContentPortion"
-      class="resize-handle"
-      @mousedown="startTopContentResize($event)"
-    ></div>
-
-    <div class="x-axis-container">
-      <svg ref="xAxisRef"></svg>
-    </div>
-    <template
-      v-for="(group, index) in props.destinationGroups"
-      :key="index"
-    >
-      <div
-        :class="`gantt-container`"
-        :id="`${group.id}-gantt-container`"
-        :style="{ height: heightMap.get(group.id) + 'px' }"
-      >
-        <svg :ref="el => { if (el) ganttRefs[group.id] = el as SVGSVGElement }"></svg>
-      </div>
-      <div
-        class="resize-handle"
-        @mousedown="startResize($event, group.id)"
-        v-if="index < props.destinationGroups.length - 1"
-      ></div>
-    </template>
-
-    <div
-      v-if="clipboardItems.length && showClipboard"
-      class="pointer-clipboard"
-      :style="{
-        top: `${cursorPosition.y + 15}px`,
-        left: `${cursorPosition.x + 15}px`
-      }"
-    >
-      <v-chip
-        v-for="(item, index) in clipboardItems"
-        :key="index"
-        color="primary"
-        size="x-small"
-        class="m-1"
-        prepend-icon="mdi-pin"
-      >
-        {{ getClipboardItemName(item) }}
-      </v-chip>
+    <div class="chart-canvas-wrap">
+      <canvas
+        ref="chartCanvasRef"
+        class="chart-canvas"
+        @mousedown="onCanvasMouseDown"
+        @click="onCanvasClick"
+        @dblclick="onCanvasDoubleClick"
+        @contextmenu.prevent="onCanvasContextMenu"
+        @mousemove="onChartMouseMove"
+        @mouseleave="onChartMouseLeave"
+      ></canvas>
     </div>
   </div>
 </template>
 
 
 <script setup lang="ts">
-import * as d3 from "d3";
-import { updateChart } from "./gantt-editor-lib/chart/update-chart";
-import type { GanttEditorDestination, GanttEditorSlot, GanttEditorDestinationGroup, GanttEditorSuggestion, GanttEditorMarkedRegion, Settings, GanttEditorXAxisOptions, GanttEditorSlotWithUiAttributes, GanttEditorVerticalMarker } from "./gantt-editor-lib/chart/types";
-import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
-
-interface GanttEditorProps {
-  startTime: Date,
-  endTime: Date,
-  slots: Array<GanttEditorSlotWithUiAttributes>,
-  destinations: Array<GanttEditorDestination>,
-  destinationGroups: Array<GanttEditorDestinationGroup>,
-  suggestions: Array<GanttEditorSuggestion>,
-  markedRegion: GanttEditorMarkedRegion | null,
-  isReadOnly: boolean,
-  topContentPortion?: number,
-  xAxisOptions?: GanttEditorXAxisOptions,
-  lazyRendering?: boolean,
-  /** Optional full-height vertical timeline lines (draggable when not read-only). */
-  verticalMarkers?: GanttEditorVerticalMarker[],
-}
+import type { GanttEditorCanvasProps } from "./gantt-editor-lib/chart/gantt_canvas_props";
+import { GanttChartCanvasController } from "./gantt-editor-lib/chart/gantt_chart_canvas_controller";
+import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 
 interface GanttEditorEmits {
   onChangeStartAndEndTime: [Date, Date],
@@ -98,301 +44,109 @@ interface GanttEditorEmits {
   onHoverOnSlot: [string],
   onDoubleClickOnSlot: [string],
   onContextClickOnSlot: [string],
-  onTopContentPortionChange: [number, number], // [newPortion, newAbsoluteHeight]
+  onTopContentPortionChange: [number, number],
   onChangeVerticalMarker: [string, Date],
   onClickVerticalMarker: [string],
 }
 
-const props = defineProps<GanttEditorProps>();
+const props = defineProps<GanttEditorCanvasProps>();
 const emit = defineEmits<GanttEditorEmits>();
+
 const chartContainerRef = ref<HTMLElement | null>(null);
-const xAxisRef = ref<SVGSVGElement | null>(null);
-const containerHeight = ref(0);
+const chartCanvasRef = ref<HTMLCanvasElement | null>(null);
 
-// Top content resizing state
-const currentTopContentPortion = ref(props.topContentPortion || 0);
-const isResizingTopContent = ref(false);
-const topContentStartY = ref(0);
+const currentTopContentHeight = ref(0);
+const exposeTestApi = import.meta.env.DEV || import.meta.env.MODE === "test";
 
-const isResizing = ref(false);
-const resizingElement = ref<string | null>(null);
-const startY = ref(0);
-const currentHeightPortions = ref<Map<string, number>>(new Map<string, number>());
-props.destinationGroups.forEach((group) => {
-  currentHeightPortions.value.set(group.id, group.heightPortion);
-});
+type GanttCanvasTestApi = {
+  flush: () => void;
+  getState: () => ReturnType<GanttChartCanvasController["getTestState"]>;
+  probeCanvasPoint: (x: number, y: number) => ReturnType<GanttChartCanvasController["probeCanvasPoint"]>;
+  findSlotPoint: (
+    slotId: string,
+    mode?: "center" | "left-edge" | "right-edge",
+  ) => ReturnType<GanttChartCanvasController["findSlotPoint"]>;
+};
 
-const totalContentHeight = computed(() => {
-  return containerHeight.value - 3 * (props.destinationGroups.length - 1) - (currentTopContentPortion.value > 0 ? 3 : 0); // subtract resize handle heights
-});
+let registeredTestApi: GanttCanvasTestApi | null = null;
 
-const currentTopContentHeight = computed(() => {
-  return totalContentHeight.value * currentTopContentPortion.value;
-});
+const installTestApi = () => {
+  if (!exposeTestApi) return;
+  registeredTestApi = {
+    flush: () => controller.flushForTests(),
+    getState: () => controller.getTestState(),
+    probeCanvasPoint: (x, y) => controller.probeCanvasPoint(x, y),
+    findSlotPoint: (slotId, mode = "center") => controller.findSlotPoint(slotId, mode),
+  };
+  (window as Window & { __ganttCanvasTestApi?: GanttCanvasTestApi }).__ganttCanvasTestApi = registeredTestApi;
+};
 
-const outerComponentHeight = computed(() => {
-  return totalContentHeight.value * (1 - currentTopContentPortion.value);
-});
-
-// Track whether the component has fully initialized to avoid spurious emits
-const isInitialized = ref(false);
-
-watch(
-  () => currentTopContentHeight.value,
-  (newHeight) => {
-    // Only emit after the component has mounted and been measured
-    if (isInitialized.value) {
-      emit("onTopContentPortionChange", currentTopContentPortion.value, newHeight);
-    }
+const uninstallTestApi = () => {
+  if (!exposeTestApi) return;
+  const w = window as Window & { __ganttCanvasTestApi?: GanttCanvasTestApi };
+  if (w.__ganttCanvasTestApi === registeredTestApi) {
+    delete w.__ganttCanvasTestApi;
   }
-);
-
-const heightMap = computed(() => {
-  const map = new Map<string, number>();
-  props.destinationGroups.forEach((group) => {
-    map.set(group.id, outerComponentHeight.value * currentHeightPortions.value.get(group.id)!);
-  });
-  return map;
-});
-
-const ganttRefs = ref<Record<string, SVGSVGElement>>({});
-
-// Start resize operation
-const startResize = (e: MouseEvent, element: string) => {
-  isResizing.value = true;
-  resizingElement.value = element;
-  startY.value = e.clientY;
-
-  document.addEventListener('mousemove', handleResize);
-  document.addEventListener('mouseup', stopResize);
-  e.preventDefault(); // Prevent text selection during resize
+  registeredTestApi = null;
 };
 
-
-// Handle resize during mouse movement
-const handleResize = (e: MouseEvent) => {
-  if (!isResizing.value || !resizingElement.value) return;
-
-  const deltaY = e.clientY - startY.value;
-  const minHeightPortion = 0.01;
-
-  // Find the index of the element being resized
-  const currentIndex = props.destinationGroups.findIndex(group => group.id === resizingElement.value);
-  if (currentIndex < 0 || currentIndex >= props.destinationGroups.length - 1) return;
-
-  // Get the next element (the one being affected by the resize)
-  const nextElement = props.destinationGroups[currentIndex + 1];
-  const currentElement = props.destinationGroups[currentIndex];
-
-  // Get current portions
-  const currentPortion = currentHeightPortions.value.get(currentElement.id) || 0;
-  const nextPortion = currentHeightPortions.value.get(nextElement.id) || 0;
-
-  // Calculate the change in portion based on pixel change
-  const portionDelta = deltaY / outerComponentHeight.value;
-
-  // Calculate new portions
-  const totalPortion = currentPortion + nextPortion;
-  let newCurrentPortion = currentPortion + portionDelta;
-  let newNextPortion = nextPortion - portionDelta;
-
-  // Enforce minimum portion constraints (clamp then derive the other)
-  if (newCurrentPortion < minHeightPortion) {
-    newCurrentPortion = minHeightPortion;
-    newNextPortion = totalPortion - minHeightPortion;
-  } else if (newNextPortion < minHeightPortion) {
-    newNextPortion = minHeightPortion;
-    newCurrentPortion = totalPortion - minHeightPortion;
-  }
-
-  // Update height portions
-  currentHeightPortions.value.set(currentElement.id, newCurrentPortion);
-  currentHeightPortions.value.set(nextElement.id, newNextPortion);
-
-  // Update start position for next move
-  startY.value = e.clientY;
-
-  // Trigger redraw
-  triggerUpdate();
-};
-
-// Stop resize operation
-const stopResize = () => {
-  if (isResizing.value) {
-    isResizing.value = false;
-    resizingElement.value = null;
-    triggerUpdate(); // Update the charts after resize
-  }
-  document.removeEventListener('mousemove', handleResize);
-  document.removeEventListener('mouseup', stopResize);
-};
-
-const startTopContentResize = (e: MouseEvent) => {
-  isResizingTopContent.value = true;
-  topContentStartY.value = e.clientY;
-
-  document.addEventListener('mousemove', handleTopContentResize);
-  document.addEventListener('mouseup', stopTopContentResize);
-  e.preventDefault();
-};
-
-// Handle top content resize during mouse movement
-const handleTopContentResize = (e: MouseEvent) => {
-  if (!isResizingTopContent.value) return;
-
-  const deltaY = e.clientY - topContentStartY.value;
-  const portionDelta = deltaY / totalContentHeight.value;
-  let newPortion = currentTopContentPortion.value + portionDelta;
-
-  // min and max portion constraints
-  if (newPortion < 0.01) newPortion = 0.01; // minimum 1%
-  if (newPortion > 0.99) newPortion = 0.99; // maximum 99%
-
-  currentTopContentPortion.value = newPortion;
-  topContentStartY.value = e.clientY;
-
-  emit("onTopContentPortionChange", newPortion, totalContentHeight.value * newPortion);
-  triggerUpdate();
-};
-
-const stopTopContentResize = () => {
-  if (isResizingTopContent.value) {
-    isResizingTopContent.value = false;
-    triggerUpdate();
-  }
-  document.removeEventListener('mousemove', handleTopContentResize);
-  document.removeEventListener('mouseup', stopTopContentResize);
-};
-
-const cursorPosition = ref({ x: 0, y: 0 });
-const showClipboard = ref(false);
-const clipboardItems = ref<GanttEditorSlot[]>([]);
-const updateClipboard = () => {
-  const storedData = localStorage.getItem("pointerClipboard");
-  if (!storedData) {
-    clipboardItems.value = [];
-    return;
-  }
-  try {
-    const parsedData = JSON.parse(storedData) as GanttEditorSlot[];
-    clipboardItems.value = parsedData;
-  } catch (e) {
-    console.error("Error updating clipboard content:", e);
-    clipboardItems.value = [];
-  }
-};
-
-function getClipboardItemName(item: GanttEditorSlot): string {
-  return item.displayName;
+function propsSnapshot(): GanttEditorCanvasProps {
+  return {
+    startTime: props.startTime,
+    endTime: props.endTime,
+    slots: props.slots,
+    destinations: props.destinations,
+    destinationGroups: props.destinationGroups,
+    suggestions: props.suggestions,
+    verticalMarkers: props.verticalMarkers,
+    markedRegion: props.markedRegion,
+    isReadOnly: props.isReadOnly,
+    topContentPortion: props.topContentPortion,
+    xAxisOptions: props.xAxisOptions,
+  };
 }
 
-const updateCursorPosition = (e: MouseEvent) => {
-  cursorPosition.value = { x: e.clientX, y: e.clientY };
-};
+const controller = new GanttChartCanvasController(
+  propsSnapshot(),
+  {
+    onChangeStartAndEndTime: (start, end) => {
+      emit("onChangeStartAndEndTime", start, end);
+    },
+    onTopContentPortionChange: (portion, heightPx) => {
+      emit("onTopContentPortionChange", portion, heightPx);
+    },
+    onChangeSlotTime: (slotId, openTime, closeTime) => {
+      emit("onChangeSlotTime", slotId, openTime, closeTime);
+    },
+    onChangeDestinationId: (slotId, destinationId, preview) => {
+      emit("onChangeDestinationId", slotId, destinationId, preview);
+    },
+    onClickOnSlot: (slotId) => {
+      emit("onClickOnSlot", slotId);
+    },
+    onHoverOnSlot: (slotId) => {
+      emit("onHoverOnSlot", slotId);
+    },
+    onDoubleClickOnSlot: (slotId) => {
+      emit("onDoubleClickOnSlot", slotId);
+    },
+    onContextClickOnSlot: (slotId) => {
+      emit("onContextClickOnSlot", slotId);
+    },
+    onVerticalMarkerChange: (id, date) => {
+      emit("onChangeVerticalMarker", id, date);
+    },
+    onVerticalMarkerClick: (id) => {
+      emit("onClickVerticalMarker", id);
+    },
+  },
+  {
+    onTopContentHeightPx: (h) => {
+      currentTopContentHeight.value = h;
+    },
+  },
+);
 
-const onMouseEnter = () => {
-  showClipboard.value = true;
-};
-
-const onMouseLeave = () => {
-  showClipboard.value = false;
-};
-
-/**
- * Programmatically clears the clipboard.
- * This can be called from the parent component via ref.
- */
-const clearClipboard = () => {
-  console.log("Clearing clipboard programmatically");
-  localStorage.setItem("pointerClipboard", "[]");
-  updateClipboard();
-  props.slots.forEach(slot => { (slot).isCopied = false; });
-  triggerUpdate();
-};
-
-let clipboardController: { update: () => void } | null = null;
-let resizeObserver: ResizeObserver | null = null;
-
-const triggerUpdate = () => {
-  if (
-    xAxisRef.value &&
-    chartContainerRef.value &&
-    clipboardController &&
-    heightMap.value.size > 0
-  ) {
-
-    const svgRefs = new Map<string, SVGSVGElement>();
-    props.destinationGroups.forEach((group) => {
-      if (ganttRefs.value[group.id]) {
-        svgRefs.set(group.id, ganttRefs.value[group.id]);
-      }
-    });
-
-    updateChart({
-      xAxisSvgRef: xAxisRef.value,
-      data: props.slots,
-      destinationData: props.destinations,
-      processedData: [],
-      windowWidth: window.innerWidth,
-      startDateTime: props.startTime,
-      endDateTime: props.endTime,
-      onItemChanged: (item: { id: string;[key: string]: any }, wasSuggestion?: boolean) => {
-        if (item.destinationId) {
-          emit("onChangeDestinationId", item.id, item.destinationId, wasSuggestion ? true : false);
-        } else {
-          emit("onChangeSlotTime", item.id, item.openTime, item.closeTime);
-        }
-      },
-      onChangeStartAndEndDateTime: (start: Date, end: Date) => {
-        emit("onChangeStartAndEndTime", start, end);
-      },
-      settings: {
-        compactView: false,
-      } as Settings,
-      clipboardUpdate: clipboardController.update,
-      openAllocationDetails: (allocationId: string) => { emit("onClickOnSlot", allocationId); },
-      markedRegion: props.markedRegion ? {
-        timeInterval: {
-          start: props.markedRegion.startTime.getTime(),
-          end: props.markedRegion.endTime.getTime()
-        },
-        destinationId: props.markedRegion.destinationId,
-      } : null,
-      suggestions: props.suggestions.map((suggestion) => ({
-        id: suggestion.slotId,
-        alternativeDestination: suggestion.alternativeDestinationId,
-        alternativeDestinationDisplayName: suggestion.alternativeDestinationDisplayName || suggestion.alternativeDestinationId,
-      })),
-      destinationGroups: props.destinationGroups,
-      heights: heightMap.value,
-      svgRefs: svgRefs,
-      isReadOnly: props.isReadOnly,
-      onHoverOnSlot: (allocationId: string) => { emit("onHoverOnSlot", allocationId); },
-      onDoubleClickOnSlot: (allocationId: string) => { emit("onDoubleClickOnSlot", allocationId); },
-      onContextClickOnSlot: (allocationId: string) => { emit("onContextClickOnSlot", allocationId); },
-      xAxisOptions: props.xAxisOptions,
-      lazyRendering: props.lazyRendering,
-      verticalMarkers: props.verticalMarkers,
-      onVerticalMarkerChange: (id: string, date: Date) => { emit("onChangeVerticalMarker", id, date); },
-      onVerticalMarkerClick: (id: string) => { emit("onClickVerticalMarker", id); },
-    });
-  }
-};
-
-// Debounced trigger: when multiple props change in the same tick (e.g.
-// startTime + endTime + slots), we only render once.
-let updateScheduled = false;
-const scheduleTriggerUpdate = () => {
-  if (!updateScheduled) {
-    updateScheduled = true;
-    queueMicrotask(() => {
-      updateScheduled = false;
-      triggerUpdate();
-    });
-  }
-};
-
-// Single consolidated watcher for all chart-affecting props
 watch(
   () => [
     props.startTime,
@@ -401,115 +155,76 @@ watch(
     props.destinations,
     props.destinationGroups,
     props.suggestions,
-    props.markedRegion,
-    props.lazyRendering,
     props.verticalMarkers,
+    props.markedRegion,
+    props.isReadOnly,
+    props.topContentPortion,
+    props.xAxisOptions,
   ],
   () => {
-    scheduleTriggerUpdate();
+    controller.refreshModel(propsSnapshot());
   },
-  { deep: true }
+  { deep: true },
 );
 
-watch(
-  () => props.isReadOnly,
-  (newValue) => {
-    if (newValue) {
-      clearClipboard();
-    }
-    scheduleTriggerUpdate();
-  }
-);
-
-watch(
-  () => props.topContentPortion,
-  (newPortion) => {
-    if (newPortion !== undefined) {
-      currentTopContentPortion.value = newPortion;
-    }
-  }
-);
-
-const reziseWindow = () => {
-  scheduleTriggerUpdate();
-};
 onMounted(() => {
-  setTimeout(async () => {
-
-    clipboardController = { update: updateClipboard };
-    updateClipboard();
-
-    window.addEventListener("resize", reziseWindow);
-
-    if (chartContainerRef.value) {
-      containerHeight.value = chartContainerRef.value.clientHeight;
-      resizeObserver = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          containerHeight.value = entry.contentRect.height;
-        }
-        scheduleTriggerUpdate();
-      });
-      resizeObserver.observe(chartContainerRef.value);
-    }
-
-    triggerUpdate();
-
-    // Mark initialization complete so watchers can start emitting
-    isInitialized.value = true;
-  }, 5);
+  controller.updateClipboard();
+  const root = chartContainerRef.value;
+  const canvas = chartCanvasRef.value;
+  if (root && canvas) {
+    controller.attach(root, canvas);
+  }
+  installTestApi();
 });
 
 onBeforeUnmount(() => {
-  d3.select(xAxisRef.value).selectAll("*").remove();
-  props.destinationGroups.forEach((group) => {
-    if (ganttRefs.value[group.id]) {
-      // Clean up any active pan listeners stored on the chart group DOM node
-      type PanNode = SVGGElement & {
-        _activePanMove?: (e: MouseEvent) => void;
-        _activePanUp?: (e: MouseEvent) => void;
-        _isPanning?: boolean;
-      };
-      const svg = d3.select(ganttRefs.value[group.id]);
-      const chartGroupNode = svg.select(`.${group.id}-group`).node() as PanNode | null;
-      if (chartGroupNode) {
-        if (chartGroupNode._activePanMove) {
-          document.removeEventListener('mousemove', chartGroupNode._activePanMove);
-          chartGroupNode._activePanMove = undefined;
-        }
-        if (chartGroupNode._activePanUp) {
-          document.removeEventListener('mouseup', chartGroupNode._activePanUp);
-          chartGroupNode._activePanUp = undefined;
-        }
-      }
-
-      d3.select(ganttRefs.value[group.id]).selectAll("*").remove();
-    }
-    // Clean up lazy rendering scroll listeners
-    const container = document.getElementById(`${group.id}-gantt-container`) as HTMLElement & { _lazyScrollHandler?: EventListener };
-    if (container?._lazyScrollHandler) {
-      container.removeEventListener('scroll', container._lazyScrollHandler);
-    }
-  });
-  window.removeEventListener("resize", reziseWindow);
-
-  // Clean up tooltip DOM elements appended to body
-  d3.select("body").selectAll(".departure-marker-tooltip").remove();
-  d3.select("body").selectAll(".suggestion-tooltip").remove();
-
-  // Clean up namespaced body event listeners
-  d3.select(document).on("keydown.clearClipboard", null);
-
-  if (resizeObserver) {
-    resizeObserver.disconnect();
-    resizeObserver = null;
-  }
+  uninstallTestApi();
+  controller.detach();
 });
 
-// Expose methods that can be called from the parent component via ref
+const onContainerMouseMove = (e: MouseEvent) => {
+  controller.onContainerMouseMove(e);
+};
+const onChartMouseMove = (e: MouseEvent) => {
+  controller.onChartMouseMove(e);
+};
+const onChartMouseLeave = () => {
+  controller.onChartMouseLeave();
+};
+const onCanvasMouseDown = (e: MouseEvent) => {
+  controller.onCanvasMouseDown(e);
+};
+const onCanvasClick = (e: MouseEvent) => {
+  controller.onCanvasClick(e);
+};
+const onCanvasDoubleClick = (e: MouseEvent) => {
+  controller.onCanvasDoubleClick(e);
+};
+const onCanvasContextMenu = (e: MouseEvent) => {
+  controller.onCanvasContextMenu(e);
+};
+const onMouseEnter = () => {
+  controller.onMouseEnter();
+};
+const onMouseLeave = () => {
+  controller.onMouseLeave();
+};
+
+const clearClipboard = () => {
+  controller.clearClipboard();
+};
+
 defineExpose({
   clearClipboard,
+  chartCanvas: chartCanvasRef,
+  ganttCanvasTestApi: {
+    flush: () => controller.flushForTests(),
+    getState: () => controller.getTestState(),
+    probeCanvasPoint: (x: number, y: number) => controller.probeCanvasPoint(x, y),
+    findSlotPoint: (slotId: string, mode?: "center" | "left-edge" | "right-edge") =>
+      controller.findSlotPoint(slotId, mode),
+  },
 });
-
 </script>
 
 <style lang="css">
@@ -523,96 +238,20 @@ defineExpose({
   flex-direction: column;
 }
 
-.x-axis-container {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  height: 50px;
+.chart-canvas-wrap {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  overflow: hidden;
-  background-color: white;
+  position: relative;
 }
 
-.gantt-container {
-  overflow-y: auto;
-  overflow-x: hidden;
-  width: 100%;
-  background-color: white;
-}
-
-.resize-handle {
-  height: 3px;
-  width: 100%;
-  background-color: #e0e0e0;
-  cursor: ns-resize;
-  z-index: 10;
-}
-
-.resize-handle:hover {
-  background-color: #3700ff;
-}
-
-.resize-handle:active {
-  background-color: #6200ee;
+.chart-canvas {
+  display: block;
 }
 
 .top-content-container {
   width: 100%;
   overflow: hidden;
   background-color: white;
-}
-
-.topic-label,
-.row-label {
-  font-size: 12px;
-}
-
-.slot-text {
-  pointer-events: none;
-}
-
-.slot-group.dragging {
-  cursor: ew-resize;
-}
-
-.slot-group:hover .slot-rect {
-  fill-opacity: 0.9;
-}
-
-/* New styling for the Vuetify pointer clipboard */
-.pointer-clipboard {
-  position: fixed;
-  z-index: 1000;
-  pointer-events: none;
-}
-
-/* Keep any existing styles for clipboard chips if needed */
-.clipboard-chip text {
-  pointer-events: none;
-}
-
-
-/* .attr("class", d => `slot-box ${d.isCopied ? "copied" : ""}`) */
-
-@keyframes interval-marker-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.7; }
-}
-
-.slot-box.copied {
-  stroke: #000;
-  stroke-width: 1px;
-  stroke-dasharray: 5, 5;
-  animation: dash 1s linear infinite;
-
-  @keyframes dash {
-    0% {
-      stroke-dashoffset: 0;
-    }
-
-    100% {
-      stroke-dashoffset: 10;
-    }
-  }
 }
 </style>

@@ -1,106 +1,130 @@
-import { test, expect } from '@playwright/test';
-import { waitForChartLoad, clickSlot, switchToReadOnlyMode } from './helpers';
+import { expect, test, type Page } from "@playwright/test";
+import {
+  canvasPointToPagePoint,
+  dispatchCanvasMouseEvent,
+  findSlotPoint,
+  getCanvasStateField,
+  getHarnessSlotCloseTimeMs,
+  mouseDrag,
+  openE2eHarness,
+  setHarnessConfig,
+} from "./helpers";
 
-test.describe('Read-Only Mode', () => {
+const SLOT_ID = "LH123-20250101-F";
 
-  test('Toggle read-only mode via button', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+async function findSlotEdgePointOrNull(
+  page: Page,
+  slotId: string,
+): Promise<{ x: number; y: number } | null> {
+  return await page.evaluate((currentSlotId) => {
+    const api = (window as Window & {
+      __ganttCanvasTestApi?: {
+        flush: () => void;
+        findSlotPoint: (
+          slotId: string,
+          mode?: "center" | "left-edge" | "right-edge",
+        ) => { x: number; y: number } | null;
+      };
+    }).__ganttCanvasTestApi;
 
-    // Find the toggle button
-    const toggleButton = page.locator('button:has-text("Mode")');
-    await expect(toggleButton).toBeVisible();
+    api?.flush();
+    return api?.findSlotPoint(currentSlotId, "right-edge") ?? null;
+  }, slotId);
+}
 
-    // Initially should be in Editable mode
-    await expect(toggleButton).toContainText('Editable');
+test.describe("canvas rewrite read-only mode", () => {
+  test("toggle read-only mode blocks and restores slot pinning", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
 
-    // Click to toggle to read-only
-    await toggleButton.click();
-    await expect(toggleButton).toContainText('Read-Only');
+    const slotCenter = await findSlotPoint(page, SLOT_ID, "center");
+    await dispatchCanvasMouseEvent(page, slotCenter, "click");
 
-    // Click again to toggle back
-    await toggleButton.click();
-    await expect(toggleButton).toContainText('Editable');
+    await expect
+      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+        timeout: 2_000,
+      })
+      .toContain(SLOT_ID);
+
+    await setHarnessConfig(page, { isReadOnly: true });
+
+    await expect
+      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+        timeout: 2_000,
+      })
+      .toEqual([]);
+
+    await dispatchCanvasMouseEvent(page, slotCenter, "click");
+    await expect
+      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+        timeout: 2_000,
+      })
+      .toEqual([]);
+
+    await setHarnessConfig(page, { isReadOnly: false });
+    await dispatchCanvasMouseEvent(page, slotCenter, "click");
+
+    await expect
+      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+        timeout: 2_000,
+      })
+      .toContain(SLOT_ID);
   });
 
-  test('Slot resizing disabled in read-only mode', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("slot resizing is disabled in read-only mode", async ({ page }) => {
+    const canvas = await openE2eHarness(page, { fixture: "core" });
 
-    // Switch to read-only mode
-    await switchToReadOnlyMode(page);
+    const edgeWhileEditable = await findSlotEdgePointOrNull(page, SLOT_ID);
+    expect(edgeWhileEditable).not.toBeNull();
 
-    // Try to resize a slot by hovering and dragging
-    const slotGroup = page.locator('svg g.slot-group').first();
-    const slotBox = await slotGroup.boundingBox();
-    expect(slotBox).not.toBeNull();
+    const closeTimeBefore = await getHarnessSlotCloseTimeMs(page, SLOT_ID);
+    expect(closeTimeBefore).not.toBeNull();
 
-    // Hover over the slot to make resize handles visible
-    await slotGroup.hover();
-    await page.waitForTimeout(200);
+    await setHarnessConfig(page, { isReadOnly: true });
 
-    // Try to drag the right edge to resize
-    const rightEdgeX = slotBox!.x + slotBox!.width - 4;
-    const centerY = slotBox!.y + slotBox!.height / 2;
+    const edgeWhileReadonly = await findSlotEdgePointOrNull(page, SLOT_ID);
+    expect(edgeWhileReadonly).toBeNull();
 
-    await page.mouse.move(rightEdgeX, centerY);
-    await page.mouse.down();
-    await page.mouse.move(rightEdgeX + 50, centerY, { steps: 5 });
-    await page.mouse.up();
+    const slotCenter = await findSlotPoint(page, SLOT_ID, "center");
+    const from = await canvasPointToPagePoint(canvas, slotCenter);
+    const to = { x: from.x + 90, y: from.y };
+    await mouseDrag(page, from, to);
 
-    // Get the slot width after attempted resize
-    const newBox = await slotGroup.boundingBox();
-    expect(newBox).not.toBeNull();
-
-    // Width should be unchanged (resize blocked in read-only mode)
-    expect(newBox!.width).toBeCloseTo(slotBox!.width, 0);
+    await expect
+      .poll(async () => await getHarnessSlotCloseTimeMs(page, SLOT_ID), { timeout: 2_000 })
+      .toBe(closeTimeBefore);
   });
 
-  test('Slot pinning disabled in read-only mode', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("slot pinning is disabled in read-only fixture", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "readonly" });
 
-    // Switch to read-only mode
-    await switchToReadOnlyMode(page);
+    const slotCenter = await findSlotPoint(page, SLOT_ID, "center");
+    await dispatchCanvasMouseEvent(page, slotCenter, "click");
 
-    // Try to click on a slot
-    await clickSlot(page, 0);
-
-    // Clipboard should not show any items (no pointer-clipboard visible)
-    const clipboard = page.locator('.pointer-clipboard');
-    // Should either not exist or have no chips
-    const isVisible = await clipboard.isVisible().catch(() => false);
-    if (isVisible) {
-      const chips = await clipboard.locator('.v-chip').count();
-      expect(chips).toBe(0);
-    }
+    await expect
+      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+        timeout: 2_000,
+      })
+      .toEqual([]);
   });
 
-  test('Clipboard clears when switching to read-only mode', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("clipboard clears when switching to read-only mode", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
 
-    // Start in editable mode and click on a slot to add to clipboard
-    await clickSlot(page, 0);
-    await page.waitForTimeout(100);
+    const slotCenter = await findSlotPoint(page, SLOT_ID, "center");
+    await dispatchCanvasMouseEvent(page, slotCenter, "click");
 
-    // Move mouse over the chart to show clipboard
-    const chartContainer = page.locator('.chart-container');
-    await chartContainer.hover();
-    await page.waitForTimeout(100);
+    await expect
+      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+        timeout: 2_000,
+      })
+      .toContain(SLOT_ID);
 
-    // Verify clipboard has items
-    const clipboard = page.locator('.pointer-clipboard');
-    await expect(clipboard).toBeVisible();
-    const chipsBeforeToggle = await clipboard.locator('.v-chip').count();
-    expect(chipsBeforeToggle).toBeGreaterThan(0);
+    await setHarnessConfig(page, { isReadOnly: true });
 
-    // Switch to read-only mode
-    await switchToReadOnlyMode(page);
-    await page.waitForTimeout(100);
-
-    // Verify clipboard is empty
-    const chipsAfterToggle = await clipboard.locator('.v-chip').count();
-    expect(chipsAfterToggle).toBe(0);
+    await expect
+      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+        timeout: 2_000,
+      })
+      .toEqual([]);
   });
 });

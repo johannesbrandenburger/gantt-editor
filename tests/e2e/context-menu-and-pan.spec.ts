@@ -1,93 +1,116 @@
-import { test, expect } from '@playwright/test';
-import { waitForChartLoad, setupConsoleLogListener } from './helpers';
+import { expect, test, type Page } from "@playwright/test";
+import {
+  canvasPointToPagePoint,
+  clearHarnessEvents,
+  getCanvasState,
+  getCanvasStateField,
+  getHarnessEvents,
+  openE2eHarness,
+} from "./helpers";
 
-test.describe('Context Menu Suppression and Pan Edge Cases', () => {
+type CanvasState = {
+  margin: { left: number; right: number };
+  layout: {
+    groups: Array<{ id: string; y: number; h: number }>;
+  } | null;
+};
 
-  test('Right-click on chart area does not open browser context menu', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+async function getPanStartPoint(page: Page): Promise<{ x: number; y: number }> {
+  const state = await getCanvasState<CanvasState>(page);
+  expect(state).not.toBeNull();
+  expect(state?.layout).not.toBeNull();
 
-    // Set up a listener on the document to capture the contextmenu event
-    // and check if it was prevented by D3's handler on the chart group
+  if (!state?.layout || state.layout.groups.length === 0) {
+    throw new Error("Expected chart layout groups to compute pan test point");
+  }
+
+  return {
+    x: state.margin.left + 4,
+    y: state.layout.groups[0]!.y + Math.max(8, Math.floor(state.layout.groups[0]!.h * 0.2)),
+  };
+}
+
+test.describe("canvas rewrite context menu and pan", () => {
+  test("right click on canvas prevents default context menu", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
+    const panStartPoint = await getPanStartPoint(page);
+    const pagePoint = await canvasPointToPagePoint(canvas, panStartPoint);
+
     await page.evaluate(() => {
-      (window as any).__contextMenuPrevented = null;
-      document.addEventListener('contextmenu', (e) => {
-        (window as any).__contextMenuPrevented = e.defaultPrevented;
-      }, { once: true });
+      (window as Window & { __contextMenuPrevented?: boolean | null }).__contextMenuPrevented = null;
+      document.addEventListener(
+        "contextmenu",
+        (event) => {
+          (window as Window & { __contextMenuPrevented?: boolean }).__contextMenuPrevented =
+            event.defaultPrevented;
+        },
+        { once: true, capture: false },
+      );
     });
 
-    // Right-click on the chart area using Playwright (targets the actual D3 chart group)
-    const ganttContainer = page.locator('.gantt-container').first();
-    const box = await ganttContainer.boundingBox();
-    expect(box).not.toBeNull();
+    await page.mouse.click(pagePoint.x, pagePoint.y, { button: "right" });
 
-    if (box) {
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' });
-      await page.waitForTimeout(200);
-    }
-
-    // Check that the contextmenu event was prevented by the D3 handler
-    const wasPrevented = await page.evaluate(() => (window as any).__contextMenuPrevented);
-    expect(wasPrevented).toBe(true);
+    await expect
+      .poll(
+        async () =>
+          await page.evaluate(
+            () => (window as Window & { __contextMenuPrevented?: boolean | null }).__contextMenuPrevented,
+          ),
+        { timeout: 2_000 },
+      )
+      .toBe(true);
   });
 
-  test('Right-click without moving does not trigger pan callback', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("right click without drag does not commit pan callback", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
+    await clearHarnessEvents(page);
 
-    const logs = setupConsoleLogListener(page);
+    const beforeStartMs = await getCanvasStateField<number>(page, "internalStartTimeMs");
+    const panStartPoint = await getPanStartPoint(page);
+    const pagePoint = await canvasPointToPagePoint(canvas, panStartPoint);
 
-    // Right-click on the chart without moving the mouse
-    const ganttContainer = page.locator('.gantt-container').first();
-    const box = await ganttContainer.boundingBox();
-    expect(box).not.toBeNull();
+    await page.mouse.move(pagePoint.x, pagePoint.y);
+    await page.mouse.down({ button: "right" });
+    await page.mouse.up({ button: "right" });
 
-    if (box) {
-      const clickX = box.x + box.width / 2;
-      const clickY = box.y + box.height / 2;
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        return (events.onChangeStartAndEndTime ?? []).length;
+      })
+      .toBe(0);
 
-      // Move to position first
-      await page.mouse.move(clickX, clickY);
-      await page.waitForTimeout(100);
-
-      // Right-click and immediately release without moving
-      await page.mouse.down({ button: 'right' });
-      await page.waitForTimeout(100);
-      await page.mouse.up({ button: 'right' });
-
-      await page.waitForTimeout(500);
-    }
-
-    // Verify no navigation callback was triggered
-    const hasNavigationCallback = logs.some(log => log.includes('Navigated to new time window'));
-    expect(hasNavigationCallback).toBe(false);
+    await expect
+      .poll(async () => await getCanvasStateField<number>(page, "internalStartTimeMs"), {
+        timeout: 2_000,
+      })
+      .toBe(beforeStartMs);
   });
 
-  test('Right-click with mouse movement triggers pan callback', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("right click drag commits pan callback and shifts internal time range", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
+    await clearHarnessEvents(page);
 
-    const logs = setupConsoleLogListener(page);
+    const beforeStartMs = await getCanvasStateField<number>(page, "internalStartTimeMs");
+    const panStartPoint = await getPanStartPoint(page);
+    const pagePoint = await canvasPointToPagePoint(canvas, panStartPoint);
 
-    const ganttContainer = page.locator('.gantt-container').first();
-    const box = await ganttContainer.boundingBox();
-    expect(box).not.toBeNull();
+    await page.mouse.move(pagePoint.x, pagePoint.y);
+    await page.mouse.down({ button: "right" });
+    await page.mouse.move(pagePoint.x - 120, pagePoint.y, { steps: 8 });
+    await page.mouse.up({ button: "right" });
 
-    if (box) {
-      const startX = box.x + box.width / 2;
-      const startY = box.y + box.height / 2;
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        return (events.onChangeStartAndEndTime ?? []).length;
+      })
+      .toBeGreaterThan(0);
 
-      // Right-click and drag
-      await page.mouse.move(startX, startY);
-      await page.mouse.down({ button: 'right' });
-      await page.mouse.move(startX - 100, startY, { steps: 5 });
-      await page.mouse.up({ button: 'right' });
-
-      await page.waitForTimeout(500);
-    }
-
-    // Verify navigation callback was triggered
-    const hasNavigationCallback = logs.some(log => log.includes('Navigated to new time window'));
-    expect(hasNavigationCallback).toBe(true);
+    await expect
+      .poll(async () => await getCanvasStateField<number>(page, "internalStartTimeMs"), {
+        timeout: 2_000,
+      })
+      .not.toBe(beforeStartMs);
   });
 });

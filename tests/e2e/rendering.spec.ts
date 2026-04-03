@@ -1,104 +1,109 @@
-import { test, expect } from '@playwright/test';
-import { waitForChartLoad } from './helpers';
+import { expect, test, type Page } from "@playwright/test";
+import {
+  findSlotPoint,
+  findTopicTogglePoint,
+  getCanvasState,
+  getCanvasStateField,
+  openE2eHarness,
+} from "./helpers";
 
-test.describe('Rendering & Display', () => {
+type CanvasState = {
+  margin: { left: number; right: number };
+  internalStartTimeMs: number;
+  internalEndTimeMs: number;
+  layout: {
+    canvasCssWidth: number;
+    canvasCssHeight: number;
+    groups: Array<{ id: string; y: number; h: number }>;
+  } | null;
+};
 
-  test('Component loads and renders SVG chart', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+async function findDepartureGapSlotId(page: Page): Promise<string | null> {
+  return await page.evaluate(() => {
+    const api = (window as Window & {
+      __ganttCanvasTestApi?: {
+        flush: () => void;
+        getState: () => {
+          margin: { left: number; right: number };
+          layout: { canvasCssWidth: number; canvasCssHeight: number } | null;
+        };
+        probeCanvasPoint: (
+          x: number,
+          y: number,
+        ) => { departureGapSlotId: string | null };
+      };
+    }).__ganttCanvasTestApi;
 
-    // Check that SVGs are present
-    const svgs = page.locator('svg');
-    await expect(svgs.first()).toBeVisible();
+    api?.flush();
+    const state = api?.getState();
+    if (!api || !state?.layout) return null;
 
-    // Check for x-axis container
-    await expect(page.locator('.x-axis-container svg')).toBeVisible();
+    const minX = state.margin.left + 1;
+    const maxX = Math.max(minX, state.layout.canvasCssWidth - state.margin.right - 1);
+    const maxY = Math.max(1, state.layout.canvasCssHeight - 1);
 
-    // Check for gantt containers
-    await expect(page.locator('.gantt-container')).toHaveCount(2); // allocated + unallocated
+    for (let y = 1; y <= maxY; y += 3) {
+      for (let x = minX; x <= maxX; x += 3) {
+        const slotId = api.probeCanvasPoint(x, y).departureGapSlotId;
+        if (slotId) return slotId;
+      }
+    }
+
+    return null;
+  });
+}
+
+test.describe("canvas rewrite rendering and display", () => {
+  test("component loads and renders chart canvas", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
+
+    const state = await getCanvasState<CanvasState>(page);
+    expect(state).not.toBeNull();
+    expect(state?.layout).not.toBeNull();
+    expect(state?.layout?.canvasCssWidth ?? 0).toBeGreaterThan(0);
+    expect(state?.layout?.canvasCssHeight ?? 0).toBeGreaterThan(0);
   });
 
-  test('Displays slots (bars) with correct properties', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("displays slots that are hit-testable", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
 
-    // Verify slots exist
-    const slotPaths = page.locator('svg path.slot-box');
-    const count = await slotPaths.count();
-    expect(count).toBeGreaterThan(0);
-
-    // Check slot has required attributes (fill color, path)
-    const firstSlot = slotPaths.first();
-    const fill = await firstSlot.getAttribute('fill');
-    expect(fill).toBeTruthy();
-
-    // Check slot text is displayed
-    const slotTexts = page.locator('svg .slot-text');
-    expect(await slotTexts.count()).toBeGreaterThan(0);
+    const slotPoint = await findSlotPoint(page, "LH123-20250101-F", "center");
+    expect(slotPoint.x).toBeGreaterThan(0);
+    expect(slotPoint.y).toBeGreaterThan(0);
   });
 
-  test('Shows destinations on Y-axis', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("shows destination labels in topic gutter", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
 
-    // Check for topic labels (destination names)
-    const topicLabels = page.locator('svg .topic-label');
-    const count = await topicLabels.count();
-    expect(count).toBeGreaterThan(0);
-
-    // Verify at least one MUP destination is visible
-    const mupLabel = page.locator('svg .topic-label:has-text("MUP")').first();
-    await expect(mupLabel).toBeVisible();
+    const topicPoint = await findTopicTogglePoint(page);
+    expect(topicPoint.topicId.length).toBeGreaterThan(0);
   });
 
-  test('Shows destination groups', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("shows destination groups in layout", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
 
-    // Check for allocated and unallocated gantt containers
-    await expect(page.locator('#allocated-gantt-container')).toBeVisible();
-    await expect(page.locator('#unallocated-gantt-container')).toBeVisible();
+    const state = await getCanvasState<CanvasState>(page);
+    expect(state?.layout?.groups.map((group) => group.id).sort()).toEqual([
+      "allocated",
+      "unallocated",
+    ]);
   });
 
-  test('Displays X-axis with time labels', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("renders a valid x-axis time window", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
 
-    // Check for x-axis groups
-    const xAxisGroup = page.locator('.x-axis-container svg .x-axis');
-    await expect(xAxisGroup).toBeVisible();
+    const startMs = await getCanvasStateField<number>(page, "internalStartTimeMs");
+    const endMs = await getCanvasStateField<number>(page, "internalEndTimeMs");
 
-    // Check for x-axis date group (upper axis)
-    const xAxisDate = page.locator('.x-axis-container svg .x-axis-date');
-    await expect(xAxisDate).toBeVisible();
-
-    // Verify tick labels exist
-    const tickLabels = page.locator('.x-axis-container svg text');
-    expect(await tickLabels.count()).toBeGreaterThan(0);
+    expect(startMs).not.toBeNull();
+    expect(endMs).not.toBeNull();
+    expect((endMs as number) - (startMs as number)).toBeGreaterThan(0);
   });
 
-  test('Shows current time indicator', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
-    
-    // Current time line should be visible
-    const currentTimeLine = page.locator('svg .current-time-line').first();
-    await expect(currentTimeLine).toBeInViewport();
+  test("renders departure marker hit regions for slots with deadlines", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
 
-    // Current time label should be visible
-    const currentTimeLabel = page.locator('svg .current-time-text').first();
-    await expect(currentTimeLabel).toBeVisible();
-  });
-
-  test('Renders deadline markers for slots', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
-
-    // Check for departure markers (deadline indicators)
-    const departureMarkers = page.locator('svg .departure-marker');
-    // Departure markers should exist for slots with deadlines
-    const count = await departureMarkers.count();
-    // May be 0 if no deadlines in view, but should not error
-    expect(count).toBeGreaterThanOrEqual(0);
+    const departureGapSlotId = await findDepartureGapSlotId(page);
+    expect(departureGapSlotId).toBeTruthy();
   });
 });

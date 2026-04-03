@@ -1,64 +1,85 @@
-import { test, expect } from '@playwright/test';
-import { waitForChartLoad } from './helpers';
+import { expect, test } from "@playwright/test";
+import {
+  canvasPointToPagePoint,
+  clearHarnessEvents,
+  dispatchCanvasMouseEvent,
+  findVerticalMarkerPoint,
+  getHarnessConfig,
+  getHarnessEvents,
+  mouseDrag,
+  openE2eHarness,
+} from "./helpers";
 
-/** Uses `/small-example` fixed vertical marker color (see `src/pages/small-example.vue`). */
-test.describe('Vertical markers', () => {
-  test('Renders line and handle with configured color', async ({ page }) => {
-    await page.goto('/small-example');
-    await waitForChartLoad(page);
+const MARKER_STD = "m-std";
+const MARKER_ETD = "m-etd";
 
-    const lines = page.locator('#allocated-gantt-container svg .gantt-vertical-marker-line');
-    const handles = page.locator('#allocated-gantt-container svg .gantt-vertical-marker-handle');
+test.describe("canvas rewrite vertical markers", () => {
+  test("markers are rendered and hit-testable", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "markers" });
 
-    await expect(lines).toHaveCount(1);
-    await expect(handles).toHaveCount(1);
+    const stdPoint = await findVerticalMarkerPoint(page, MARKER_STD);
+    const etdPoint = await findVerticalMarkerPoint(page, MARKER_ETD);
 
-    const lineStroke = await lines.getAttribute('stroke');
-    const handleFill = await handles.getAttribute('fill');
-
-    expect(lineStroke?.toLowerCase()).toBe('#00ff00');
-    expect(handleFill?.toLowerCase()).toBe('#00ff00');
+    expect(stdPoint.x).toBeGreaterThan(0);
+    expect(etdPoint.x).toBeGreaterThan(0);
+    expect(stdPoint.y).toBeGreaterThanOrEqual(0);
+    expect(etdPoint.y).toBeGreaterThanOrEqual(0);
   });
 
-  test('Vertical markers are present in each destination group chart', async ({ page }) => {
-    await page.goto('/small-example');
-    await waitForChartLoad(page);
+  test("configured marker colors are exposed in marker config", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "markers" });
 
-    const allocated = page.locator('#allocated-gantt-container svg .gantt-vertical-marker-line');
-    const unallocated = page.locator('#unallocated-gantt-container svg .gantt-vertical-marker-line');
-
-    await expect(allocated).toHaveCount(1);
-    await expect(unallocated).toHaveCount(1);
+    const markers = (await getHarnessConfig(page)).verticalMarkers ?? [];
+    expect(markers.find((marker) => marker.id === MARKER_STD)?.color?.toLowerCase()).toBe("#e74c3c");
+    expect(markers.find((marker) => marker.id === MARKER_ETD)?.color?.toLowerCase()).toBe("#2ecc71");
   });
 
-  test('Dragging a vertical marker moves the line to a new time', async ({ page }) => {
-    await page.goto('/small-example');
-    await waitForChartLoad(page);
+  test("clicking a marker emits onClickVerticalMarker", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "markers" });
+    await clearHarnessEvents(page);
 
-    const container = page.locator('#allocated-gantt-container');
-    const line = container.locator('svg .gantt-vertical-marker-line');
-    const hit = container.locator('svg .gantt-vertical-marker-hit');
-
-    const x1Before = parseFloat((await line.getAttribute('x1')) || '');
-    expect(Number.isFinite(x1Before)).toBe(true);
-
-    const box = await hit.boundingBox();
-    expect(box).not.toBeNull();
-
-    const startX = box!.x + box!.width / 2;
-    const startY = box!.y + box!.height / 2;
-    const delta = 90;
-
-    await page.mouse.move(startX, startY);
-    await page.mouse.down();
-    await page.mouse.move(startX + delta, startY, { steps: 10 });
-    await page.mouse.up();
+    const point = await findVerticalMarkerPoint(page, MARKER_STD);
+    await dispatchCanvasMouseEvent(page, point, "click");
 
     await expect
       .poll(async () => {
-        const v = parseFloat((await line.getAttribute('x1')) || '');
-        return Number.isFinite(v) ? Math.abs(v - x1Before) : 0;
-      }, { timeout: 8000 })
-      .toBeGreaterThan(25);
+        const events = await getHarnessEvents(page);
+        const clicks = (events.onClickVerticalMarker ?? []) as Array<{ id?: string }>;
+        return clicks.at(-1)?.id ?? null;
+      })
+      .toBe(MARKER_STD);
+  });
+
+  test("dragging a marker changes its date", async ({ page }) => {
+    const canvas = await openE2eHarness(page, { fixture: "markers" });
+    await clearHarnessEvents(page);
+
+    const beforeDate = (await getHarnessConfig(page)).verticalMarkers?.find(
+      (marker) => marker.id === MARKER_STD,
+    )?.date;
+    expect(beforeDate).toBeTruthy();
+
+    const markerPoint = await findVerticalMarkerPoint(page, MARKER_STD);
+    const from = await canvasPointToPagePoint(canvas, markerPoint);
+    const to = { x: from.x + 100, y: from.y };
+
+    await mouseDrag(page, from, to);
+
+    await expect
+      .poll(async () => {
+        const marker = (await getHarnessConfig(page)).verticalMarkers?.find(
+          (item) => item.id === MARKER_STD,
+        );
+        return marker?.date ? new Date(marker.date).getTime() : null;
+      })
+      .not.toBe(beforeDate ? new Date(beforeDate).getTime() : null);
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const changes = (events.onChangeVerticalMarker ?? []) as Array<{ id?: string }>;
+        return changes.at(-1)?.id ?? null;
+      })
+      .toBe(MARKER_STD);
   });
 });

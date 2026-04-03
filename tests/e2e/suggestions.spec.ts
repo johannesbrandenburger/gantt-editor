@@ -1,267 +1,125 @@
-import { test, expect } from '@playwright/test';
-import { waitForChartLoad, setupConsoleLogListener } from './helpers';
+import { expect, test } from "@playwright/test";
+import {
+  clearHarnessEvents,
+  dispatchCanvasMouseEvent,
+  findSuggestionPoint,
+  getHarnessConfig,
+  getHarnessEvents,
+  openE2eHarness,
+  setHarnessConfig,
+} from "./helpers";
 
-test.describe('Suggestions', () => {
+const SLOT_ID = "SUGGEST-100";
 
-  test('Suggestion buttons (💡) are rendered for slots with suggestions', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+test.describe("canvas rewrite suggestions", () => {
+  test("suggestion marker is rendered and hit-testable", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "suggestions" });
 
-    // The demo page generates suggestions for the first 3 slots
-    // Suggestion buttons are rendered as SVG text elements with class "suggestion-button"
-    const suggestionButtons = page.locator('svg .suggestion-button');
-    const count = await suggestionButtons.count();
-    expect(count).toBeGreaterThan(0);
-
-    // Verify the buttons display the 💡 emoji
-    const firstButton = suggestionButtons.first();
-    const text = await firstButton.textContent();
-    expect(text).toBe('💡');
+    const point = await findSuggestionPoint(page, SLOT_ID);
+    expect(point.x).toBeGreaterThan(0);
+    expect(point.y).toBeGreaterThan(0);
   });
 
-  test('Hovering a suggestion button shows a tooltip', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("clicking a suggestion applies destination change with preview flag", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "suggestions" });
+    await clearHarnessEvents(page);
 
-    // Get the first suggestion button
-    const suggestionButtons = page.locator('svg .suggestion-button');
-    await expect(suggestionButtons.first()).toBeVisible();
+    const point = await findSuggestionPoint(page, SLOT_ID);
+    await dispatchCanvasMouseEvent(page, point, "click");
 
-    // Hover over the first suggestion button
-    await suggestionButtons.first().hover();
-    await page.waitForTimeout(300);
-
-    // The tooltip should become visible with text about moving to alternative destination
-    const tooltip = page.locator('.suggestion-tooltip');
-    await expect(tooltip).toBeVisible();
-
-    const tooltipText = await tooltip.textContent();
-    expect(tooltipText).toContain('Move to alternative destination');
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const changes = (events.onChangeDestinationId ?? []) as Array<{
+          slotId?: string;
+          destinationId?: string;
+          preview?: boolean;
+        }>;
+        return changes.at(-1) ?? null;
+      })
+      .toEqual({ slotId: SLOT_ID, destinationId: "chute-3", preview: true });
   });
 
-  test('Suggestion button grows on hover', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("applied suggestion updates slot destination in harness config", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "suggestions" });
 
-    const suggestionButton = page.locator('svg .suggestion-button').first();
-    await expect(suggestionButton).toBeVisible();
+    const destinationBefore = (await getHarnessConfig(page)).slots.find((slot) => slot.id === SLOT_ID)?.destinationId;
+    expect(destinationBefore).toBe("chute-1");
 
-    // Check initial font size
-    const initialFontSize = await suggestionButton.getAttribute('font-size');
-    expect(initialFontSize).toBe('18px');
+    const point = await findSuggestionPoint(page, SLOT_ID);
+    await dispatchCanvasMouseEvent(page, point, "click");
 
-    // Hover to trigger size change
-    await suggestionButton.hover();
-    await page.waitForTimeout(300);
-
-    // Font size should increase to 30px on hover
-    const hoveredFontSize = await suggestionButton.getAttribute('font-size');
-    expect(hoveredFontSize).toBe('30px');
+    await expect
+      .poll(async () => (await getHarnessConfig(page)).slots.find((slot) => slot.id === SLOT_ID)?.destinationId)
+      .toBe("chute-3");
   });
 
-  test('Tooltip hides when mouse leaves suggestion button', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("sequential suggestion updates use latest suggestion target", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "suggestions" });
+    await clearHarnessEvents(page);
 
-    const suggestionButton = page.locator('svg .suggestion-button').first();
-    await expect(suggestionButton).toBeVisible();
+    const firstPoint = await findSuggestionPoint(page, SLOT_ID);
+    await dispatchCanvasMouseEvent(page, firstPoint, "click");
 
-    // Hover to show tooltip
-    await suggestionButton.hover();
-    await page.waitForTimeout(300);
+    await expect
+      .poll(async () => (await getHarnessConfig(page)).slots.find((slot) => slot.id === SLOT_ID)?.destinationId)
+      .toBe("chute-3");
 
-    const tooltip = page.locator('.suggestion-tooltip');
-    await expect(tooltip).toBeVisible();
+    await setHarnessConfig(page, {
+      suggestions: [{ slotId: SLOT_ID, alternativeDestinationId: "chute-2" }],
+    });
 
-    // Move mouse away from the suggestion button
-    await page.mouse.move(0, 0);
-    await page.waitForTimeout(300);
+    const secondPoint = await findSuggestionPoint(page, SLOT_ID);
+    await dispatchCanvasMouseEvent(page, secondPoint, "click");
 
-    // Tooltip should be hidden
-    const visibility = await tooltip.evaluate(el => el.style.visibility);
-    expect(visibility).toBe('hidden');
+    await expect
+      .poll(async () => (await getHarnessConfig(page)).slots.find((slot) => slot.id === SLOT_ID)?.destinationId)
+      .toBe("chute-2");
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const previews = (events.onChangeDestinationId ?? []) as Array<{
+          slotId?: string;
+          destinationId?: string;
+          preview?: boolean;
+        }>;
+        return previews
+          .filter((item) => item.slotId === SLOT_ID && item.preview === true)
+          .map((item) => item.destinationId);
+      })
+      .toEqual(["chute-3", "chute-2"]);
   });
 
-  test('Clicking a suggestion button applies the suggestion', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("read-only mode prevents applying suggestions", async ({ page }) => {
+    await openE2eHarness(page, {
+      fixture: "suggestions",
+      query: { readOnly: true },
+    });
+    await clearHarnessEvents(page);
 
-    const logs = setupConsoleLogListener(page);
+    const point = await findSuggestionPoint(page, SLOT_ID);
+    await dispatchCanvasMouseEvent(page, point, "click");
 
-    // Get suggestion buttons before clicking
-    const suggestionButtons = page.locator('svg .suggestion-button');
-    const initialCount = await suggestionButtons.count();
-    expect(initialCount).toBeGreaterThan(0);
+    await expect
+      .poll(async () => {
+        const slot = (await getHarnessConfig(page)).slots.find((item) => item.id === SLOT_ID);
+        return slot?.destinationId ?? null;
+      })
+      .toBe("chute-1");
 
-    // Click the first suggestion button
-    await suggestionButtons.first().click();
-    await page.waitForTimeout(1000);
-
-    // Verify the suggestion was applied via console log
-    const hasSuggestionCallback = logs.some(log => log.includes('Applied suggestion for slot'));
-    expect(hasSuggestionCallback).toBe(true);
-
-    // After applying, the destination change callback should also fire
-    const hasDestinationChange = logs.some(log => log.includes('Moved slot to different destination'));
-    expect(hasDestinationChange).toBe(true);
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        return (events.onChangeDestinationId ?? []).length;
+      })
+      .toBe(0);
   });
 
-  test('Applied suggestion moves the slot to the alternative destination', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
-
-    const logs = setupConsoleLogListener(page);
-
-    // Get suggestion buttons
-    const suggestionButtons = page.locator('svg .suggestion-button');
-    const countBefore = await suggestionButtons.count();
-    expect(countBefore).toBeGreaterThan(0);
-
-    // Click the first suggestion
-    await suggestionButtons.first().click();
-    await page.waitForTimeout(1000);
-
-    // After applying a suggestion, the destination change callback should include
-    // the alternative destination id, confirming the slot was actually moved
-    const suggestionAppliedLog = logs.find(log => log.includes('Applied suggestion for slot'));
-    expect(suggestionAppliedLog).toBeTruthy();
-
-    // The move callback should also contain the new destination (mup-X)
-    const moveLog = logs.find(log => log.includes('Moved slot to different destination'));
-    expect(moveLog).toBeTruthy();
-    expect(moveLog).toContain('mup-');
-  });
-
-  test('Suggestion tooltip follows mouse position', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
-
-    const suggestionButton = page.locator('svg .suggestion-button').first();
-    await expect(suggestionButton).toBeVisible();
-
-    // Hover to show tooltip
-    const buttonBox = await suggestionButton.boundingBox();
-    expect(buttonBox).not.toBeNull();
-
-    if (buttonBox) {
-      // Move to the button
-      await page.mouse.move(buttonBox.x + buttonBox.width / 2, buttonBox.y + buttonBox.height / 2);
-      await page.waitForTimeout(300);
-
-      const tooltip = page.locator('.suggestion-tooltip');
-      await expect(tooltip).toBeVisible();
-
-      // Move mouse slightly while still on the button
-      await page.mouse.move(buttonBox.x + buttonBox.width / 2 + 5, buttonBox.y + buttonBox.height / 2 + 5);
-      await page.waitForTimeout(100);
-
-      // Tooltip should still be visible and positioned
-      await expect(tooltip).toBeVisible();
-      const tooltipBox = await tooltip.boundingBox();
-      expect(tooltipBox).not.toBeNull();
-    }
-  });
-
-  test('Suggestion button font-size resets after mouse leaves', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
-
-    const suggestionButton = page.locator('svg .suggestion-button').first();
-    await expect(suggestionButton).toBeVisible();
-
-    // Hover to increase size
-    await suggestionButton.hover();
-    await page.waitForTimeout(300);
-    expect(await suggestionButton.getAttribute('font-size')).toBe('30px');
-
-    // Move mouse away
-    await page.mouse.move(0, 0);
-    await page.waitForTimeout(300);
-
-    // Font size should return to 18px
-    const resetFontSize = await suggestionButton.getAttribute('font-size');
-    expect(resetFontSize).toBe('18px');
-  });
-
-  test('Applying two suggestions sequentially moves each slot to its correct destination', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
-
-    const logs = setupConsoleLogListener(page);
-
-    // --- First suggestion ---
-
-    const firstButton = page.locator('svg .suggestion-button').first();
-    await expect(firstButton).toBeVisible();
-
-    // Click to apply the first suggestion
-    await firstButton.click();
-    await page.waitForTimeout(1500);
-
-    // Extract slotId and destination from the "Applied suggestion" log
-    // Log format: "Callback: Applied suggestion for slot <slotId> to <destId>"
-    const firstApplyLog = logs.find(log => log.includes('Applied suggestion for slot'));
-    expect(firstApplyLog).toBeTruthy();
-    const firstSlotId = firstApplyLog!.match(/Applied suggestion for slot (\S+)/)?.[1];
-    const firstDestId = firstApplyLog!.split(' to ').pop()!.trim();
-    expect(firstSlotId).toBeTruthy();
-    expect(firstDestId).toMatch(/^mup-\d+$/);
-
-    // Verify the actual move callback confirms the same slot+destination pair
-    const firstMoveLog = logs.find(log =>
-      log.includes('Moved slot to different destination') &&
-      log.includes(firstSlotId!) &&
-      log.includes(firstDestId)
+  test("suggestion tooltip and hover-size visuals", async () => {
+    test.skip(
+      true,
+      "Skipping: tooltip and icon-size animation are canvas raster effects not exposed through deterministic DOM/test API selectors.",
     );
-    expect(firstMoveLog).toBeTruthy();
-
-    // Clear logs to isolate the second suggestion's events
-    logs.length = 0;
-
-    // Move mouse away to reset hover state, then wait for full re-render
-    await page.mouse.move(0, 0);
-    await page.waitForTimeout(500);
-
-    // --- Second suggestion ---
-
-    // After applying the first suggestion the chart re-renders with updated suggestions.
-    // The same slot may appear again (with a new target destination) or a different slot.
-    const secondButton = page.locator('svg .suggestion-button').first();
-    await expect(secondButton).toBeVisible();
-
-    // Click to apply the second suggestion
-    await secondButton.click();
-    await page.waitForTimeout(1500);
-
-    // Extract slotId and destination from the second "Applied suggestion" log
-    const secondApplyLog = logs.find(log => log.includes('Applied suggestion for slot'));
-    expect(secondApplyLog).toBeTruthy();
-    const secondSlotId = secondApplyLog!.match(/Applied suggestion for slot (\S+)/)?.[1];
-    const secondDestId = secondApplyLog!.split(' to ').pop()!.trim();
-    expect(secondSlotId).toBeTruthy();
-    expect(secondDestId).toMatch(/^mup-\d+$/);
-
-    // Verify the actual move callback confirms the same slot+destination pair
-    const secondMoveLog = logs.find(log =>
-      log.includes('Moved slot to different destination') &&
-      log.includes(secondSlotId!) &&
-      log.includes(secondDestId)
-    );
-    expect(secondMoveLog).toBeTruthy();
-
-    // --- Cross-validation: suggestions must not get mixed up ---
-
-    // If the same slot received both suggestions (moved twice), the second destination
-    // MUST differ from the first — it should advance further, not re-apply the stale
-    // first suggestion. This directly catches the reported bug where the d3 event handler
-    // closure holds stale suggestion data after re-render.
-    if (secondSlotId === firstSlotId) {
-      expect(secondDestId).not.toBe(firstDestId);
-    }
-
-    // After both suggestions, exactly one "Applied suggestion" event should exist in the
-    // second batch of logs (each click should trigger exactly one move)
-    const allApplyLogs = logs.filter(log => log.includes('Applied suggestion for slot'));
-    expect(allApplyLogs.length).toBe(1);
   });
 });

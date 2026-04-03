@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import GanttEditorComponent from "@/components/GanttEditorComponentCanvas.vue";
+import GanttEditorComponent from "@/components/GanttEditorComponent.vue";
 import type {
   GanttEditorDestination,
   GanttEditorDestinationGroup,

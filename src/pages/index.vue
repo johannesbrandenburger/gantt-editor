@@ -28,26 +28,6 @@
             @onContextClickOnSlot="handleContextClickOnSlot"
             :topContentPortion="topContentPortion"
             @onTopContentPortionChange="(newPortion: number, newHeight: number) => topContentPortion = newPortion"
-            :x-axis-options="{
-                upper: {
-                    tickFormat: (domainValue: Date | d3.NumberValue) => {
-                        if (domainValue instanceof Date) {
-                            return domainValue.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-                        }
-                        return new Date(domainValue as number).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-                    },
-                    ticks: d3.timeHour.every(3) || undefined // every 3 hours
-                },
-                lower: {
-                    tickFormat: (domainValue: Date | d3.NumberValue) => {
-                        if (domainValue instanceof Date) {
-                            return domainValue.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                        }
-                        return new Date(domainValue as number).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    },
-                    ticks: d3.timeHour.every(1) || undefined // every hour
-                }
-            }"
         >
             <template
                 #top-content
@@ -138,22 +118,54 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
-import * as d3 from 'd3';
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
 import type { GanttEditorSlot } from '../components/gantt-editor-lib/chart/types';
 import GanttEditorComponent from '../components/GanttEditorComponent.vue';
+import { timeHour, type TimeDomainValue } from '../components/gantt-editor-lib/chart/time_scale';
+
+const upperAxisFormatter = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+});
+const lowerAxisFormatter = new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+});
+
+const formatUpperAxisTick = (domainValue: TimeDomainValue): string => {
+    const dateValue = domainValue instanceof Date ? domainValue : new Date(domainValue as number);
+    return upperAxisFormatter.format(dateValue);
+};
+
+const formatLowerAxisTick = (domainValue: TimeDomainValue): string => {
+    const dateValue = domainValue instanceof Date ? domainValue : new Date(domainValue as number);
+    return lowerAxisFormatter.format(dateValue);
+};
 
 // Ref to the Gantt Editor component for programmatic access
 const ganttEditorRef = ref<InstanceType<typeof GanttEditorComponent> | null>(null);
 
 const topContentPortion = ref(0.1); // 20% of total height for top content
+const onWindowKeydown = (event: KeyboardEvent) => {
+    if (event.key === 't') {
+        // toggle top content visibility
+        topContentPortion.value = topContentPortion.value === 0 ? 0.1 : 0;
+    }
+};
+
 onMounted(() => {
-    window.addEventListener("keydown", (event) => {
-        if (event.key === "t") {
-            // toggle top content visibility
-            topContentPortion.value = topContentPortion.value === 0 ? 0.1 : 0;
-        }
-    });
+    window.addEventListener('keydown', onWindowKeydown);
+});
+
+onBeforeUnmount(() => {
+    window.removeEventListener('keydown', onWindowKeydown);
+    if (eventMessageTimeout !== null) {
+        clearTimeout(eventMessageTimeout);
+        eventMessageTimeout = null;
+    }
 });
 
 // Configurable parameters
@@ -165,12 +177,18 @@ const startTime = ref(new Date(new Date().setHours(0, 0, 0, 0))); // today at 00
 const endTime = ref(new Date(new Date().setHours(23, 59, 59, 999))); // today at 23:59
 const isReadOnly = ref(false);
 const eventMessage = ref('');
+const lastHoveredSlotId = ref<string | null>(null);
+let eventMessageTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // Function to show event message with auto-clear
 const showEventMessage = (message: string, duration = 3000) => {
     eventMessage.value = message;
-    setTimeout(() => {
+    if (eventMessageTimeout !== null) {
+        clearTimeout(eventMessageTimeout);
+    }
+    eventMessageTimeout = setTimeout(() => {
         eventMessage.value = '';
+        eventMessageTimeout = null;
     }, duration);
 };
 
@@ -256,14 +274,43 @@ const generateSlots = (count: number) => {
     });
 
     // allocate in order of opentime
-    const slots: GanttEditorSlot[] = unallocatedSlots
+    const allocatedSlots: GanttEditorSlot[] = unallocatedSlots
         .sort((a, b) => a.openTime.getTime() - b.openTime.getTime())
         .map((slot, index) => ({
             ...slot,
             destinationId: `mup-${(index % numberOfDestinations.value) + 1}`, // distribute across destinations (IDs start at 1)
         }));
 
-    return slots;
+    // A few fixed slots on the UNALLOCATED chute so the bottom group is visibly populated in the demo
+    const spanMs = dayEnd.getTime() - dayStart.getTime();
+    const unallocatedDemo = (
+        offsets: Array<{ t: number; durationMin: number; name: string; id: string }>,
+    ): GanttEditorSlot[] =>
+        offsets.map(({ t, durationMin, name, id }) => {
+            const openTime = new Date(dayStart.getTime() + spanMs * t);
+            let closeTime = new Date(openTime.getTime() + durationMin * 60 * 1000);
+            if (closeTime > dayEnd) closeTime = new Date(dayEnd.getTime());
+            return {
+                id,
+                displayName: name,
+                group: id,
+                openTime,
+                closeTime,
+                destinationId: 'UNALLOCATED',
+                hoverData: `${name} — unallocated demo`,
+            };
+        });
+
+    const unallocatedDemoSlots = unallocatedDemo([
+        { t: 0.12, durationMin: 75, name: 'UA-9001', id: 'ua-demo-1' },
+        { t: 0.35, durationMin: 60, name: 'UA-9002', id: 'ua-demo-2' },
+        { t: 0.52, durationMin: 90, name: 'UA-9003', id: 'ua-demo-3' },
+        { t: 0.74, durationMin: 50, name: 'UA-9004', id: 'ua-demo-4' },
+    ]);
+
+    return [...allocatedSlots, ...unallocatedDemoSlots].sort(
+        (a, b) => a.openTime.getTime() - b.openTime.getTime(),
+    );
 };
 
 // Slots (main data)
@@ -374,7 +421,6 @@ const handleChangeDestinationId = (slotId: string, destinationId: string, wasSug
         );
         showEventMessage(`📦 Moved ${slotId} to ${destinationId}`);
     }
-    slots.value = [...slots.value]; // Trigger reactivity
 };
 
 const handleChangeSlotTime = (slotId: string, openTime: Date, closeTime: Date) => {
@@ -394,6 +440,8 @@ const handleClickOnSlot = (slotId: string) => {
 };
 
 const handleHoverOnSlot = (slotId: string) => {
+    if (slotId === lastHoveredSlotId.value) return;
+    lastHoveredSlotId.value = slotId;
     console.log('Callback: Hovering on slot', slotId);
     showEventMessage(`🖱️ Hovering on ${slotId}`, 2000);
 };

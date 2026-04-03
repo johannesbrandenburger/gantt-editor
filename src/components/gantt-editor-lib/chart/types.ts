@@ -1,3 +1,5 @@
+import type { TimeDomainValue, TimeTickSpec } from "./time_scale";
+
 export type GanttEditorSlot = {
     id: string,
     group: string, // flightId
@@ -57,12 +59,12 @@ export type GanttEditorSlotWithUiAttributes = GanttEditorSlot & {
 
 export type GanttEditorXAxisOptions = {
     upper?: {
-        tickFormat?: (domainValue: Date | d3.NumberValue) => string;
-        ticks?: d3.TimeInterval;
+        tickFormat?: (domainValue: TimeDomainValue) => string;
+        ticks?: TimeTickSpec;
     };
     lower?: {
-        tickFormat?: (domainValue: Date | d3.NumberValue) => string;
-        ticks?: d3.TimeInterval;
+        tickFormat?: (domainValue: TimeDomainValue) => string;
+        ticks?: TimeTickSpec;
     };
 };
 

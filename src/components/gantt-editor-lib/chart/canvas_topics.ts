@@ -1,6 +1,6 @@
 import type { Topic } from "./types";
 
-/** Matches default row height in GanttEditorComponentCanvas — fonts/padding scale from this baseline. */
+/** Matches default row height in GanttEditorComponent — fonts/padding scale from this baseline. */
 export const TEXT_SCALE_BASE_ROW_HEIGHT = 40;
 
 /** Band padding for topic rows (must match slot band geometry in canvas_slots). Lower = denser rows. */

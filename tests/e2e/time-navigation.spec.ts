@@ -1,165 +1,170 @@
-import { test, expect } from '@playwright/test';
-import { waitForChartLoad, setupConsoleLogListener } from './helpers';
+import { expect, test, type Page } from "@playwright/test";
+import {
+  canvasPointToPagePoint,
+  clearHarnessEvents,
+  getCanvasState,
+  getCanvasStateField,
+  getHarnessEvents,
+  openE2eHarness,
+} from "./helpers";
 
-test.describe('Time Navigation', () => {
+type CanvasState = {
+  margin: { left: number; right: number };
+  layout: {
+    groups: Array<{ id: string; y: number; h: number }>;
+  } | null;
+};
 
-  test('Pan timeline with right-click drag', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+async function getPanStartPoint(page: Page): Promise<{ x: number; y: number }> {
+  const state = await getCanvasState<CanvasState>(page);
+  expect(state).not.toBeNull();
+  expect(state?.layout).not.toBeNull();
 
-    const logs = setupConsoleLogListener(page);
-
-    // Get the gantt container
-    const ganttContainer = page.locator('.gantt-container').first();
-    const box = await ganttContainer.boundingBox();
-    expect(box).not.toBeNull();
-
-    if (box) {
-      // Right-click drag
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await page.mouse.down({ button: 'right' });
-      await page.mouse.move(box.x + box.width / 2 - 100, box.y + box.height / 2);
-      await page.mouse.up({ button: 'right' });
-    }
-
-    await page.waitForTimeout(300);
-
-    // Check for navigation callback
-    const navCallbacks = logs.filter(log => log.includes('Navigated to new time window'));
-    expect(navCallbacks.length).toBe(1);
-  });
-
-  test('Pan timeline with Shift+drag', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
-
-    const logs = setupConsoleLogListener(page);
-
-    // Get the gantt container
-    const ganttContainer = page.locator('.gantt-container').first();
-    const box = await ganttContainer.boundingBox();
-    expect(box).not.toBeNull();
-
-    if (box) {
-      let startX = box.x + box.width / 2;
-      const startY = box.y + box.height / 2;
-    
-
-      //move cursor away from slot edges to avoid triggering resize instead of pan
-      while (true) {
-          await page.mouse.move(startX, startY);
-          const isOnResizeHandle = await page.evaluate(({ x, y }) => {
-            const el = document.elementFromPoint(x, y);
-            return el?.closest('.slot-resize-handle-left, .slot-resize-handle-right') !== null;
-          }, { x: startX, y: startY });
-          if (!isOnResizeHandle) break;
-          startX += 15;
-          console.warn('Adjusted startX to avoid slot resize handle:', startX);
-        }
-    
-    if (box) {
-      // Shift+drag
-      await page.keyboard.down('Shift');
-      await page.mouse.move(startX, startY);
-      await page.mouse.down();
-      await page.mouse.move(startX - 100, startY);
-      await page.mouse.up();
-      await page.keyboard.up('Shift');
-    }
+  if (!state?.layout || state.layout.groups.length === 0) {
+    throw new Error("Expected chart layout to compute pan test point");
   }
-  
-    await page.waitForTimeout(300);
 
-    // Check for navigation callback
-    const navCallbacks = logs.filter(log => log.includes('Navigated to new time window'));
-    expect(navCallbacks.length).toBe(1);
+  return {
+    x: state.margin.left + 20,
+    y: state.layout.groups[0]!.y + Math.max(8, Math.floor(state.layout.groups[0]!.h * 0.2)),
+  };
+}
+
+test.describe("canvas rewrite time navigation", () => {
+  test("pan timeline with right-click drag", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
+    await clearHarnessEvents(page);
+
+    const beforeStartMs = await getCanvasStateField<number>(page, "internalStartTimeMs");
+    const panCanvasPoint = await getPanStartPoint(page);
+    const panPagePoint = await canvasPointToPagePoint(canvas, panCanvasPoint);
+
+    await page.mouse.move(panPagePoint.x, panPagePoint.y);
+    await page.mouse.down({ button: "right" });
+    await page.mouse.move(panPagePoint.x - 120, panPagePoint.y, { steps: 8 });
+    await page.mouse.up({ button: "right" });
+
+    await expect
+      .poll(async () => await getCanvasStateField<number>(page, "internalStartTimeMs"), {
+        timeout: 2_000,
+      })
+      .not.toBe(beforeStartMs);
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        return (events.onChangeStartAndEndTime ?? []).length;
+      })
+      .toBeGreaterThan(0);
   });
 
-  test('Horizontal scroll changes time window', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("pan timeline with Shift+drag", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
+    await clearHarnessEvents(page);
 
-    const logs = setupConsoleLogListener(page);
+    const beforeStartMs = await getCanvasStateField<number>(page, "internalStartTimeMs");
+    const panCanvasPoint = await getPanStartPoint(page);
+    const panPagePoint = await canvasPointToPagePoint(canvas, panCanvasPoint);
 
-    // Get the gantt container
-    const ganttContainer = page.locator('.gantt-container').first();
-    const box = await ganttContainer.boundingBox();
-    expect(box).not.toBeNull();
+    await page.keyboard.down("Shift");
+    await page.mouse.move(panPagePoint.x, panPagePoint.y);
+    await page.mouse.down();
+    await page.mouse.move(panPagePoint.x - 120, panPagePoint.y, { steps: 8 });
+    await page.mouse.up();
+    await page.keyboard.up("Shift");
 
-    if (box) {
-      // Horizontal wheel scroll
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await page.mouse.wheel(100, 0); // Horizontal scroll
-    }
+    await expect
+      .poll(async () => await getCanvasStateField<number>(page, "internalStartTimeMs"), {
+        timeout: 2_000,
+      })
+      .not.toBe(beforeStartMs);
 
-    await page.waitForTimeout(500);
-
-    // Check for navigation callback
-    const navCallbacks = logs.filter(log => log.includes('Navigated to new time window'));
-    expect(navCallbacks.length).toBe(1);
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        return (events.onChangeStartAndEndTime ?? []).length;
+      })
+      .toBeGreaterThan(0);
   });
 
-  test('Zoom in with scroll wheel + Shift', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("horizontal scroll changes time window", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
+    await clearHarnessEvents(page);
 
-    const logs = setupConsoleLogListener(page);
+    const beforeStartMs = await getCanvasStateField<number>(page, "internalStartTimeMs");
+    const panCanvasPoint = await getPanStartPoint(page);
+    const panPagePoint = await canvasPointToPagePoint(canvas, panCanvasPoint);
 
-    // Get the gantt container
-    const ganttContainer = page.locator('.gantt-container').first();
-    const box = await ganttContainer.boundingBox();
+    await page.mouse.move(panPagePoint.x, panPagePoint.y);
+    await page.mouse.wheel(140, 0);
 
-    const firstSlotWidth = await page.locator('svg path.slot-box').nth(1).boundingBox().then(b => b?.width || 0);
-    expect(firstSlotWidth).toBeGreaterThan(0);
+    await expect
+      .poll(async () => await getCanvasStateField<number>(page, "internalStartTimeMs"), {
+        timeout: 2_000,
+      })
+      .not.toBe(beforeStartMs);
 
-    if (box) {
-      // Shift + vertical scroll for zoom
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await page.keyboard.down('Shift');
-      await page.mouse.wheel(0, -300); // Vertical scroll with Shift
-      await page.keyboard.up('Shift');
-    }
-
-    await page.waitForTimeout(500);
-
-    // Check for navigation callback (zoom changes time window)
-    const navCallbacks = logs.filter(log => log.includes('Navigated to new time window'));
-    expect(navCallbacks.length).toBe(1);
-
-    const zoomedSlotWidth = await page.locator('svg path.slot-box').nth(1).boundingBox().then(b => b?.width || 0);
-    expect(zoomedSlotWidth).toBeGreaterThan(firstSlotWidth);
-  });
-  
-  test('Zoom out with scroll wheel + Shift', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
-
-    const logs = setupConsoleLogListener(page);
-
-    // Get the gantt container
-    const ganttContainer = page.locator('.gantt-container').first();
-    const box = await ganttContainer.boundingBox();
-
-    const firstSlotWidth = await page.locator('svg path.slot-box').nth(1).boundingBox().then(b => b?.width || 0);
-    expect(firstSlotWidth).toBeGreaterThan(0);
-
-    if (box) {
-      // Shift + vertical scroll for zoom
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await page.keyboard.down('Shift');
-      await page.mouse.wheel(0, 300); // Vertical scroll with Shift
-      await page.keyboard.up('Shift');
-    }
-
-    await page.waitForTimeout(500);
-
-    // Check for navigation callback (zoom changes time window)
-    const navCallbacks = logs.filter(log => log.includes('Navigated to new time window'));
-    expect(navCallbacks.length).toBe(1);
-
-    const zoomedSlotWidth = await page.locator('svg path.slot-box').nth(1).boundingBox().then(b => b?.width || 0);
-    expect(zoomedSlotWidth).toBeGreaterThan(0);
-    expect(zoomedSlotWidth).toBeLessThan(firstSlotWidth);
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        return (events.onChangeStartAndEndTime ?? []).length;
+      })
+      .toBeGreaterThan(0);
   });
 
+  test("zoom in with Shift + wheel decreases visible range", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
+    await clearHarnessEvents(page);
+
+    const panCanvasPoint = await getPanStartPoint(page);
+    const panPagePoint = await canvasPointToPagePoint(canvas, panCanvasPoint);
+
+    const startBefore = await getCanvasStateField<number>(page, "internalStartTimeMs");
+    const endBefore = await getCanvasStateField<number>(page, "internalEndTimeMs");
+    expect(startBefore).not.toBeNull();
+    expect(endBefore).not.toBeNull();
+    const spanBefore = (endBefore as number) - (startBefore as number);
+
+    await page.mouse.move(panPagePoint.x, panPagePoint.y);
+    await page.keyboard.down("Shift");
+    await page.mouse.wheel(0, -220);
+    await page.keyboard.up("Shift");
+
+    await expect
+      .poll(async () => {
+        const start = await getCanvasStateField<number>(page, "internalStartTimeMs");
+        const end = await getCanvasStateField<number>(page, "internalEndTimeMs");
+        if (start == null || end == null) return null;
+        return end - start;
+      })
+      .toBeLessThan(spanBefore);
+  });
+
+  test("zoom out with Shift + wheel increases visible range", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
+    await clearHarnessEvents(page);
+
+    const panCanvasPoint = await getPanStartPoint(page);
+    const panPagePoint = await canvasPointToPagePoint(canvas, panCanvasPoint);
+
+    const startBefore = await getCanvasStateField<number>(page, "internalStartTimeMs");
+    const endBefore = await getCanvasStateField<number>(page, "internalEndTimeMs");
+    expect(startBefore).not.toBeNull();
+    expect(endBefore).not.toBeNull();
+    const spanBefore = (endBefore as number) - (startBefore as number);
+
+    await page.mouse.move(panPagePoint.x, panPagePoint.y);
+    await page.keyboard.down("Shift");
+    await page.mouse.wheel(0, 220);
+    await page.keyboard.up("Shift");
+
+    await expect
+      .poll(async () => {
+        const start = await getCanvasStateField<number>(page, "internalStartTimeMs");
+        const end = await getCanvasStateField<number>(page, "internalEndTimeMs");
+        if (start == null || end == null) return null;
+        return end - start;
+      })
+      .toBeGreaterThan(spanBefore);
+  });
 });
