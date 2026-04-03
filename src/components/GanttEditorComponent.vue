@@ -1,6 +1,6 @@
 <template>
   <div
-    ref="chartContainerRef"
+    :ref="setChartContainerRef"
     class="chart-container"
     @mousemove="onContainerMouseMove"
     @mouseenter="onMouseEnter"
@@ -17,7 +17,7 @@
 
     <div class="chart-canvas-wrap">
       <canvas
-        ref="chartCanvasRef"
+        :ref="setChartCanvasRef"
         class="chart-canvas"
         @mousedown="onCanvasMouseDown"
         @click="onCanvasClick"
@@ -34,6 +34,7 @@
 <script setup lang="ts">
 import type { GanttEditorProps } from "./gantt-editor-lib/chart/gantt_canvas_props";
 import { GanttChartCanvasController } from "./gantt-editor-lib/chart/gantt_chart_canvas_controller";
+import type { ComponentPublicInstance } from "vue";
 import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 
 interface GanttEditorEmits {
@@ -54,6 +55,14 @@ const emit = defineEmits<GanttEditorEmits>();
 
 const chartContainerRef = ref<HTMLElement | null>(null);
 const chartCanvasRef = ref<HTMLCanvasElement | null>(null);
+
+const setChartContainerRef = (el: Element | ComponentPublicInstance | null) => {
+  chartContainerRef.value = el instanceof HTMLElement ? el : null;
+};
+
+const setChartCanvasRef = (el: Element | ComponentPublicInstance | null) => {
+  chartCanvasRef.value = el instanceof HTMLCanvasElement ? el : null;
+};
 
 const currentTopContentHeight = ref(0);
 const exposeTestApi = import.meta.env.DEV || import.meta.env.MODE === "test";
