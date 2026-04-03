@@ -39,9 +39,9 @@ import {
 } from "./unified_chart_layout";
 import type { GanttEditorSlot, GanttEditorSlotWithUiAttributes, Topic } from "./types";
 import type {
-  GanttChartCanvasHost,
-  GanttEditorCanvasCallbacks,
-  GanttEditorCanvasProps,
+  GanttEditorHost,
+  GanttEditorCallbacks,
+  GanttEditorProps,
 } from "./gantt_canvas_props";
 
 const X_AXIS_HEIGHT = 50;
@@ -67,20 +67,20 @@ const BRUSH_DRAG_THRESHOLD_PX = 3;
 const CLIPBOARD_PREVIEW_MAX_ITEMS = 5;
 
 function destinationGroupsSnapshot(
-  groups: GanttEditorCanvasProps["destinationGroups"],
+  groups: GanttEditorProps["destinationGroups"],
 ): string {
   return groups.map((g) => `${g.id}:${g.heightPortion}:${g.displayName}`).join("\0");
 }
 
-function markedRegionSnapshot(region: GanttEditorCanvasProps["markedRegion"]): string {
+function markedRegionSnapshot(region: GanttEditorProps["markedRegion"]): string {
   if (!region) return "";
   return `${region.destinationId}:${region.startTime.getTime()}:${region.endTime.getTime()}`;
 }
 
 export class GanttChartCanvasController {
-  private props: GanttEditorCanvasProps;
-  private readonly callbacks: GanttEditorCanvasCallbacks;
-  private readonly host: GanttChartCanvasHost;
+  private props: GanttEditorProps;
+  private readonly callbacks: GanttEditorCallbacks;
+  private readonly host: GanttEditorHost;
 
   private container: HTMLElement | null = null;
   private canvas: HTMLCanvasElement | null = null;
@@ -204,9 +204,9 @@ export class GanttChartCanvasController {
   private readonly boundDocumentKeyDown = (e: KeyboardEvent) => this.onDocumentKeyDown(e);
 
   constructor(
-    initialProps: GanttEditorCanvasProps,
-    callbacks: GanttEditorCanvasCallbacks,
-    host: GanttChartCanvasHost = {},
+    initialProps: GanttEditorProps,
+    callbacks: GanttEditorCallbacks,
+    host: GanttEditorHost = {},
   ) {
     this.props = initialProps;
     this.callbacks = callbacks;
@@ -229,7 +229,7 @@ export class GanttChartCanvasController {
    * Apply the latest model from the host framework. Preserves internal pan/zoom time and local
    * top-content portion until the parent actually changes those inputs (matches prior Vue watches).
    */
-  refreshModel(next: GanttEditorCanvasProps): void {
+  refreshModel(next: GanttEditorProps): void {
     const wasReadOnly = this.props.isReadOnly;
     this.props = next;
 
@@ -1074,7 +1074,7 @@ export class GanttChartCanvasController {
     this.drawUnifiedFrame();
   }
 
-  private initMapsFromGroups(groups: GanttEditorCanvasProps["destinationGroups"]): void {
+  private initMapsFromGroups(groups: GanttEditorProps["destinationGroups"]): void {
     for (const group of groups) {
       this.currentHeightPortions.set(group.id, group.heightPortion);
       this.verticalScrollOffsets.set(group.id, 0);
@@ -1134,7 +1134,7 @@ export class GanttChartCanvasController {
    * Fingerprint of everything `processData` reads (slots, destinations, editable, compactView,
    * collapsedTopics). O(n); only used from `refreshModel` and when rebuilding the cache.
    */
-  private computeProcessDataDeepFingerprint(p: GanttEditorCanvasProps): number {
+  private computeProcessDataDeepFingerprint(p: GanttEditorProps): number {
     const collapsed = localStorage.getItem("collapsedTopics") ?? "[]";
     let h = 0;
     for (let i = 0; i < p.slots.length; i++) {
@@ -2403,7 +2403,7 @@ export class GanttChartCanvasController {
   }
 
   private scrollToMarkedRegionDestination(
-    region: GanttEditorCanvasProps["markedRegion"],
+    region: GanttEditorProps["markedRegion"],
   ): void {
     if (!region || region.destinationId === "multiple") return;
 

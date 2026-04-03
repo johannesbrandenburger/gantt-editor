@@ -14,7 +14,7 @@ import type {
  * Kept aligned with the Vue component’s `defineProps` surface so other frameworks
  * (e.g. Angular) can bind the same fields without redefining types.
  */
-export interface GanttEditorCanvasProps {
+export interface GanttEditorProps {
   startTime: Date;
   endTime: Date;
   slots: Array<GanttEditorSlotWithUiAttributes>;
@@ -32,7 +32,7 @@ export interface GanttEditorCanvasProps {
  * Event callbacks for the canvas chart (framework bindings wire these to outputs).
  * Required entries are invoked today; optional ones mirror legacy emit names for future handlers.
  */
-export interface GanttEditorCanvasCallbacks {
+export interface GanttEditorCallbacks {
   onChangeStartAndEndTime: (start: Date, end: Date) => void;
   onTopContentPortionChange: (portion: number, heightPx: number) => void;
   onChangeSlotTime: (slotId: string, openTime: Date, closeTime: Date) => void;
@@ -46,7 +46,7 @@ export interface GanttEditorCanvasCallbacks {
 }
 
 /** Optional hooks for host UI state (Vue refs, Angular signals, etc.). */
-export interface GanttChartCanvasHost {
+export interface GanttEditorHost {
   onCursorMove?: (x: number, y: number) => void;
   onClipboardVisibility?: (visible: boolean) => void;
   onClipboardItems?: (items: GanttEditorSlot[]) => void;

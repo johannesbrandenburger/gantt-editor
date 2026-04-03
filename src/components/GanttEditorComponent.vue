@@ -32,7 +32,7 @@
 
 
 <script setup lang="ts">
-import type { GanttEditorCanvasProps } from "./gantt-editor-lib/chart/gantt_canvas_props";
+import type { GanttEditorProps } from "./gantt-editor-lib/chart/gantt_canvas_props";
 import { GanttChartCanvasController } from "./gantt-editor-lib/chart/gantt_chart_canvas_controller";
 import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 
@@ -49,7 +49,7 @@ interface GanttEditorEmits {
   onClickVerticalMarker: [string],
 }
 
-const props = defineProps<GanttEditorCanvasProps>();
+const props = defineProps<GanttEditorProps>();
 const emit = defineEmits<GanttEditorEmits>();
 
 const chartContainerRef = ref<HTMLElement | null>(null);
@@ -90,7 +90,7 @@ const uninstallTestApi = () => {
   registeredTestApi = null;
 };
 
-function propsSnapshot(): GanttEditorCanvasProps {
+function propsSnapshot(): GanttEditorProps {
   return {
     startTime: props.startTime,
     endTime: props.endTime,
