@@ -1,5 +1,6 @@
 import Vue from '@vitejs/plugin-vue'
 import VueRouter from 'unplugin-vue-router/vite'
+import { libInjectCss } from 'vite-plugin-lib-inject-css'
 
 // Utilities
 import { defineConfig } from 'vite'
@@ -8,6 +9,7 @@ import { fileURLToPath, URL } from 'node:url'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
+    libInjectCss(),
     VueRouter({
       dts: 'src/typed-router.d.ts',
     }),

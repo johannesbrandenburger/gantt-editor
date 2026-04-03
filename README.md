@@ -41,7 +41,6 @@ import { ref } from 'vue';
 import GanttEditorComponent from '@/components/GanttEditorComponent.vue'; // adjust the path to your project structure
 // OR:
 import GanttEditorComponent from '@pf/gantt-editor-vue-component'; // if you installed the package from the registry
-import "@pf/gantt-editor-vue-component/style.css"; // NOTE: this is only needed when installed from the registry
 import type { GanttEditorVerticalMarker } from '@pf/gantt-editor-vue-component';
 // manual copy: import type { GanttEditorVerticalMarker } from '@/components/gantt-editor-lib/chart/types';
 
