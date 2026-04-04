@@ -874,20 +874,15 @@ export class GanttChartCanvasController {
       groups: Array<{ id: string; y: number; h: number; scrollOffset: number }>;
     } | null;
   } {
+    const destinationPreviewState = this.getDestinationPreviewState(performance.now());
     const layout = this.getChartLayout();
     return {
       rowHeight: this.rowHeight,
       hoveredSlotId: this.hoveredSlotId,
       pointerInChart: this.pointerInChart,
       clipboardSlotIds: this.clipboardItems.map((slot) => slot.id),
-      destinationPreviewTopicId:
-        this.pointerInChart && this.hoveredClipboardTopicId && this.clipboardItems.length > 0
-          ? this.hoveredClipboardTopicId
-          : null,
-      destinationPreviewSourceSlotIds:
-        this.pointerInChart && this.hoveredClipboardTopicId && this.clipboardItems.length > 0
-          ? this.clipboardItems.map((slot) => slot.id)
-          : [],
+      destinationPreviewTopicId: destinationPreviewState?.topicId ?? null,
+      destinationPreviewSourceSlotIds: destinationPreviewState?.sourceSlotIds ?? [],
       lastClickedSlotId: this.lastClickedSlotId,
       lastDoubleClickedSlotId: this.lastDoubleClickedSlotId,
       lastContextClickedSlotId: this.lastContextClickedSlotId,
@@ -1457,7 +1452,7 @@ export class GanttChartCanvasController {
 
   private previewCacheKeyForTopic(topicId: string): string {
     const modelKey = this.processDataDeepFingerprint ?? this.computeProcessDataDeepFingerprint(this.props);
-    const clipboardKey = this.clipboardItems
+    const clipboardKey = this.getPreviewEligibleClipboardItems(topicId)
       .map((slot, index) => {
         const openMs = new Date(slot.openTime).getTime();
         const closeMs = new Date(slot.closeTime).getTime();
@@ -1467,6 +1462,10 @@ export class GanttChartCanvasController {
     return `${modelKey}:${topicId}:${clipboardKey}`;
   }
 
+  private getPreviewEligibleClipboardItems(topicId: string): GanttEditorSlot[] {
+    return this.clipboardItems.filter((slot) => slot.destinationId !== topicId);
+  }
+
   private createDestinationPreviewTopics(topicId: string): Map<string, Topic[]> {
     const cacheKey = this.previewCacheKeyForTopic(topicId);
     if (this.destinationPreviewTopicsCache?.key === cacheKey) {
@@ -1474,7 +1473,7 @@ export class GanttChartCanvasController {
     }
 
     const previewSlots: GanttEditorSlotWithUiAttributes[] = [];
-    this.clipboardItems.forEach((slot, index) => {
+    this.getPreviewEligibleClipboardItems(topicId).forEach((slot, index) => {
       const openTime = new Date(slot.openTime);
       const closeTime = new Date(slot.closeTime);
       if (!Number.isFinite(openTime.getTime()) || !Number.isFinite(closeTime.getTime())) {
@@ -1541,6 +1540,7 @@ export class GanttChartCanvasController {
 
   private getDestinationPreviewState(nowMs: number): {
     topicId: string;
+    sourceSlotIds: string[];
     topicsByGroupId: Map<string, Topic[]>;
     pulseAlpha: number;
     slotYTransition: { shiftsBySlotId: ReadonlyMap<string, number>; progress: number } | null;
@@ -1551,10 +1551,13 @@ export class GanttChartCanvasController {
     if (this.clipboardItems.length === 0) return null;
     const topicId = this.hoveredClipboardTopicId;
     if (!topicId) return null;
+    const sourceSlotIds = this.getPreviewEligibleClipboardItems(topicId).map((slot) => slot.id);
+    if (sourceSlotIds.length === 0) return null;
 
     const pulseAlpha = 0.58 + 0.2 * (0.5 + 0.5 * Math.sin(nowMs / 160));
     return {
       topicId,
+      sourceSlotIds,
       topicsByGroupId: this.createDestinationPreviewTopics(topicId),
       pulseAlpha,
       slotYTransition: this.getActiveDestinationPreviewTransition(nowMs, topicId),

@@ -209,6 +209,10 @@ test.describe("canvas rewrite clipboard preview behavior", () => {
     const before = await getHarnessConfig(page);
     const targetDestination = before.slots.find((slot) => slot.id === DENSE_HOVER_SLOT_ID)?.destinationId;
     expect(targetDestination).toBeTruthy();
+    const expectedPreviewSourceSlotIds = before.slots
+      .filter((slot) => selectedSlotIds.includes(slot.id) && slot.destinationId !== targetDestination)
+      .map((slot) => slot.id)
+      .sort();
 
     const targetPoint = await findSlotPoint(page, DENSE_HOVER_SLOT_ID, "center");
     const canvas = page.locator("canvas.chart-canvas").first();
@@ -226,7 +230,7 @@ test.describe("canvas rewrite clipboard preview behavior", () => {
         const ids = (await getCanvasStateField<string[]>(page, "destinationPreviewSourceSlotIds")) ?? [];
         return [...ids].sort().join(",");
       })
-      .toBe([...selectedSlotIds].sort().join(","));
+      .toBe(expectedPreviewSourceSlotIds.join(","));
 
     await attachScreenshot(page, testInfo, "destination-preview-hovered-row");
 
