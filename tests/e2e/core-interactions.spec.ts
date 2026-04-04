@@ -60,10 +60,10 @@ test.describe("canvas rewrite core interactions", () => {
       .not.toBe(beforeCloseTimeMs);
   });
 
-  test("supports brush selection via Meta drag and stores clipboard", async ({ page }) => {
+  test("supports brush selection via Meta drag and stores selection", async ({ page }) => {
     const canvas = await openE2eHarness(page);
 
-    await page.evaluate(() => localStorage.removeItem("pointerClipboard"));
+    await page.evaluate(() => localStorage.removeItem("pointerSelection"));
     const canvasState = await getCanvasState<{ margin: { left: number }; rowHeight: number }>(page);
     expect(canvasState).not.toBeNull();
     if (!canvasState) {
@@ -86,7 +86,7 @@ test.describe("canvas rewrite core interactions", () => {
 
     await expect
       .poll(
-        async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [],
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
         { timeout: 2000 },
       )
       .toContain(SLOT_ID);

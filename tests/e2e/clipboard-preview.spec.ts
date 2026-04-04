@@ -16,7 +16,7 @@ const DENSE_HOVER_SLOT_ID = "DENSE-0002";
 
 async function brushSelectDenseFixture(page: Page): Promise<string[]> {
   const canvas = await openE2eHarness(page, { fixture: "dense", query: { slots: 80 } });
-  await page.evaluate(() => localStorage.removeItem("pointerClipboard"));
+  await page.evaluate(() => localStorage.removeItem("pointerSelection"));
 
   const state = await page.evaluate(() => {
     const api = (window as Window & {
@@ -54,12 +54,12 @@ async function brushSelectDenseFixture(page: Page): Promise<string[]> {
 
   await expect
     .poll(
-      async () => ((await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? []).length,
+      async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).length,
       { timeout: 2_000 },
     )
     .toBeGreaterThan(2);
 
-  return (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [];
+  return (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [];
 }
 
 async function attachScreenshot(
@@ -75,8 +75,8 @@ async function attachScreenshot(
   });
 }
 
-test.describe("canvas rewrite clipboard preview behavior", () => {
-  test("clipboard preview visibility signal follows pointer enter/leave", async ({ page }) => {
+test.describe("canvas rewrite selection preview behavior", () => {
+  test("selection preview visibility signal follows pointer enter/leave", async ({ page }) => {
     const canvas = await openE2eHarness(page);
 
     const sourcePoint = await findSlotPoint(page, SOURCE_SLOT_ID, "center");
@@ -84,7 +84,7 @@ test.describe("canvas rewrite clipboard preview behavior", () => {
 
     await expect
       .poll(
-        async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [],
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
         { timeout: 2_000 },
       )
       .toContain(SOURCE_SLOT_ID);
@@ -114,7 +114,7 @@ test.describe("canvas rewrite clipboard preview behavior", () => {
 
     await expect
       .poll(
-        async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [],
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
         { timeout: 2_000 },
       )
       .toEqual([SOURCE_SLOT_ID]);
@@ -123,13 +123,13 @@ test.describe("canvas rewrite clipboard preview behavior", () => {
 
     await expect
       .poll(
-        async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [],
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
         { timeout: 2_000 },
       )
       .toEqual([]);
   });
 
-  test("clicking another slot with clipboard items moves and clears clipboard", async ({ page }) => {
+  test("clicking another slot with selected items moves and clears selection", async ({ page }) => {
     await openE2eHarness(page);
 
     const sourcePoint = await findSlotPoint(page, SOURCE_SLOT_ID, "center");
@@ -137,7 +137,7 @@ test.describe("canvas rewrite clipboard preview behavior", () => {
 
     await expect
       .poll(
-        async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [],
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
         { timeout: 2_000 },
       )
       .toEqual([SOURCE_SLOT_ID]);
@@ -151,7 +151,7 @@ test.describe("canvas rewrite clipboard preview behavior", () => {
 
     await expect
       .poll(
-        async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [],
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
         { timeout: 2_000 },
       )
       .toEqual([]);
@@ -174,7 +174,7 @@ test.describe("canvas rewrite clipboard preview behavior", () => {
       });
   });
 
-  test("clipboard payload keeps slot display names", async ({ page }) => {
+  test("selection payload keeps slot display names", async ({ page }) => {
     await openE2eHarness(page);
 
     const sourcePoint = await findSlotPoint(page, SOURCE_SLOT_ID, "center");
@@ -184,7 +184,7 @@ test.describe("canvas rewrite clipboard preview behavior", () => {
       .poll(
         async () => {
           const items = await page.evaluate(() => {
-            const raw = localStorage.getItem("pointerClipboard");
+            const raw = localStorage.getItem("pointerSelection");
             return raw ? (JSON.parse(raw) as Array<{ id: string; displayName?: string }>) : [];
           });
           return items.length;
@@ -193,13 +193,13 @@ test.describe("canvas rewrite clipboard preview behavior", () => {
       )
       .toBeGreaterThan(0);
 
-    const clipboardItems = await page.evaluate(() => {
-      const raw = localStorage.getItem("pointerClipboard");
+    const selectionItems = await page.evaluate(() => {
+      const raw = localStorage.getItem("pointerSelection");
       return raw ? (JSON.parse(raw) as Array<{ id: string; displayName?: string }>) : [];
     });
 
-    expect(clipboardItems[0]?.id).toBe(SOURCE_SLOT_ID);
-    expect(clipboardItems[0]?.displayName).toContain("LH123");
+    expect(selectionItems[0]?.id).toBe(SOURCE_SLOT_ID);
+    expect(selectionItems[0]?.displayName).toContain("LH123");
   });
 
   test("hovering another destination shows embedded animated preview for selected slots", async ({ page }, testInfo) => {

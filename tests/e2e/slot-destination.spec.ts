@@ -14,20 +14,20 @@ const SLOT_B = "OS200-20250101-G";
 const SLOT_C = "AA300-20250101-U";
 
 test.describe("canvas rewrite slot destination change", () => {
-  test("clicking a slot pins it to the clipboard", async ({ page }) => {
+  test("clicking a slot pins it to the selection", async ({ page }) => {
     await openE2eHarness(page, { fixture: "core" });
 
     const point = await findSlotPoint(page, SLOT_A, "center");
     await dispatchCanvasMouseEvent(page, point, "click");
 
     await expect
-      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+      .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
         timeout: 2_000,
       })
       .toEqual([SLOT_A]);
   });
 
-  test("clicking a destination slot pastes pinned slot and clears clipboard", async ({ page }) => {
+  test("clicking a destination slot pastes pinned slot and clears selection", async ({ page }) => {
     await openE2eHarness(page, { fixture: "core" });
     await clearHarnessEvents(page);
 
@@ -35,7 +35,7 @@ test.describe("canvas rewrite slot destination change", () => {
     await dispatchCanvasMouseEvent(page, sourcePoint, "click");
 
     await expect
-      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+      .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
         timeout: 2_000,
       })
       .toEqual([SLOT_A]);
@@ -47,7 +47,7 @@ test.describe("canvas rewrite slot destination change", () => {
     await dispatchCanvasMouseEvent(page, targetPoint, "click");
 
     await expect
-      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+      .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
         timeout: 2_000,
       })
       .toEqual([]);
@@ -65,14 +65,14 @@ test.describe("canvas rewrite slot destination change", () => {
       .toEqual({ slotId: SLOT_A, destinationId: targetDestination, preview: false });
   });
 
-  test("Escape clears the clipboard", async ({ page }) => {
+  test("Escape clears the selection", async ({ page }) => {
     await openE2eHarness(page, { fixture: "core" });
 
     const sourcePoint = await findSlotPoint(page, SLOT_A, "center");
     await dispatchCanvasMouseEvent(page, sourcePoint, "click");
 
     await expect
-      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+      .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
         timeout: 2_000,
       })
       .toEqual([SLOT_A]);
@@ -80,7 +80,7 @@ test.describe("canvas rewrite slot destination change", () => {
     await page.keyboard.press("Escape");
 
     await expect
-      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+      .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
         timeout: 2_000,
       })
       .toEqual([]);
@@ -98,7 +98,7 @@ test.describe("canvas rewrite slot destination change", () => {
 
     await expect
       .poll(
-        async () => ((await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? []).sort(),
+        async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).sort(),
         { timeout: 2_000 },
       )
       .toEqual([SLOT_A, SLOT_B]);
@@ -110,7 +110,7 @@ test.describe("canvas rewrite slot destination change", () => {
     await dispatchCanvasMouseEvent(page, target, "click");
 
     await expect
-      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+      .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
         timeout: 2_000,
       })
       .toEqual([]);

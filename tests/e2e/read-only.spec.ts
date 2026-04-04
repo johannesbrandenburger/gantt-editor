@@ -40,7 +40,7 @@ test.describe("canvas rewrite read-only mode", () => {
     await dispatchCanvasMouseEvent(page, slotCenter, "click");
 
     await expect
-      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+      .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
         timeout: 2_000,
       })
       .toContain(SLOT_ID);
@@ -48,14 +48,14 @@ test.describe("canvas rewrite read-only mode", () => {
     await setHarnessConfig(page, { isReadOnly: true });
 
     await expect
-      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+      .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
         timeout: 2_000,
       })
       .toEqual([]);
 
     await dispatchCanvasMouseEvent(page, slotCenter, "click");
     await expect
-      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+      .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
         timeout: 2_000,
       })
       .toEqual([]);
@@ -64,7 +64,7 @@ test.describe("canvas rewrite read-only mode", () => {
     await dispatchCanvasMouseEvent(page, slotCenter, "click");
 
     await expect
-      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+      .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
         timeout: 2_000,
       })
       .toContain(SLOT_ID);
@@ -101,20 +101,20 @@ test.describe("canvas rewrite read-only mode", () => {
     await dispatchCanvasMouseEvent(page, slotCenter, "click");
 
     await expect
-      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+      .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
         timeout: 2_000,
       })
       .toEqual([]);
   });
 
-  test("clipboard clears when switching to read-only mode", async ({ page }) => {
+  test("selection clears when switching to read-only mode", async ({ page }) => {
     await openE2eHarness(page, { fixture: "core" });
 
     const slotCenter = await findSlotPoint(page, SLOT_ID, "center");
     await dispatchCanvasMouseEvent(page, slotCenter, "click");
 
     await expect
-      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+      .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
         timeout: 2_000,
       })
       .toContain(SLOT_ID);
@@ -122,7 +122,7 @@ test.describe("canvas rewrite read-only mode", () => {
     await setHarnessConfig(page, { isReadOnly: true });
 
     await expect
-      .poll(async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [], {
+      .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
         timeout: 2_000,
       })
       .toEqual([]);

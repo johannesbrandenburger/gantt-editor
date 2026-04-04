@@ -441,6 +441,10 @@ function onContextClickOnSlot(slotId: string): void {
   logEvent("onContextClickOnSlot", { slotId });
 }
 
+function onSelectionChange(slotIds: string[]): void {
+  logEvent("onSelectionChange", { slotIds: [...slotIds] });
+}
+
 function onChangeVerticalMarker(id: string, date: Date): void {
   harnessData.value = {
     ...harnessData.value,
@@ -513,6 +517,7 @@ onBeforeUnmount(() => {
       @onHoverOnSlot="onHoverOnSlot"
       @onDoubleClickOnSlot="onDoubleClickOnSlot"
       @onContextClickOnSlot="onContextClickOnSlot"
+      @onSelectionChange="onSelectionChange"
       @onChangeVerticalMarker="onChangeVerticalMarker"
       @onClickVerticalMarker="onClickVerticalMarker"
     />

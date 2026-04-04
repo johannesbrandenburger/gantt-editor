@@ -82,7 +82,7 @@
                     </button>
                     <button
                         @click="handleClearSelection"
-                        data-testid="clear-clipboard-button"
+                        data-testid="clear-selection-button"
                         :style="{
                             padding: '8px 16px',
                             borderRadius: '4px',
@@ -217,11 +217,7 @@ const handleSelectionChange = (slotIds: string[]) => {
 // Function to programmatically clear the selection via the component ref
 const handleClearSelection = () => {
     if (ganttEditorRef.value) {
-        if (typeof ganttEditorRef.value.clearSelection === 'function') {
-            ganttEditorRef.value.clearSelection();
-        } else {
-            ganttEditorRef.value.clearClipboard();
-        }
+        ganttEditorRef.value.clearSelection();
         showEventMessage('🗑️ Selection cleared programmatically');
     }
 };

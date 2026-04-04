@@ -13,7 +13,7 @@ test.describe("canvas rewrite top content and resize", () => {
     await expect(page.locator(".top-content-container")).toBeVisible();
     await expect(page.getByRole("button", { name: /Editable Mode|Read-Only Mode/ })).toBeVisible();
     await expect(page.getByTestId("toggle-marked-region-button")).toBeVisible();
-    await expect(page.getByTestId("clear-clipboard-button")).toBeVisible();
+    await expect(page.getByTestId("clear-selection-button")).toBeVisible();
   });
 
   test("top content can be resized by dragging the top resize band", async ({ page }) => {

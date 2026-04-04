@@ -36,7 +36,7 @@ test.describe("canvas rewrite integration workflows", () => {
 
     await expect
       .poll(
-        async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [],
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
         { timeout: 2_000 },
       )
       .toEqual([SLOT_A]);
@@ -49,7 +49,7 @@ test.describe("canvas rewrite integration workflows", () => {
 
     await expect
       .poll(
-        async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [],
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
         { timeout: 2_000 },
       )
       .toEqual([]);
@@ -101,7 +101,7 @@ test.describe("canvas rewrite integration workflows", () => {
 
     await expect
       .poll(
-        async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [],
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
         { timeout: 2_000 },
       )
       .toEqual([]);

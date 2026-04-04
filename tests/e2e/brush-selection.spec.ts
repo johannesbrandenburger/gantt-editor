@@ -23,7 +23,7 @@ const DENSE_TARGET_SLOT_ID = "DENSE-0002";
 
 async function brushSelectFirstAllocatedGroup(page: Page): Promise<{ selectedSlotIds: string[] }> {
   const canvas = await openE2eHarness(page, { fixture: "dense", query: { slots: 80 } });
-  await page.evaluate(() => localStorage.removeItem("pointerClipboard"));
+  await page.evaluate(() => localStorage.removeItem("pointerSelection"));
 
   const state = await getCanvasState<CanvasState>(page);
   expect(state).not.toBeNull();
@@ -57,31 +57,31 @@ async function brushSelectFirstAllocatedGroup(page: Page): Promise<{ selectedSlo
 
   await expect
     .poll(
-      async () => ((await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? []).length,
+      async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).length,
       { timeout: 2_000 },
     )
     .toBeGreaterThan(1);
 
-  const selectedSlotIds = (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [];
+  const selectedSlotIds = (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [];
   return { selectedSlotIds };
 }
 
 test.describe("canvas rewrite brush selection", () => {
-  test("Meta/Ctrl + drag selects multiple slots and persists clipboard", async ({ page }) => {
+  test("Meta/Ctrl + drag selects multiple slots and persists selection", async ({ page }) => {
     const { selectedSlotIds } = await brushSelectFirstAllocatedGroup(page);
 
-    const clipboardFromStorage = await page.evaluate(() => {
-      const raw = localStorage.getItem("pointerClipboard");
+    const selectionFromStorage = await page.evaluate(() => {
+      const raw = localStorage.getItem("pointerSelection");
       return raw ? (JSON.parse(raw) as Array<{ id: string }>).map((slot) => slot.id) : [];
     });
 
     expect(selectedSlotIds.length).toBeGreaterThan(1);
-    expect(clipboardFromStorage.sort()).toEqual([...selectedSlotIds].sort());
+    expect(selectionFromStorage.sort()).toEqual([...selectedSlotIds].sort());
   });
 
   test("Meta/Ctrl + drag in readonly fixture does not select slots", async ({ page }) => {
     const canvas = await openE2eHarness(page, { fixture: "readonly" });
-    await page.evaluate(() => localStorage.removeItem("pointerClipboard"));
+    await page.evaluate(() => localStorage.removeItem("pointerSelection"));
 
     const slotCenter = await findSlotPoint(page, "LH123-20250101-F", "center");
     const startCanvas = { x: slotCenter.x - 80, y: slotCenter.y - 20 };
@@ -95,7 +95,7 @@ test.describe("canvas rewrite brush selection", () => {
 
     await expect
       .poll(
-        async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [],
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
         { timeout: 1_500 },
       )
       .toEqual([]);
@@ -110,14 +110,14 @@ test.describe("canvas rewrite brush selection", () => {
     await dispatchCanvasMouseEvent(page, targetPoint, "click");
 
     const remainingAfterFirstClick =
-      (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [];
+      (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [];
     if (remainingAfterFirstClick.length > 0) {
       await dispatchCanvasMouseEvent(page, targetPoint, "click");
     }
 
     await expect
       .poll(
-        async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [],
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
         { timeout: 2_000 },
       )
       .toEqual([]);
@@ -138,7 +138,7 @@ test.describe("canvas rewrite brush selection", () => {
       .toBe(JSON.stringify([...selectedSlotIds].sort()));
   });
 
-  test("Escape clears brush-selected clipboard", async ({ page }) => {
+  test("Escape clears selected slots", async ({ page }) => {
     const { selectedSlotIds } = await brushSelectFirstAllocatedGroup(page);
     expect(selectedSlotIds.length).toBeGreaterThan(0);
 
@@ -146,7 +146,7 @@ test.describe("canvas rewrite brush selection", () => {
 
     await expect
       .poll(
-        async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [],
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
         { timeout: 2_000 },
       )
       .toEqual([]);

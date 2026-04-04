@@ -43,8 +43,8 @@ async function findAnySlotPoint(page: Page): Promise<{ x: number; y: number; slo
   return point as { x: number; y: number; slotId: string };
 }
 
-test.describe("canvas rewrite programmatic clipboard clear", () => {
-  test("clear clipboard button removes pinned slots", async ({ page }) => {
+test.describe("canvas rewrite programmatic selection clear", () => {
+  test("clear selection button removes pinned slots", async ({ page }) => {
     await openMainPage(page);
 
     const slotPoint = await findAnySlotPoint(page);
@@ -52,22 +52,22 @@ test.describe("canvas rewrite programmatic clipboard clear", () => {
 
     await expect
       .poll(
-        async () => ((await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? []).length,
+        async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).length,
         { timeout: 2_000 },
       )
       .toBeGreaterThan(0);
 
-    await page.getByTestId("clear-clipboard-button").click();
+    await page.getByTestId("clear-selection-button").click();
 
     await expect
       .poll(
-        async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [],
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
         { timeout: 2_000 },
       )
       .toEqual([]);
   });
 
-  test("clipboard can be used again after programmatic clear", async ({ page }) => {
+  test("selection can be used again after programmatic clear", async ({ page }) => {
     await openMainPage(page);
 
     const slotPoint = await findAnySlotPoint(page);
@@ -75,15 +75,15 @@ test.describe("canvas rewrite programmatic clipboard clear", () => {
 
     await expect
       .poll(
-        async () => ((await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? []).length,
+        async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).length,
         { timeout: 2_000 },
       )
       .toBeGreaterThan(0);
 
-    await page.getByTestId("clear-clipboard-button").click();
+    await page.getByTestId("clear-selection-button").click();
     await expect
       .poll(
-        async () => (await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? [],
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
         { timeout: 2_000 },
       )
       .toEqual([]);
@@ -91,22 +91,47 @@ test.describe("canvas rewrite programmatic clipboard clear", () => {
     await dispatchCanvasMouseEvent(page, slotPoint, "click");
     await expect
       .poll(
-        async () => ((await getCanvasStateField<string[]>(page, "clipboardSlotIds")) ?? []).length,
+        async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).length,
         { timeout: 2_000 },
       )
       .toBeGreaterThan(0);
   });
 
-  test("event message is shown when clipboard is cleared programmatically", async ({ page }) => {
+  test("event message is shown when selection is cleared programmatically", async ({ page }) => {
     await openMainPage(page);
 
     const slotPoint = await findAnySlotPoint(page);
     await dispatchCanvasMouseEvent(page, slotPoint, "click");
 
-    await page.getByTestId("clear-clipboard-button").click();
+    await page.getByTestId("clear-selection-button").click();
 
-    await expect(page.getByText("Clipboard cleared programmatically", { exact: false })).toBeVisible({
+    await expect(page.getByText("Selection cleared programmatically", { exact: false })).toBeVisible({
       timeout: 2_000,
     });
+  });
+
+  test("delete selection button removes selected slots from parent state", async ({ page }) => {
+    await openMainPage(page);
+
+    const slotPoint = await findAnySlotPoint(page);
+    await dispatchCanvasMouseEvent(page, slotPoint, "click");
+
+    await expect
+      .poll(
+        async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).length,
+        { timeout: 2_000 },
+      )
+      .toBeGreaterThan(0);
+
+    await page.getByTestId("delete-selection-button").click();
+
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toEqual([]);
+
+    await expect(page.getByText("Deleted", { exact: false })).toBeVisible({ timeout: 2_000 });
   });
 });

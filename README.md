@@ -181,7 +181,7 @@ export type GanttEditorXAxisOptions = {
   - simple vertical scroll (mousewheel/trackpad)
 - cmd/ctrl + click on **multiple slots selects** them one at a time
 - **zoom in and out** by shift + scroll (mousewheel/trackpad)
-- **clear clipboard** by pressing escape
+- **clear selection** by pressing escape
 
 ## Exposed Methods
 
@@ -194,20 +194,21 @@ import GanttEditorComponent from '@pf/gantt-editor-vue-component';
 
 const ganttEditorRef = ref<InstanceType<typeof GanttEditorComponent> | null>(null);
 
-// Clear the clipboard programmatically
-const handleClearClipboard = () => {
-  ganttEditorRef.value?.clearClipboard();
+// Clear the selection programmatically
+const handleClearSelection = () => {
+  ganttEditorRef.value?.clearSelection();
 };
 </script>
 <template>
   <GanttEditorComponent ref="ganttEditorRef" ... />
-  <button @click="handleClearClipboard">Clear Clipboard</button>
+  <button @click="handleClearSelection">Clear Selection</button>
 </template>
 ```
 
 ### Available Methods
 
-- `clearClipboard()`: Clears all slots from the clipboard programmatically. This is useful when you need to reset the clipboard state from external controls or based on application logic.
+- `clearSelection()`: Clears all selected slots programmatically. This is useful when you need to reset selection state from external controls or based on application logic.
+- `clearClipboard()` (deprecated): Backward-compatible alias for `clearSelection()`.
 
 
 ## Vertical markers
