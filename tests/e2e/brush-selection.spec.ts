@@ -125,14 +125,12 @@ test.describe("canvas rewrite brush selection", () => {
     await expect
       .poll(async () => {
         const events = await getHarnessEvents(page);
-        const moves = (events.onChangeDestinationId ?? []) as Array<{
-          slotId?: string;
+        const bulkMoves = (events.onBulkChangeDestinationId ?? []) as Array<{
+          slotIds?: string[];
           preview?: boolean;
         }>;
-        const movedSlotIds = moves
-          .filter((event) => event.preview === false && typeof event.slotId === "string")
-          .map((event) => event.slotId as string)
-          .sort();
+        const committedBulk = bulkMoves.find((event) => event.preview === false);
+        const movedSlotIds = [...(committedBulk?.slotIds ?? [])].sort();
         return JSON.stringify(movedSlotIds);
       })
       .toBe(JSON.stringify([...selectedSlotIds].sort()));

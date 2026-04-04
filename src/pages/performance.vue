@@ -64,6 +64,7 @@
                 :markedRegion="null"
                 @onChangeStartAndEndTime="handleChangeStartAndEndTime"
                 @onChangeDestinationId="handleChangeDestinationId"
+                @onBulkChangeDestinationId="handleBulkChangeDestinationId"
                 @onChangeSlotTime="handleChangeSlotTime"
                 @onClickOnSlot="() => {}"
                 @onHoverOnSlot="() => {}"
@@ -189,6 +190,13 @@ const handleChangeStartAndEndTime = (newStartTime: Date, newEndTime: Date) => {
 const handleChangeDestinationId = (slotId: string, destinationId: string) => {
     slots.value = slots.value.map(slot =>
         slot.id === slotId ? { ...slot, destinationId } : slot
+    );
+};
+
+const handleBulkChangeDestinationId = (slotIds: string[], destinationId: string) => {
+    const movedSlotIds = new Set(slotIds);
+    slots.value = slots.value.map(slot =>
+        movedSlotIds.has(slot.id) ? { ...slot, destinationId } : slot
     );
 };
 

@@ -21,6 +21,7 @@
             :markedRegion="markedRegion"
             @onChangeStartAndEndTime="handleChangeStartAndEndTime"
             @onChangeDestinationId="handleChangeDestinationId"
+            @onBulkChangeDestinationId="handleBulkChangeDestinationId"
             @onChangeSlotTime="handleChangeSlotTime"
             @onClickOnSlot="handleClickOnSlot"
             @onHoverOnSlot="handleHoverOnSlot"
@@ -450,6 +451,27 @@ const handleChangeDestinationId = (slotId: string, destinationId: string, wasSug
                 : slot
         );
         showEventMessage(`📦 Moved ${slotId} to ${destinationId}`);
+    }
+};
+
+const handleBulkChangeDestinationId = (slotIds: string[], destinationId: string, wasSuggestion?: boolean) => {
+    if (wasSuggestion) {
+        console.log('Callback: Applied bulk suggestion for slots', slotIds, 'to', destinationId);
+    }
+
+    const movedSlotIds = new Set(slotIds);
+    let movedCount = 0;
+    slots.value = slots.value.map((slot) => {
+        if (!movedSlotIds.has(slot.id) || slot.readOnly) {
+            return slot;
+        }
+        movedCount += 1;
+        return { ...slot, destinationId };
+    });
+
+    console.log('Callback: Bulk moved slots to different destination', slotIds, destinationId);
+    if (movedCount > 0) {
+        showEventMessage(`📦 Moved ${movedCount} slots to ${destinationId}`);
     }
 };
 

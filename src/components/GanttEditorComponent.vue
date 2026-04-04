@@ -40,6 +40,7 @@ import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 interface GanttEditorEmits {
   onChangeStartAndEndTime: [Date, Date],
   onChangeDestinationId: [string, string, boolean],
+  onBulkChangeDestinationId: [string[], string, boolean],
   onChangeSlotTime: [string, Date, Date],
   onSelectionChange: [string[]],
   onClickOnSlot: [string],
@@ -130,6 +131,9 @@ const controller = new GanttChartCanvasController(
     },
     onChangeDestinationId: (slotId, destinationId, preview) => {
       emit("onChangeDestinationId", slotId, destinationId, preview);
+    },
+    onBulkChangeDestinationId: (slotIds, destinationId, preview) => {
+      emit("onBulkChangeDestinationId", slotIds, destinationId, preview);
     },
     onClickOnSlot: (slotId) => {
       emit("onClickOnSlot", slotId);

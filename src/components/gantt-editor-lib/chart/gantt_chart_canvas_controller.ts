@@ -2050,13 +2050,26 @@ export class GanttChartCanvasController {
     const previousLayoutByGroupId = this.captureTopicLayoutSnapshotByGroupId();
 
     let movedSomething = false;
+    const movedSlotIds: string[] = [];
     for (const copiedSlot of clipboard) {
       const target = this.props.slots.find((s) => s.id === copiedSlot.id);
       if (!target || target.readOnly) continue;
       target.destinationId = topicId;
       target.isCopied = false;
       movedSomething = true;
-      this.callbacks.onChangeDestinationId?.(target.id, topicId, false);
+      movedSlotIds.push(target.id);
+    }
+
+    if (movedSlotIds.length > 1) {
+      if (this.callbacks.onBulkChangeDestinationId) {
+        this.callbacks.onBulkChangeDestinationId(movedSlotIds, topicId, false);
+      } else {
+        for (const slotId of movedSlotIds) {
+          this.callbacks.onChangeDestinationId?.(slotId, topicId, false);
+        }
+      }
+    } else if (movedSlotIds.length === 1) {
+      this.callbacks.onChangeDestinationId?.(movedSlotIds[0], topicId, false);
     }
 
     this.writeSelection([]);

@@ -86,7 +86,7 @@ test.describe("canvas rewrite slot destination change", () => {
       .toEqual([]);
   });
 
-  test("Meta/Ctrl click supports multi-select and multi-slot paste", async ({ page }) => {
+  test("Meta/Ctrl click supports multi-select and emits one bulk destination change", async ({ page }) => {
     await openE2eHarness(page, { fixture: "core" });
     await clearHarnessEvents(page);
 
@@ -118,18 +118,26 @@ test.describe("canvas rewrite slot destination change", () => {
     await expect
       .poll(async () => {
         const events = await getHarnessEvents(page);
-        const moves = (events.onChangeDestinationId ?? []) as Array<{
-          slotId?: string;
+        const bulkMoves = (events.onBulkChangeDestinationId ?? []) as Array<{
+          slotIds?: string[];
           destinationId?: string;
           preview?: boolean;
         }>;
-        const pasted = moves
-          .filter((event) => event.preview === false && event.destinationId === targetDestination)
-          .map((event) => event.slotId)
-          .filter((slotId): slotId is string => typeof slotId === "string")
-          .sort();
-        return pasted;
+        const committedBulk = bulkMoves.find(
+          (event) => event.preview === false && event.destinationId === targetDestination,
+        );
+        const slotIds = [...(committedBulk?.slotIds ?? [])].sort();
+        return slotIds;
       })
       .toEqual([SLOT_A, SLOT_B]);
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const singleMoves = (events.onChangeDestinationId ?? []) as Array<{ slotId?: string; preview?: boolean }>;
+        const committedSingles = singleMoves.filter((event) => event.preview === false);
+        return committedSingles.length;
+      })
+      .toBe(0);
   });
 });

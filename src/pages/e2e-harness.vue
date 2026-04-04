@@ -409,6 +409,19 @@ function onChangeDestinationId(slotId: string, destinationId: string, preview: b
   logEvent("onChangeDestinationId", { slotId, destinationId, preview });
 }
 
+function onBulkChangeDestinationId(slotIds: string[], destinationId: string, preview: boolean): void {
+  if (!preview) {
+    const movedSlotIds = new Set(slotIds);
+    harnessData.value = {
+      ...harnessData.value,
+      slots: harnessData.value.slots.map((slot) =>
+        movedSlotIds.has(slot.id) ? { ...slot, destinationId } : slot,
+      ),
+    };
+  }
+  logEvent("onBulkChangeDestinationId", { slotIds, destinationId, preview });
+}
+
 function onChangeSlotTime(slotId: string, openTime: Date, closeTime: Date): void {
   harnessData.value = {
     ...harnessData.value,
@@ -512,6 +525,7 @@ onBeforeUnmount(() => {
       :topContentPortion="harnessData.topContentPortion"
       @onChangeStartAndEndTime="onChangeStartAndEndTime"
       @onChangeDestinationId="onChangeDestinationId"
+      @onBulkChangeDestinationId="onBulkChangeDestinationId"
       @onChangeSlotTime="onChangeSlotTime"
       @onClickOnSlot="onClickOnSlot"
       @onHoverOnSlot="onHoverOnSlot"
