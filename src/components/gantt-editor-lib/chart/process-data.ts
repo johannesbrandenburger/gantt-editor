@@ -92,7 +92,7 @@ function assignSlotsToRowsHeap(
   const sorted = sortSlotsByOpen(topicSlots);
   const rows: Array<{ name: string; slots: GanttEditorSlot[]; id: string }> = [];
   const heap = new MinHeap<{ end: number; rowIdx: number }>((x) => x.end);
-  const freeRowIndices: number[] = [];
+  const freeRowIndices = new MinHeap<number>((x) => x);
 
   for (const slot of sorted) {
     const open = slot.openTime.getTime();
@@ -104,7 +104,7 @@ function assignSlotsToRowsHeap(
     }
 
     let rowIdx: number;
-    if (freeRowIndices.length > 0) {
+    if (freeRowIndices.size > 0) {
       rowIdx = freeRowIndices.pop()!;
     } else {
       rowIdx = rows.length;
