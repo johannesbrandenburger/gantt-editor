@@ -11,7 +11,14 @@ import type {
   GanttEditorVerticalMarker,
 } from "@/components/gantt-editor-lib/chart/types";
 
-type FixtureName = "core" | "dense" | "readonly" | "markers" | "suggestions" | "topic-collapse";
+type FixtureName =
+  | "core"
+  | "dense"
+  | "readonly"
+  | "markers"
+  | "suggestions"
+  | "topic-collapse"
+  | "performance";
 
 type HarnessData = {
   startTime: Date;
@@ -90,7 +97,8 @@ function normalizeFixture(value: string | null | undefined): FixtureName {
     value === "readonly" ||
     value === "markers" ||
     value === "suggestions" ||
-    value === "topic-collapse"
+    value === "topic-collapse" ||
+    value === "performance"
   ) {
     return value;
   }
@@ -197,13 +205,46 @@ function denseSlots(total: number): GanttEditorSlotWithUiAttributes[] {
   });
 }
 
+function performanceSlots(
+  total: number,
+  rangeStart: Date,
+  rangeEnd: Date,
+): GanttEditorSlotWithUiAttributes[] {
+  const boundedTotal = Math.max(1, Math.min(80_000, total));
+  const startMs = rangeStart.getTime();
+  const endMs = Math.max(startMs + 60_000, rangeEnd.getTime());
+  const spanMs = endMs - startMs;
+
+  return Array.from({ length: boundedTotal }, (_, idx) => {
+    const openRatio = idx / boundedTotal;
+    const openMs = startMs + Math.floor(spanMs * openRatio);
+    // Keep data spread over 3 months but induce deep overlap for vertical-scroll stress.
+    const overlapDurationDays = 10 + (idx % 4);
+    const closeMs = Math.min(endMs, openMs + overlapDurationDays * 24 * 60 * 60 * 1000);
+    return {
+      id: `PERF-${String(idx + 1).padStart(5, "0")}`,
+      displayName: `PERF-${idx + 1}`,
+      group: `PERF-TOPIC-${idx + 1}`,
+      openTime: new Date(openMs),
+      closeTime: new Date(closeMs),
+      destinationId: idx % 12 === 0 ? "UNALLOCATED" : `chute-${(idx % 3) + 1}`,
+      color: idx % 2 === 0 ? "#0d9488" : "#ea580c",
+    };
+  });
+}
+
 function baseData(fixture: FixtureName, slotCount: number): HarnessData {
+  const performanceStart = new Date("2025-01-01T00:00:00Z");
+  const performanceEnd = new Date("2025-03-31T23:59:59Z");
+
   const data: HarnessData = {
-    startTime: defaultStart,
-    endTime: defaultEnd,
+    startTime: fixture === "performance" ? performanceStart : defaultStart,
+    endTime: fixture === "performance" ? performanceEnd : defaultEnd,
     slots:
       fixture === "dense"
         ? denseSlots(slotCount)
+        : fixture === "performance"
+          ? performanceSlots(slotCount, performanceStart, performanceEnd)
         : fixture === "suggestions"
           ? suggestionSlots()
           : fixture === "topic-collapse"

@@ -8,7 +8,14 @@ type TestApiState = {
 };
 
 type OpenHarnessOptions = {
-  fixture?: "core" | "dense" | "readonly" | "markers" | "suggestions" | "topic-collapse";
+  fixture?:
+    | "core"
+    | "dense"
+    | "readonly"
+    | "markers"
+    | "suggestions"
+    | "topic-collapse"
+    | "performance";
   query?: Record<string, string | number | boolean | null | undefined>;
 };
 
