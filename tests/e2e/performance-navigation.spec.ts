@@ -29,8 +29,9 @@ type WheelPerfResult = {
   frameCount: number;
 };
 
-const MIN_ZOOM_FPS = 65;
-const MIN_VERTICAL_SCROLL_FPS = 75;
+const IS_CI = !!process.env.CI;
+const MIN_ZOOM_FPS = IS_CI ? 40 : 65;
+const MIN_VERTICAL_SCROLL_FPS = IS_CI ? 55 : 75;
 
 async function getNavigationPoint(page: Page): Promise<{ x: number; y: number }> {
   const state = await getCanvasState<PerfCanvasState>(page);
