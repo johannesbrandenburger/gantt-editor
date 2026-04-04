@@ -9,6 +9,118 @@ import type {
 /** Skip O(n)-heap conflict sweep above this (still correct row layout; conflicts not marked). */
 const CONFLICT_DETECTION_MAX_SLOTS = 50_000;
 
+class IntMinHeap {
+  private readonly h: number[] = [];
+
+  get size(): number {
+    return this.h.length;
+  }
+
+  push(x: number): void {
+    this.h.push(x);
+    let i = this.h.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (this.h[p]! <= this.h[i]!) break;
+      [this.h[p], this.h[i]] = [this.h[i]!, this.h[p]!];
+      i = p;
+    }
+  }
+
+  pop(): number | undefined {
+    const n = this.h.length;
+    if (n === 0) return undefined;
+    const out = this.h[0]!;
+    const last = this.h.pop()!;
+    if (n > 1) {
+      this.h[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = i * 2 + 1;
+        const r = l + 1;
+        let sm = i;
+        if (l < this.h.length && this.h[l]! < this.h[sm]!) sm = l;
+        if (r < this.h.length && this.h[r]! < this.h[sm]!) sm = r;
+        if (sm === i) break;
+        [this.h[i], this.h[sm]] = [this.h[sm]!, this.h[i]!];
+        i = sm;
+      }
+    }
+    return out;
+  }
+}
+
+class ActiveRowHeap {
+  private readonly ends: number[] = [];
+  private readonly rowIdxs: number[] = [];
+
+  get size(): number {
+    return this.ends.length;
+  }
+
+  peekEnd(): number | undefined {
+    return this.ends[0];
+  }
+
+  push(end: number, rowIdx: number): void {
+    this.ends.push(end);
+    this.rowIdxs.push(rowIdx);
+    let i = this.ends.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      const pEnd = this.ends[p]!;
+      const cEnd = this.ends[i]!;
+      if (pEnd < cEnd) break;
+      if (pEnd === cEnd && this.rowIdxs[p]! <= this.rowIdxs[i]!) break;
+      [this.ends[p], this.ends[i]] = [this.ends[i]!, this.ends[p]!];
+      [this.rowIdxs[p], this.rowIdxs[i]] = [this.rowIdxs[i]!, this.rowIdxs[p]!];
+      i = p;
+    }
+  }
+
+  popRowIdx(): number | undefined {
+    const n = this.ends.length;
+    if (n === 0) return undefined;
+
+    const outRowIdx = this.rowIdxs[0]!;
+    const lastEnd = this.ends.pop()!;
+    const lastRowIdx = this.rowIdxs.pop()!;
+    if (n > 1) {
+      this.ends[0] = lastEnd;
+      this.rowIdxs[0] = lastRowIdx;
+
+      let i = 0;
+      for (;;) {
+        const l = i * 2 + 1;
+        const r = l + 1;
+        let sm = i;
+
+        if (l < this.ends.length) {
+          const lEnd = this.ends[l]!;
+          const sEnd = this.ends[sm]!;
+          if (lEnd < sEnd || (lEnd === sEnd && this.rowIdxs[l]! < this.rowIdxs[sm]!)) {
+            sm = l;
+          }
+        }
+
+        if (r < this.ends.length) {
+          const rEnd = this.ends[r]!;
+          const sEnd = this.ends[sm]!;
+          if (rEnd < sEnd || (rEnd === sEnd && this.rowIdxs[r]! < this.rowIdxs[sm]!)) {
+            sm = r;
+          }
+        }
+
+        if (sm === i) break;
+        [this.ends[i], this.ends[sm]] = [this.ends[sm]!, this.ends[i]!];
+        [this.rowIdxs[i], this.rowIdxs[sm]] = [this.rowIdxs[sm]!, this.rowIdxs[i]!];
+        i = sm;
+      }
+    }
+    return outRowIdx;
+  }
+}
+
 class MinHeap<T> {
   private readonly h: T[] = [];
   constructor(private readonly key: (t: T) => number) {}
@@ -90,40 +202,35 @@ function assignSlotsToRowsHeap(
   compactView: boolean,
 ): Array<{ name: string; slots: GanttEditorSlot[]; id: string }> {
   const sorted = sortSlotsByOpen(topicSlots);
+
+  type Prepared = { slot: GanttEditorSlot; open: number; end: number };
+  const prepared: Prepared[] = new Array(sorted.length);
+  for (let i = 0; i < sorted.length; i++) {
+    const slot = sorted[i]!;
+    prepared[i] = {
+      slot,
+      open: slot.openTime.getTime(),
+      end: compactView ? slot.closeTime.getTime() : effectiveEndMs(slot),
+    };
+  }
+
   const rows: Array<{ name: string; slots: GanttEditorSlot[]; id: string }> = [];
-  const heap = new MinHeap<{ end: number; rowIdx: number }>((x) => x.end);
-  const rowIsFree: boolean[] = [];
-  let minFreeRowIdx = Number.POSITIVE_INFINITY;
+  const activeRows = new ActiveRowHeap();
+  const freeRowIndices = new IntMinHeap();
 
-  for (const slot of sorted) {
-    const open = slot.openTime.getTime();
-    const end = compactView ? slot.closeTime.getTime() : effectiveEndMs(slot);
-
-    while (heap.size > 0 && heap.peek()!.end <= open) {
-      const freed = heap.pop()!;
-      rowIsFree[freed.rowIdx] = true;
-      if (freed.rowIdx < minFreeRowIdx) {
-        minFreeRowIdx = freed.rowIdx;
-      }
+  for (const item of prepared) {
+    while (activeRows.size > 0 && activeRows.peekEnd()! <= item.open) {
+      const freedRowIdx = activeRows.popRowIdx()!;
+      freeRowIndices.push(freedRowIdx);
     }
 
-    let rowIdx: number;
-    if (minFreeRowIdx !== Number.POSITIVE_INFINITY) {
-      rowIdx = minFreeRowIdx;
-      rowIsFree[rowIdx] = false;
-
-      let next = rowIdx + 1;
-      while (next < rowIsFree.length && rowIsFree[next] !== true) {
-        next += 1;
-      }
-      minFreeRowIdx = next < rowIsFree.length ? next : Number.POSITIVE_INFINITY;
-    } else {
-      rowIdx = rows.length;
+    const rowIdx = freeRowIndices.size > 0 ? freeRowIndices.pop()! : rows.length;
+    if (rowIdx === rows.length) {
       rows.push({ name: '', slots: [], id: `${topicId}-${rowIdx}` });
-      rowIsFree[rowIdx] = false;
     }
-    rows[rowIdx]!.slots.push(slot);
-    heap.push({ end, rowIdx });
+
+    rows[rowIdx]!.slots.push(item.slot);
+    activeRows.push(item.end, rowIdx);
   }
 
   return rows;

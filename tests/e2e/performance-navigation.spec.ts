@@ -184,6 +184,11 @@ test.describe("canvas rewrite performance navigation", () => {
     expect(scrollDownMetrics.frameCount).toBeGreaterThan(20);
     expect(scrollUpMetrics.frameCount).toBeGreaterThan(20);
 
+    // log the fps values
+    console.log(`Zoom FPS: ${zoomMetrics.fps.toFixed(2)}`);
+    console.log(`Scroll Down FPS: ${scrollDownMetrics.fps.toFixed(2)}`);
+    console.log(`Scroll Up FPS: ${scrollUpMetrics.fps.toFixed(2)}`);
+
     expect(zoomMetrics.fps, `zoom fps=${zoomMetrics.fps.toFixed(2)}`).toBeGreaterThan(MIN_ZOOM_FPS);
     expect(
       scrollDownMetrics.fps,
