@@ -16,7 +16,12 @@ import {
   slotsAllowLabelsAndInteraction,
 } from "./canvas_slot_scale";
 import { processData } from "./process-data";
-import { drawTopicLines, computeContentHeight, computeTopicLayout } from "./canvas_topics";
+import {
+  drawTopicLines,
+  computeContentHeight,
+  computeTopicLayout,
+  type TopicLayout,
+} from "./canvas_topics";
 import {
   collectSlotsFullyInsideRect,
   drawSlots,
@@ -181,6 +186,19 @@ export class GanttChartCanvasController {
     startedAtMs: number;
     durationMs: number;
     shiftsBySlotId: Map<string, number>;
+  } | null = null;
+
+  /** Per-group topic Y-shift interpolation used for collapse/expand height transitions. */
+  private collapseLayoutAnimation: {
+    startedAtMs: number;
+    durationMs: number;
+    shiftsByGroupId: Map<
+      string,
+      {
+        shiftsByTopicId: Map<string, number>;
+        contentHeightShift: number;
+      }
+    >;
   } | null = null;
 
   private cachedCanvasEl: HTMLCanvasElement | null = null;
@@ -1311,9 +1329,7 @@ export class GanttChartCanvasController {
       return null;
     }
 
-    const clamped = Math.max(0, Math.min(1, rawProgress));
-    // Quick ease-out keeps the movement readable while minimizing frame count.
-    const eased = 1 - Math.pow(1 - clamped, 3);
+    const eased = this.easeOutCubic(rawProgress);
     return {
       shiftsBySlotId: anim.shiftsBySlotId,
       progress: eased,
@@ -1323,6 +1339,151 @@ export class GanttChartCanvasController {
   private cancelSlotReflowAnimation(): void {
     this.pendingSlotReflowFromResize = null;
     this.slotReflowAnimation = null;
+    this.collapseLayoutAnimation = null;
+  }
+
+  private easeOutCubic(rawProgress: number): number {
+    const clamped = Math.max(0, Math.min(1, rawProgress));
+    return 1 - Math.pow(1 - clamped, 3);
+  }
+
+  private captureTopicLayoutSnapshotByGroupId(): Map<
+    string,
+    {
+      topicYById: Map<string, number>;
+      contentHeight: number;
+    }
+  > {
+    this.getProcessedTopics();
+    const snapshots = new Map<
+      string,
+      {
+        topicYById: Map<string, number>;
+        contentHeight: number;
+      }
+    >();
+
+    this.topicsByGroupId.forEach((topics, groupId) => {
+      const layouts = computeTopicLayout(topics, MARGIN.left, this.rowHeight);
+      const topicYById = new Map<string, number>();
+      for (const layout of layouts) {
+        topicYById.set(layout.topic.id, layout.gridlineY);
+      }
+      snapshots.set(groupId, {
+        topicYById,
+        contentHeight: layouts.length > 0 ? layouts[layouts.length - 1]!.topic.yEnd : 0,
+      });
+    });
+
+    return snapshots;
+  }
+
+  private startCollapseLayoutAnimation(
+    previousByGroupId: ReadonlyMap<
+      string,
+      {
+        topicYById: ReadonlyMap<string, number>;
+        contentHeight: number;
+      }
+    >,
+    startedAtMs = performance.now(),
+  ): void {
+    const nextByGroupId = this.captureTopicLayoutSnapshotByGroupId();
+    const shiftsByGroupId = new Map<
+      string,
+      {
+        shiftsByTopicId: Map<string, number>;
+        contentHeightShift: number;
+      }
+    >();
+
+    nextByGroupId.forEach((next, groupId) => {
+      const previous = previousByGroupId.get(groupId);
+      if (!previous) return;
+
+      const shiftsByTopicId = new Map<string, number>();
+      next.topicYById.forEach((nextY, topicId) => {
+        const previousY = previous.topicYById.get(topicId);
+        if (previousY === undefined) return;
+        const shift = previousY - nextY;
+        if (Math.abs(shift) >= 0.5) {
+          shiftsByTopicId.set(topicId, shift);
+        }
+      });
+
+      const contentHeightShift = previous.contentHeight - next.contentHeight;
+      if (shiftsByTopicId.size > 0 || Math.abs(contentHeightShift) >= 0.5) {
+        shiftsByGroupId.set(groupId, {
+          shiftsByTopicId,
+          contentHeightShift,
+        });
+      }
+    });
+
+    if (shiftsByGroupId.size === 0) {
+      this.collapseLayoutAnimation = null;
+      return;
+    }
+
+    this.collapseLayoutAnimation = {
+      startedAtMs,
+      durationMs: SLOT_REFLOW_ANIMATION_MS,
+      shiftsByGroupId,
+    };
+  }
+
+  private getActiveCollapseLayoutTransition(nowMs: number): {
+    progress: number;
+    shiftsByGroupId: ReadonlyMap<
+      string,
+      {
+        shiftsByTopicId: ReadonlyMap<string, number>;
+        contentHeightShift: number;
+      }
+    >;
+  } | null {
+    const anim = this.collapseLayoutAnimation;
+    if (!anim || anim.shiftsByGroupId.size === 0) return null;
+
+    const rawProgress = (nowMs - anim.startedAtMs) / anim.durationMs;
+    if (rawProgress >= 1) {
+      this.collapseLayoutAnimation = null;
+      return null;
+    }
+
+    return {
+      progress: this.easeOutCubic(rawProgress),
+      shiftsByGroupId: anim.shiftsByGroupId,
+    };
+  }
+
+  private applyTopicLayoutYShift(
+    topicLayouts: TopicLayout[],
+    shiftsByTopicId: ReadonlyMap<string, number>,
+    progress: number,
+  ): TopicLayout[] {
+    if (shiftsByTopicId.size === 0) return topicLayouts;
+
+    const shiftedLayouts: TopicLayout[] = [];
+    for (const layout of topicLayouts) {
+      const shift = shiftsByTopicId.get(layout.topic.id);
+      if (shift === undefined) {
+        shiftedLayouts.push(layout);
+        continue;
+      }
+
+      const appliedShift = shift * (1 - progress);
+      layout.topic.yStart += appliedShift;
+      layout.topic.yEnd += appliedShift;
+      shiftedLayouts.push({
+        ...layout,
+        gridlineY: layout.gridlineY + appliedShift,
+        labelY: layout.labelY + appliedShift,
+        rowYs: layout.rowYs.map((y) => y + appliedShift),
+      });
+    }
+
+    return shiftedLayouts;
   }
 
   private getProcessedTopics(): Topic[] {
@@ -1442,11 +1603,9 @@ export class GanttChartCanvasController {
       return null;
     }
 
-    const clamped = Math.max(0, Math.min(1, rawProgress));
-    const eased = 1 - Math.pow(1 - clamped, 3);
     return {
       shiftsBySlotId: anim.shiftsBySlotId,
-      progress: eased,
+      progress: this.easeOutCubic(rawProgress),
     };
   }
 
@@ -1840,6 +1999,9 @@ export class GanttChartCanvasController {
   private toggleTopicCollapse(topicId: string): void {
     if (!topicId) return;
 
+    const previousRowYBySlotId = this.captureSlotRowYById();
+    const previousLayoutByGroupId = this.captureTopicLayoutSnapshotByGroupId();
+
     let collapsedTopics: string[] = [];
     try {
       const raw = localStorage.getItem("collapsedTopics") || "[]";
@@ -1859,6 +2021,8 @@ export class GanttChartCanvasController {
 
     localStorage.setItem("collapsedTopics", JSON.stringify(collapsedTopics));
     this.cachedProcessedTopics = null;
+    this.startSlotReflowAnimationFromPreviousRows(previousRowYBySlotId);
+    this.startCollapseLayoutAnimation(previousLayoutByGroupId);
     this.redraw();
   }
 
@@ -2211,6 +2375,7 @@ export class GanttChartCanvasController {
 
     const nowMs = performance.now();
     const slotYTransition = this.getActiveSlotYTransition(nowMs);
+    const collapseLayoutTransition = this.getActiveCollapseLayoutTransition(nowMs);
     const destinationPreview = this.getDestinationPreviewState(nowMs);
 
     for (const group of this.props.destinationGroups) {
@@ -2223,9 +2388,16 @@ export class GanttChartCanvasController {
         this.topicsByGroupId.get(group.id) ??
         [];
       const contentHeight = computeContentHeight(groupTopics, this.rowHeight);
+      const collapseGroupTransition = collapseLayoutTransition?.shiftsByGroupId.get(group.id);
+      const collapseProgress = collapseLayoutTransition?.progress ?? 1;
+      const displayContentHeight =
+        contentHeight +
+        (collapseGroupTransition
+          ? collapseGroupTransition.contentHeightShift * (1 - collapseProgress)
+          : 0);
       const scrollOffset = this.verticalScrollOffsets.get(group.id) || 0;
 
-      const maxOffset = Math.max(0, contentHeight - viewportHeight);
+      const maxOffset = Math.max(0, displayContentHeight - viewportHeight);
       const clampedOffset = Math.min(scrollOffset, maxOffset);
       if (clampedOffset !== scrollOffset) {
         this.verticalScrollOffsets.set(group.id, clampedOffset);
@@ -2238,6 +2410,14 @@ export class GanttChartCanvasController {
       ctx.translate(0, gr.y - clampedOffset);
 
       const topicLayouts = computeTopicLayout(groupTopics, MARGIN.left, this.rowHeight);
+      const animatedTopicLayouts =
+        collapseGroupTransition && collapseLayoutTransition
+          ? this.applyTopicLayoutYShift(
+              topicLayouts,
+              collapseGroupTransition.shiftsByTopicId,
+              collapseProgress,
+            )
+          : topicLayouts;
 
       drawTopicLines({
         ctx,
@@ -2248,7 +2428,7 @@ export class GanttChartCanvasController {
         rowHeight: this.rowHeight,
         viewportTop: clampedOffset,
         viewportHeight: viewportHeight,
-        layouts: topicLayouts,
+        layouts: animatedTopicLayouts,
         showTopicHeaderText: destinationLabelsVisible(this.rowHeight),
       });
 
@@ -2262,7 +2442,7 @@ export class GanttChartCanvasController {
         endTime: this.internalEndTime,
         viewportTop: clampedOffset,
         viewportHeight: viewportHeight,
-        topicLayouts,
+        topicLayouts: animatedTopicLayouts,
         slotTimeOverride: this.slotResizePreview,
         slotYTransition: destinationPreview?.slotYTransition ?? slotYTransition,
         previewPulseAlpha: destinationPreview?.pulseAlpha,
@@ -2279,7 +2459,7 @@ export class GanttChartCanvasController {
           endTime: this.internalEndTime,
           viewportTop: clampedOffset,
           viewportHeight: viewportHeight,
-          topicLayouts,
+          topicLayouts: animatedTopicLayouts,
           slotTimeOverride: this.slotResizePreview,
         });
       }
@@ -2293,13 +2473,13 @@ export class GanttChartCanvasController {
         markers: this.props.verticalMarkers ?? [],
         isReadOnly: this.props.isReadOnly,
         groupY: 0,
-        groupHeight: contentHeight,
+        groupHeight: displayContentHeight,
         draggingMarker: this.verticalMarkerDrag
           ? { id: this.verticalMarkerDrag.markerId, x: this.verticalMarkerDrag.currentX }
           : null,
       });
 
-      this.drawMarkedRegionOverlay(ctx, group.id, contentHeight, layout.canvasCssWidth);
+      this.drawMarkedRegionOverlay(ctx, group.id, displayContentHeight, layout.canvasCssWidth);
 
       if (suggestionsVisible(this.rowHeight)) {
         drawSuggestionButtons({
@@ -2313,7 +2493,7 @@ export class GanttChartCanvasController {
           endTime: this.internalEndTime,
           viewportTop: clampedOffset,
           viewportHeight: viewportHeight,
-          topicLayouts,
+          topicLayouts: animatedTopicLayouts,
           hoveredSlotId: this.hoveredSuggestion?.slotId ?? null,
         });
       }
@@ -2339,7 +2519,7 @@ export class GanttChartCanvasController {
     this.drawSuggestionHoverOverlay(ctx, layout);
     this.drawSlotHoverTooltipOverlay(ctx, layout);
 
-    if (slotYTransition || destinationPreview) {
+    if (slotYTransition || collapseLayoutTransition || destinationPreview) {
       this.scheduleFrameRedraw(false);
     }
   }
