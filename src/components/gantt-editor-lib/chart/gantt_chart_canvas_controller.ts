@@ -222,6 +222,7 @@ export class GanttChartCanvasController {
     Topic[],
     { rowHeight: number; layouts: TopicLayout[] }
   >();
+  private contentHeightsByTopicsRef = new WeakMap<Topic[], Map<number, number>>();
 
   /** At most one full draw per animation frame (pan / drag / hover bursts). */
   private frameRedrawRaf: number | null = null;
@@ -275,26 +276,55 @@ export class GanttChartCanvasController {
    * top-content portion until the parent actually changes those inputs (matches prior Vue watches).
    */
   refreshModel(next: GanttEditorProps): void {
-    const wasReadOnly = this.props.isReadOnly;
+    const previousProps = this.props;
+    const wasReadOnly = previousProps.isReadOnly;
+    const previousStartMs = previousProps.startTime.getTime();
+    const previousEndMs = previousProps.endTime.getTime();
+    const nextStartMs = next.startTime.getTime();
+    const nextEndMs = next.endTime.getTime();
+    const parentTimeRangeChanged =
+      previousStartMs !== nextStartMs || previousEndMs !== nextEndMs;
+    const nonTimePropsUnchangedByRef =
+      previousProps.slots === next.slots &&
+      previousProps.destinations === next.destinations &&
+      previousProps.destinationGroups === next.destinationGroups &&
+      previousProps.suggestions === next.suggestions &&
+      previousProps.verticalMarkers === next.verticalMarkers &&
+      previousProps.markedRegion === next.markedRegion &&
+      previousProps.isReadOnly === next.isReadOnly &&
+      previousProps.topContentPortion === next.topContentPortion &&
+      previousProps.xAxisOptions === next.xAxisOptions;
+    const isTimeRangeOnlyUpdate = parentTimeRangeChanged && nonTimePropsUnchangedByRef;
+
     this.props = next;
+
+    let shouldRedraw = false;
+    let nextFingerprint: number | null = null;
+    let processDataChanged = false;
 
     if (!wasReadOnly && next.isReadOnly) {
       this.clearSelection();
+      shouldRedraw = true;
     }
 
-    const newFp = this.computeProcessDataDeepFingerprint(next);
-    if (this.processDataDeepFingerprint !== newFp) {
-      this.cachedProcessedTopics = null;
+    if (!isTimeRangeOnlyUpdate) {
+      nextFingerprint = this.computeProcessDataDeepFingerprint(next);
+      processDataChanged = this.processDataDeepFingerprint !== nextFingerprint;
+      if (processDataChanged) {
+        this.cachedProcessedTopics = null;
+        shouldRedraw = true;
+      }
     }
 
-    const ps = next.startTime.getTime();
-    const pe = next.endTime.getTime();
+    const ps = nextStartMs;
+    const pe = nextEndMs;
     if (ps !== this.lastSeenParentStartMs || pe !== this.lastSeenParentEndMs) {
       this.lastSeenParentStartMs = ps;
       this.lastSeenParentEndMs = pe;
       this.internalStartTime = new Date(next.startTime);
       this.internalEndTime = new Date(next.endTime);
       this.reconcileUnifiedZoomRowHeight();
+      shouldRedraw = true;
     }
 
     if (next.topContentPortion !== undefined) {
@@ -303,6 +333,7 @@ export class GanttChartCanvasController {
         this.lastSeenParentTopPortion = t;
         this.currentTopContentPortion = t;
         this.invalidateLayoutCache();
+        shouldRedraw = true;
       }
     }
 
@@ -310,20 +341,33 @@ export class GanttChartCanvasController {
     if (gSnap !== this.lastDestinationGroupsSnapshot) {
       this.lastDestinationGroupsSnapshot = gSnap;
       this.syncDestinationGroupsFromProps();
+      shouldRedraw = true;
     }
 
     const markedSnap = markedRegionSnapshot(next.markedRegion);
     if (markedSnap !== this.lastMarkedRegionSnapshot) {
       this.lastMarkedRegionSnapshot = markedSnap;
       this.scrollToMarkedRegionDestination(next.markedRegion);
+      shouldRedraw = true;
     }
 
-    // Keep isCopied UI flags aligned with current persisted selection after any parent slot updates.
-    this.applyCopiedFlagsFromClipboard(this.clipboardItems);
+    // Keep isCopied flags in sync only when the slot model may have changed.
+    const slotModelRefsChanged =
+      next.slots !== previousProps.slots ||
+      next.destinations !== previousProps.destinations ||
+      next.isReadOnly !== previousProps.isReadOnly;
+    if (slotModelRefsChanged || processDataChanged) {
+      this.applyCopiedFlagsFromClipboard(this.clipboardItems);
+      shouldRedraw = true;
+    }
 
-    this.tryStartPendingSlotReflowAnimation(newFp);
+    if (nextFingerprint !== null) {
+      this.tryStartPendingSlotReflowAnimation(nextFingerprint);
+    }
 
-    this.redraw();
+    if (shouldRedraw) {
+      this.redraw();
+    }
     this.maybeNotifyTopContentLayout();
   }
 
@@ -1283,6 +1327,30 @@ export class GanttChartCanvasController {
     const layouts = computeTopicLayout(topics, MARGIN.left, this.rowHeight);
     this.topicLayoutsByTopicsRef.set(topics, { rowHeight: this.rowHeight, layouts });
     return layouts;
+  }
+
+  private getContentHeight(topics: Topic[], rowHeight: number): number {
+    const key = Math.round(rowHeight * 10_000) / 10_000;
+    const cachedByHeight = this.contentHeightsByTopicsRef.get(topics);
+    const cached = cachedByHeight?.get(key);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const computed = computeContentHeight(topics, rowHeight);
+    const byHeight = cachedByHeight ?? new Map<number, number>();
+    byHeight.set(key, computed);
+    // Keep only a tiny LRU-ish window per topics reference.
+    if (byHeight.size > 4) {
+      const firstKey = byHeight.keys().next().value;
+      if (firstKey !== undefined) {
+        byHeight.delete(firstKey);
+      }
+    }
+    if (!cachedByHeight) {
+      this.contentHeightsByTopicsRef.set(topics, byHeight);
+    }
+    return computed;
   }
 
   /**
@@ -2846,8 +2914,8 @@ export class GanttChartCanvasController {
     for (const group of this.props.destinationGroups) {
       const groupTopics = this.topicsByGroupId.get(group.id) ?? [];
       const viewportHeight = this.heightMap.get(group.id) || 0;
-      const H_old = computeContentHeight(groupTopics, prevRowHeight);
-      const H_new = computeContentHeight(groupTopics, next);
+      const H_old = this.getContentHeight(groupTopics, prevRowHeight);
+      const H_new = this.getContentHeight(groupTopics, next);
       if (H_old <= 0) continue;
 
       const s = this.verticalScrollOffsets.get(group.id) || 0;
@@ -2935,7 +3003,7 @@ export class GanttChartCanvasController {
         destinationPreview?.topicsByGroupId.get(group.id) ??
         this.topicsByGroupId.get(group.id) ??
         [];
-      const contentHeight = computeContentHeight(groupTopics, this.rowHeight);
+      const contentHeight = this.getContentHeight(groupTopics, this.rowHeight);
       const slotReflowGroupTransition = slotReflowTransition?.shiftsByGroupId.get(group.id);
       const collapseGroupTransition = collapseLayoutTransition?.shiftsByGroupId.get(group.id);
       const previewGroupTransition = destinationPreview?.layoutYTransition?.shiftsByGroupId.get(
@@ -3424,7 +3492,7 @@ export class GanttChartCanvasController {
     if (viewportHeight <= 0) return;
 
     const groupTopics = this.topicsByGroupId.get(topic.groupId) ?? [];
-    const contentHeight = computeContentHeight(groupTopics, this.rowHeight);
+    const contentHeight = this.getContentHeight(groupTopics, this.rowHeight);
     const topicY = topic.yStart + (topic.yEnd - topic.yStart) / 2;
     const target = topicY - viewportHeight / 2;
     const maxOffset = Math.max(0, contentHeight - viewportHeight);

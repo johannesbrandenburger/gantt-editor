@@ -188,23 +188,36 @@ const controller = new GanttChartCanvasController(
   },
 );
 
+let refreshQueued = false;
+const queueRefreshModel = () => {
+  if (refreshQueued) return;
+  refreshQueued = true;
+  queueMicrotask(() => {
+    refreshQueued = false;
+    controller.refreshModel(propsSnapshot());
+  });
+};
+
+watch(
+  () => [props.startTime.getTime(), props.endTime.getTime()],
+  queueRefreshModel,
+);
 watch(
   () => [
-    props.startTime,
-    props.endTime,
     props.slots,
     props.destinations,
     props.destinationGroups,
     props.suggestions,
     props.verticalMarkers,
-    props.markedRegion,
     props.isReadOnly,
     props.topContentPortion,
     props.xAxisOptions,
   ],
-  () => {
-    controller.refreshModel(propsSnapshot());
-  },
+  queueRefreshModel,
+);
+watch(
+  () => props.markedRegion,
+  queueRefreshModel,
   { deep: true },
 );
 
