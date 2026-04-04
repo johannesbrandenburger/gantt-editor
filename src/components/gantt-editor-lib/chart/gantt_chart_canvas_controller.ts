@@ -88,6 +88,7 @@ import {
 } from "./gantt_chart_interaction_and_overlay_utils";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const COLLAPSED_SYNC_MIN_INTERVAL_MS = 250;
 
 export class GanttChartCanvasController {
   private props: GanttEditorProps;
@@ -215,7 +216,12 @@ export class GanttChartCanvasController {
   /** Fingerprint of inputs last used to build {@link cachedProcessedTopics}. */
   private processDataDeepFingerprint: number | null = null;
   private cacheCollapsedLocalStorage = "";
+  private lastCollapsedSyncCheckAtMs = 0;
   private topicsByGroupId = new Map<string, Topic[]>();
+  private topicLayoutsByTopicsRef = new WeakMap<
+    Topic[],
+    { rowHeight: number; layouts: TopicLayout[] }
+  >();
 
   /** At most one full draw per animation frame (pan / drag / hover bursts). */
   private frameRedrawRaf: number | null = null;
@@ -1255,11 +1261,28 @@ export class GanttChartCanvasController {
    * Invalidates processData cache when `collapsedTopics` in localStorage changes without a Vue refresh.
    */
   private syncProcessDataCacheWithLocalStorage(): void {
+    const nowMs = performance.now();
+    if (nowMs - this.lastCollapsedSyncCheckAtMs < COLLAPSED_SYNC_MIN_INTERVAL_MS) {
+      return;
+    }
+    this.lastCollapsedSyncCheckAtMs = nowMs;
+
     const collapsed = localStorage.getItem("collapsedTopics") ?? "[]";
     if (collapsed !== this.cacheCollapsedLocalStorage) {
       this.cacheCollapsedLocalStorage = collapsed;
       this.cachedProcessedTopics = null;
     }
+  }
+
+  private getTopicLayouts(topics: Topic[]): TopicLayout[] {
+    const cached = this.topicLayoutsByTopicsRef.get(topics);
+    if (cached && cached.rowHeight === this.rowHeight) {
+      return cached.layouts;
+    }
+
+    const layouts = computeTopicLayout(topics, MARGIN.left, this.rowHeight);
+    this.topicLayoutsByTopicsRef.set(topics, { rowHeight: this.rowHeight, layouts });
+    return layouts;
   }
 
   /**
@@ -1319,7 +1342,7 @@ export class GanttChartCanvasController {
     this.getProcessedTopics();
     const rowsBySlotId = new Map<string, number>();
     this.topicsByGroupId.forEach((topics) => {
-      const layouts = computeTopicLayout(topics, MARGIN.left, this.rowHeight);
+      const layouts = this.getTopicLayouts(topics);
       for (const layout of layouts) {
         layout.topic.rows.forEach((row, rowIndex) => {
           const rowTop = layout.rowYs[rowIndex];
@@ -1488,7 +1511,7 @@ export class GanttChartCanvasController {
     const snapshots = new Map<string, TopicLayoutSnapshot>();
 
     topicsByGroupId.forEach((topics, groupId) => {
-      const layouts = computeTopicLayout(topics, MARGIN.left, this.rowHeight);
+      const layouts = this.getTopicLayouts(topics);
       const topicYById = new Map<string, number>();
       for (const layout of layouts) {
         topicYById.set(layout.topic.id, layout.gridlineY);
@@ -1654,7 +1677,7 @@ export class GanttChartCanvasController {
   ): Map<string, number> {
     const rowsBySlotId = new Map<string, number>();
     topicsByGroupId.forEach((topics) => {
-      const layouts = computeTopicLayout(topics, MARGIN.left, this.rowHeight);
+      const layouts = this.getTopicLayouts(topics);
       for (const layout of layouts) {
         layout.topic.rows.forEach((row, rowIndex) => {
           const rowTop = layout.rowYs[rowIndex];
@@ -2946,7 +2969,7 @@ export class GanttChartCanvasController {
       ctx.clip();
       ctx.translate(0, gr.y - clampedOffset);
 
-      const topicLayouts = computeTopicLayout(groupTopics, MARGIN.left, this.rowHeight);
+      const topicLayouts = this.getTopicLayouts(groupTopics);
       let animatedTopicLayouts = topicLayouts;
       if (slotReflowGroupTransition && slotReflowTransition) {
         animatedTopicLayouts = this.applyTopicLayoutYShift(

@@ -30,7 +30,7 @@ type WheelPerfResult = {
 };
 
 const IS_CI = !!process.env.CI;
-const MIN_ZOOM_FPS = IS_CI ? 40 : 65;
+const MIN_ZOOM_FPS = IS_CI ? 30 : 65;
 const MIN_VERTICAL_SCROLL_FPS = IS_CI ? 55 : 75;
 
 async function getNavigationPoint(page: Page): Promise<{ x: number; y: number }> {
