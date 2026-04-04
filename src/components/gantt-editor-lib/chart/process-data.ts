@@ -60,47 +60,6 @@ class MinHeap<T> {
   }
 }
 
-class IntMinHeap {
-  private readonly h: number[] = [];
-
-  get size(): number {
-    return this.h.length;
-  }
-
-  push(x: number): void {
-    this.h.push(x);
-    let i = this.h.length - 1;
-    while (i > 0) {
-      const p = (i - 1) >> 1;
-      if (this.h[p]! <= this.h[i]!) break;
-      [this.h[p], this.h[i]] = [this.h[i]!, this.h[p]!];
-      i = p;
-    }
-  }
-
-  pop(): number | undefined {
-    const n = this.h.length;
-    if (n === 0) return undefined;
-    const out = this.h[0]!;
-    const last = this.h.pop()!;
-    if (n > 1) {
-      this.h[0] = last;
-      let i = 0;
-      for (;;) {
-        const l = i * 2 + 1;
-        const r = l + 1;
-        let sm = i;
-        if (l < this.h.length && this.h[l]! < this.h[sm]!) sm = l;
-        if (r < this.h.length && this.h[r]! < this.h[sm]!) sm = r;
-        if (sm === i) break;
-        [this.h[i], this.h[sm]] = [this.h[sm]!, this.h[i]!];
-        i = sm;
-      }
-    }
-    return out;
-  }
-}
-
 function effectiveEndMs(slot: {
   closeTime: Date;
   deadline?: Date;
@@ -133,7 +92,8 @@ function assignSlotsToRowsHeap(
   const sorted = sortSlotsByOpen(topicSlots);
   const rows: Array<{ name: string; slots: GanttEditorSlot[]; id: string }> = [];
   const heap = new MinHeap<{ end: number; rowIdx: number }>((x) => x.end);
-  const freeRowIndices = new IntMinHeap();
+  const rowIsFree: boolean[] = [];
+  let minFreeRowIdx = Number.POSITIVE_INFINITY;
 
   for (const slot of sorted) {
     const open = slot.openTime.getTime();
@@ -141,15 +101,26 @@ function assignSlotsToRowsHeap(
 
     while (heap.size > 0 && heap.peek()!.end <= open) {
       const freed = heap.pop()!;
-      freeRowIndices.push(freed.rowIdx);
+      rowIsFree[freed.rowIdx] = true;
+      if (freed.rowIdx < minFreeRowIdx) {
+        minFreeRowIdx = freed.rowIdx;
+      }
     }
 
     let rowIdx: number;
-    if (freeRowIndices.size > 0) {
-      rowIdx = freeRowIndices.pop()!;
+    if (minFreeRowIdx !== Number.POSITIVE_INFINITY) {
+      rowIdx = minFreeRowIdx;
+      rowIsFree[rowIdx] = false;
+
+      let next = rowIdx + 1;
+      while (next < rowIsFree.length && rowIsFree[next] !== true) {
+        next += 1;
+      }
+      minFreeRowIdx = next < rowIsFree.length ? next : Number.POSITIVE_INFINITY;
     } else {
       rowIdx = rows.length;
       rows.push({ name: '', slots: [], id: `${topicId}-${rowIdx}` });
+      rowIsFree[rowIdx] = false;
     }
     rows[rowIdx]!.slots.push(slot);
     heap.push({ end, rowIdx });
