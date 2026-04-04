@@ -48,54 +48,32 @@ import type {
   GanttEditorCallbacks,
   GanttEditorProps,
 } from "./gantt_canvas_props";
-
-const X_AXIS_HEIGHT = 50;
-/** Fallback before layout; reconciled from visible time span and chart width. */
-const DEFAULT_ROW_HEIGHT = 40;
-/** Lower bound for unified zoom so many rows fit when fully zoomed out (band ≈ (1−padding)× this). */
-const MIN_ROW_HEIGHT = 1;
-const MAX_ROW_HEIGHT = 120;
-
-// Temporary slowdown for manual animation verification. (2 looks better)
-const TEMP_ANIMATION_SLOWDOWN_MULTIPLIER = 2;
-const SLOT_REFLOW_ANIMATION_MS = 180 * TEMP_ANIMATION_SLOWDOWN_MULTIPLIER;
-const SLOT_REFLOW_PENDING_TTL_MS = 2_000;
-const DESTINATION_PREVIEW_TRANSITION_MS = 180 * TEMP_ANIMATION_SLOWDOWN_MULTIPLIER;
-
-const MARGIN = { left: 200, right: 12 };
-
-// processData only uses slots, destinations, and settings.compactView; it does not use the view
-// time range or row height. Omitting those reactive deps keeps pan/zoom from re-running O(n) work
-// (row assignment + conflict detection) on every wheel tick.
-const PROCESS_DATA_VIEW_PLACEHOLDER_START = new Date(0);
-const PROCESS_DATA_VIEW_PLACEHOLDER_END = new Date(86400000);
-
-const SELECTION_STORAGE_KEY = "pointerSelection";
-const LEGACY_CLIPBOARD_STORAGE_KEY = "pointerClipboard";
-const HOVER_DELAY_MS = 500;
-const BRUSH_DRAG_THRESHOLD_PX = 3;
-const CLIPBOARD_PREVIEW_MAX_ITEMS = 5;
-
-type TopicLayoutSnapshot = {
-  topicYById: Map<string, number>;
-  contentHeight: number;
-};
-
-type TopicLayoutShiftByGroup = {
-  shiftsByTopicId: Map<string, number>;
-  contentHeightShift: number;
-};
-
-function destinationGroupsSnapshot(
-  groups: GanttEditorProps["destinationGroups"],
-): string {
-  return groups.map((g) => `${g.id}:${g.heightPortion}:${g.displayName}`).join("\0");
-}
-
-function markedRegionSnapshot(region: GanttEditorProps["markedRegion"]): string {
-  if (!region) return "";
-  return `${region.destinationId}:${region.startTime.getTime()}:${region.endTime.getTime()}`;
-}
+import {
+  X_AXIS_HEIGHT,
+  DEFAULT_ROW_HEIGHT,
+  MIN_ROW_HEIGHT,
+  MAX_ROW_HEIGHT,
+  SLOT_REFLOW_ANIMATION_MS,
+  SLOT_REFLOW_PENDING_TTL_MS,
+  DESTINATION_PREVIEW_TRANSITION_MS,
+  MARGIN,
+  PROCESS_DATA_VIEW_PLACEHOLDER_START,
+  PROCESS_DATA_VIEW_PLACEHOLDER_END,
+  SELECTION_STORAGE_KEY,
+  LEGACY_CLIPBOARD_STORAGE_KEY,
+  HOVER_DELAY_MS,
+  BRUSH_DRAG_THRESHOLD_PX,
+  CLIPBOARD_PREVIEW_MAX_ITEMS,
+  destinationGroupsSnapshot,
+  markedRegionSnapshot,
+  type TopicLayoutSnapshot,
+  type TopicLayoutShiftByGroup,
+} from "./gantt_chart_canvas_constants";
+import {
+  timeMsToCanvasX,
+  clampVerticalMarkerCanvasX,
+  verticalMarkerDateFromCanvasX,
+} from "./gantt_chart_time_utils";
 
 export class GanttChartCanvasController {
   private props: GanttEditorProps;
@@ -725,7 +703,7 @@ export class GanttChartCanvasController {
         this.cancelSlotReflowAnimation();
         this.verticalMarkerDrag = {
           markerId: markerHit.id,
-          currentX: this.clampVerticalMarkerCanvasX(pt.x, layout.canvasCssWidth),
+          currentX: clampVerticalMarkerCanvasX(pt.x, layout.canvasCssWidth, MARGIN),
         };
         document.addEventListener("mousemove", this.boundVerticalMarkerMouseMove);
         document.addEventListener("mouseup", this.boundVerticalMarkerMouseUp);
@@ -2320,7 +2298,7 @@ export class GanttChartCanvasController {
     if (!drag || !layout || !canvas) return;
 
     const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
-    drag.currentX = this.clampVerticalMarkerCanvasX(pt.x, layout.canvasCssWidth);
+    drag.currentX = clampVerticalMarkerCanvasX(pt.x, layout.canvasCssWidth, MARGIN);
     this.scheduleFrameRedraw(true);
   }
 
@@ -2336,8 +2314,14 @@ export class GanttChartCanvasController {
     const canvas = this.canvas;
     if (layout && canvas) {
       const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
-      const x = this.clampVerticalMarkerCanvasX(pt.x, layout.canvasCssWidth);
-      const date = this.verticalMarkerDateFromCanvasX(x, layout.canvasCssWidth);
+      const x = clampVerticalMarkerCanvasX(pt.x, layout.canvasCssWidth, MARGIN);
+      const date = verticalMarkerDateFromCanvasX(
+        x,
+        layout.canvasCssWidth,
+        this.internalStartTime,
+        this.internalEndTime,
+        MARGIN,
+      );
       this.callbacks.onVerticalMarkerChange?.(drag.markerId, date);
     }
 
@@ -3187,8 +3171,20 @@ export class GanttChartCanvasController {
     const endMs = region.endTime.getTime();
     if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
 
-    const xStart = this.timeMsToCanvasX(startMs, width);
-    const xEnd = this.timeMsToCanvasX(endMs, width);
+    const xStart = timeMsToCanvasX(
+      startMs,
+      width,
+      this.internalStartTime,
+      this.internalEndTime,
+      MARGIN,
+    );
+    const xEnd = timeMsToCanvasX(
+      endMs,
+      width,
+      this.internalStartTime,
+      this.internalEndTime,
+      MARGIN,
+    );
     const markerWidth = xEnd - xStart;
     if (markerWidth <= 0) return;
 
@@ -3209,7 +3205,13 @@ export class GanttChartCanvasController {
     const now = new Date();
     if (now < this.internalStartTime || now > this.internalEndTime) return;
 
-    const x = this.timeMsToCanvasX(now.getTime(), layout.canvasCssWidth);
+    const x = timeMsToCanvasX(
+      now.getTime(),
+      layout.canvasCssWidth,
+      this.internalStartTime,
+      this.internalEndTime,
+      MARGIN,
+    );
     const axisRowHeight = layout.axisRect.h / 4;
     const labelY = layout.axisRect.y + axisRowHeight * 3.5;
     const labelText = this.formatCurrentTimeLabel(now);
@@ -3271,19 +3273,6 @@ export class GanttChartCanvasController {
     this.redraw();
   }
 
-  private timeMsToCanvasX(timeMs: number, width: number): number {
-    const chartWidth = width - MARGIN.left - MARGIN.right;
-    if (chartWidth <= 0) return MARGIN.left;
-
-    const startMs = this.internalStartTime.getTime();
-    const endMs = this.internalEndTime.getTime();
-    const span = endMs - startMs;
-    if (span <= 0) return MARGIN.left;
-
-    const clamped = Math.max(startMs, Math.min(endMs, timeMs));
-    return MARGIN.left + ((clamped - startMs) / span) * chartWidth;
-  }
-
   private hitSuggestionForGroup(
     groupId: string,
     canvasX: number,
@@ -3330,22 +3319,4 @@ export class GanttChartCanvasController {
     });
   }
 
-  private clampVerticalMarkerCanvasX(x: number, width: number): number {
-    const minX = MARGIN.left;
-    const maxX = width - MARGIN.right;
-    return Math.max(minX, Math.min(maxX, x));
-  }
-
-  private verticalMarkerDateFromCanvasX(x: number, width: number): Date {
-    const chartWidth = width - MARGIN.left - MARGIN.right;
-    if (chartWidth <= 0) return new Date(this.internalStartTime);
-
-    const clamped = this.clampVerticalMarkerCanvasX(x, width);
-    const innerX = clamped - MARGIN.left;
-    const startMs = this.internalStartTime.getTime();
-    const endMs = this.internalEndTime.getTime();
-    const spanMs = Math.max(0, endMs - startMs);
-    const ratio = Math.max(0, Math.min(1, innerX / chartWidth));
-    return new Date(startMs + spanMs * ratio);
-  }
 }
