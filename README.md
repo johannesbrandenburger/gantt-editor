@@ -174,7 +174,7 @@ export type GanttEditorXAxisOptions = {
 
 ## Shortcuts
 
-- holding cmd/ctrl and **dragging** lets the user **select multiple slots** (brush selection)
+- **dragging** on the chart lets the user **select multiple slots** (brush selection)
 - to **move on the timeline** (horizontal scroll)
   - drag with mousewheel pressed
   - drag with right click pressed

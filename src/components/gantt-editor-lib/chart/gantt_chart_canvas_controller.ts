@@ -769,9 +769,8 @@ export class GanttChartCanvasController {
       }
     }
 
-    if ((e.metaKey || e.ctrlKey) && !this.props.isReadOnly) {
+    if (!this.props.isReadOnly) {
       e.preventDefault();
-      this.suppressNextCanvasClick = true;
       this.brushSelection = {
         groupId: hit.groupId,
         startX: Math.max(0, Math.min(layout.canvasCssWidth, pt.x)),
@@ -2285,6 +2284,13 @@ export class GanttChartCanvasController {
 
     brush.currentX = clampedX;
     brush.currentYContent = clampedYInGroup + scroll;
+    if (!this.suppressNextCanvasClick) {
+      const dx = Math.abs(brush.currentX - brush.startX);
+      const dy = Math.abs(brush.currentYContent - brush.startYContent);
+      if (dx > BRUSH_DRAG_THRESHOLD_PX || dy > BRUSH_DRAG_THRESHOLD_PX) {
+        this.suppressNextCanvasClick = true;
+      }
+    }
     this.scheduleFrameRedraw(true);
   }
 
@@ -2317,7 +2323,8 @@ export class GanttChartCanvasController {
     const dx = Math.abs(brush.currentX - brush.startX);
     const dy = Math.abs(brush.currentYContent - brush.startYContent);
 
-    if (dx > BRUSH_DRAG_THRESHOLD_PX || dy > BRUSH_DRAG_THRESHOLD_PX) {
+    const didDrag = dx > BRUSH_DRAG_THRESHOLD_PX || dy > BRUSH_DRAG_THRESHOLD_PX;
+    if (didDrag) {
       const topics = this.topicsForGroup(brush.groupId);
       const selectedSlots = collectSlotsFullyInsideRect({
         topics,
@@ -2336,6 +2343,8 @@ export class GanttChartCanvasController {
       });
       const slotIds = Array.from(new Set(selectedSlots.map((s) => s.id)));
       this.addSlotsToSelection(slotIds);
+    } else {
+      this.suppressNextCanvasClick = false;
     }
 
     this.brushSelection = null;

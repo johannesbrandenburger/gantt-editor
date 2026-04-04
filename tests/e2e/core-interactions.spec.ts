@@ -60,7 +60,7 @@ test.describe("canvas rewrite core interactions", () => {
       .not.toBe(beforeCloseTimeMs);
   });
 
-  test("supports brush selection via Meta drag and stores selection", async ({ page }) => {
+  test("supports brush selection via drag and stores selection", async ({ page }) => {
     const canvas = await openE2eHarness(page);
 
     await page.evaluate(() => localStorage.removeItem("pointerSelection"));
@@ -80,9 +80,7 @@ test.describe("canvas rewrite core interactions", () => {
     const from = await canvasPointToPagePoint(canvas, startCanvas);
     const to = await canvasPointToPagePoint(canvas, endCanvas);
 
-    await page.keyboard.down("ControlOrMeta");
     await mouseDrag(page, from, to);
-    await page.keyboard.up("ControlOrMeta");
 
     await expect
       .poll(

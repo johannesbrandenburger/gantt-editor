@@ -51,9 +51,7 @@ async function brushSelectFirstAllocatedGroup(page: Page): Promise<{ selectedSlo
   const from = await canvasPointToPagePoint(canvas, startCanvas);
   const to = await canvasPointToPagePoint(canvas, endCanvas);
 
-  await page.keyboard.down("ControlOrMeta");
   await mouseDrag(page, from, to);
-  await page.keyboard.up("ControlOrMeta");
 
   await expect
     .poll(
@@ -67,7 +65,7 @@ async function brushSelectFirstAllocatedGroup(page: Page): Promise<{ selectedSlo
 }
 
 test.describe("canvas rewrite brush selection", () => {
-  test("Meta/Ctrl + drag selects multiple slots and persists selection", async ({ page }) => {
+  test("drag selects multiple slots and persists selection", async ({ page }) => {
     const { selectedSlotIds } = await brushSelectFirstAllocatedGroup(page);
 
     const selectionFromStorage = await page.evaluate(() => {
@@ -79,7 +77,7 @@ test.describe("canvas rewrite brush selection", () => {
     expect(selectionFromStorage.sort()).toEqual([...selectedSlotIds].sort());
   });
 
-  test("Meta/Ctrl + drag in readonly fixture does not select slots", async ({ page }) => {
+  test("drag in readonly fixture does not select slots", async ({ page }) => {
     const canvas = await openE2eHarness(page, { fixture: "readonly" });
     await page.evaluate(() => localStorage.removeItem("pointerSelection"));
 
@@ -89,9 +87,7 @@ test.describe("canvas rewrite brush selection", () => {
     const from = await canvasPointToPagePoint(canvas, startCanvas);
     const to = await canvasPointToPagePoint(canvas, endCanvas);
 
-    await page.keyboard.down("ControlOrMeta");
     await mouseDrag(page, from, to);
-    await page.keyboard.up("ControlOrMeta");
 
     await expect
       .poll(
