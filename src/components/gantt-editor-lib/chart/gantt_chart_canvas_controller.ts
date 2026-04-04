@@ -55,9 +55,12 @@ const DEFAULT_ROW_HEIGHT = 40;
 /** Lower bound for unified zoom so many rows fit when fully zoomed out (band ≈ (1−padding)× this). */
 const MIN_ROW_HEIGHT = 1;
 const MAX_ROW_HEIGHT = 120;
-const SLOT_REFLOW_ANIMATION_MS = 180;
+
+// Temporary slowdown for manual animation verification. (2 looks better)
+const TEMP_ANIMATION_SLOWDOWN_MULTIPLIER = 2;
+const SLOT_REFLOW_ANIMATION_MS = 180 * TEMP_ANIMATION_SLOWDOWN_MULTIPLIER;
 const SLOT_REFLOW_PENDING_TTL_MS = 2_000;
-const DESTINATION_PREVIEW_TRANSITION_MS = 180;
+const DESTINATION_PREVIEW_TRANSITION_MS = 180 * TEMP_ANIMATION_SLOWDOWN_MULTIPLIER;
 
 const MARGIN = { left: 200, right: 12 };
 
@@ -1534,7 +1537,7 @@ export class GanttChartCanvasController {
     return this.cachedProcessedTopics;
   }
 
-  private capturePreviewSlotRowYById(
+  private captureSlotRowYByIdForTopics(
     topicsByGroupId: ReadonlyMap<string, Topic[]>,
   ): Map<string, number> {
     const rowsBySlotId = new Map<string, number>();
@@ -1545,9 +1548,7 @@ export class GanttChartCanvasController {
           const rowTop = layout.rowYs[rowIndex];
           if (rowTop === undefined) return;
           for (const slot of row.slots) {
-            if (slot.isPreview) {
-              rowsBySlotId.set(slot.id, rowTop);
-            }
+            rowsBySlotId.set(slot.id, rowTop);
           }
         });
       }
@@ -1573,8 +1574,8 @@ export class GanttChartCanvasController {
     const previousLayoutByGroupId = this.captureTopicLayoutSnapshotForGroups(previousTopicsByGroupId);
     const nextLayoutByGroupId = this.captureTopicLayoutSnapshotForGroups(nextTopicsByGroupId);
 
-    const previousRows = this.capturePreviewSlotRowYById(previousTopicsByGroupId);
-    const nextRows = this.capturePreviewSlotRowYById(nextTopicsByGroupId);
+    const previousRows = this.captureSlotRowYByIdForTopics(previousTopicsByGroupId);
+    const nextRows = this.captureSlotRowYByIdForTopics(nextTopicsByGroupId);
 
     const shiftsBySlotId = new Map<string, number>();
     nextRows.forEach((toY, slotId) => {
