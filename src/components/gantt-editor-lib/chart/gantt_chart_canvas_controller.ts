@@ -31,9 +31,9 @@ import {
   type SlotResizeEdge,
 } from "./canvas_slots";
 import { drawDepartureMarkers, hitTestDepartureGap } from "./canvas_departure_markers";
-import { drawVerticalMarkers, hitTestVerticalMarker } from "./canvas_vertical_markers";
+import { drawVerticalMarkers } from "./canvas_vertical_markers";
 import type { SuggestionButtonDefinition } from "./canvas_suggestions";
-import { drawSuggestionButtons, hitTestSuggestionButton } from "./canvas_suggestions";
+import { drawSuggestionButtons } from "./canvas_suggestions";
 import { drawWeekdayOverlay } from "./canvas_weekdays";
 import {
   computeUnifiedChartLayout,
@@ -74,6 +74,18 @@ import {
   clampVerticalMarkerCanvasX,
   verticalMarkerDateFromCanvasX,
 } from "./gantt_chart_time_utils";
+import {
+  readSelectionFromStorage,
+  writeSelectionToStorage,
+  applyCopiedFlagsFromSelection,
+  slotSnapshotForSelection,
+} from "./gantt_chart_selection_storage";
+import {
+  drawMarkedRegionOverlay,
+  drawCurrentTimeIndicator,
+  hitSuggestionForGroup,
+  hitVerticalMarkerForGroup,
+} from "./gantt_chart_interaction_and_overlay_utils";
 
 export class GanttChartCanvasController {
   private props: GanttEditorProps;
@@ -1964,18 +1976,7 @@ export class GanttChartCanvasController {
   }
 
   private readSelection(): GanttEditorSlot[] {
-    const storedData =
-      localStorage.getItem(SELECTION_STORAGE_KEY) ??
-      localStorage.getItem(LEGACY_CLIPBOARD_STORAGE_KEY);
-    if (!storedData) return [];
-    try {
-      const parsed = JSON.parse(storedData) as GanttEditorSlot[];
-      if (!Array.isArray(parsed)) return [];
-      return parsed;
-    } catch (e) {
-      console.error("Error parsing selection content:", e);
-      return [];
-    }
+    return readSelectionFromStorage(SELECTION_STORAGE_KEY, LEGACY_CLIPBOARD_STORAGE_KEY);
   }
 
   /** @deprecated Use readSelection instead. */
@@ -1984,8 +1985,7 @@ export class GanttChartCanvasController {
   }
 
   private writeSelection(items: GanttEditorSlot[]): void {
-    localStorage.setItem(SELECTION_STORAGE_KEY, JSON.stringify(items));
-    localStorage.removeItem(LEGACY_CLIPBOARD_STORAGE_KEY);
+    writeSelectionToStorage(items, SELECTION_STORAGE_KEY, LEGACY_CLIPBOARD_STORAGE_KEY);
   }
 
   /** @deprecated Use writeSelection instead. */
@@ -1994,21 +1994,12 @@ export class GanttChartCanvasController {
   }
 
   private applyCopiedFlagsFromClipboard(clipboard: GanttEditorSlot[]): void {
-    const copiedIds = new Set(clipboard.map((s) => s.id));
-    for (const slot of this.props.slots) {
-      slot.isCopied = copiedIds.has(slot.id);
-    }
+    applyCopiedFlagsFromSelection(this.props.slots, clipboard);
     this.cachedProcessedTopics = null;
   }
 
   private slotSnapshotForClipboard(slot: GanttEditorSlotWithUiAttributes): GanttEditorSlot {
-    return {
-      ...slot,
-      openTime: new Date(slot.openTime),
-      closeTime: new Date(slot.closeTime),
-      deadline: slot.deadline ? new Date(slot.deadline) : undefined,
-      secondaryDeadline: slot.secondaryDeadline ? new Date(slot.secondaryDeadline) : undefined,
-    };
+    return slotSnapshotForSelection(slot);
   }
 
   private resolveGroupPointerContext(clientX: number, clientY: number): {
@@ -3147,108 +3138,31 @@ export class GanttChartCanvasController {
     contentHeight: number,
     width: number,
   ): void {
-    const region = this.props.markedRegion;
-    if (!region) return;
-
-    const firstGroupId = this.props.destinationGroups[0]?.id;
-    let yStart = 0;
-    let yEnd = contentHeight;
-
-    if (region.destinationId === "multiple") {
-      if (!firstGroupId || groupId !== firstGroupId) return;
-      if (yEnd <= yStart) return;
-    } else {
-      const topic = (this.topicsByGroupId.get(groupId) ?? []).find(
-        (t) => t.id === region.destinationId,
-      );
-      if (!topic) return;
-      yStart = topic.yStart;
-      yEnd = topic.yEnd;
-      if (yEnd <= yStart) return;
-    }
-
-    const startMs = region.startTime.getTime();
-    const endMs = region.endTime.getTime();
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
-
-    const xStart = timeMsToCanvasX(
-      startMs,
+    drawMarkedRegionOverlay({
+      ctx,
+      groupId,
+      contentHeight,
       width,
-      this.internalStartTime,
-      this.internalEndTime,
-      MARGIN,
-    );
-    const xEnd = timeMsToCanvasX(
-      endMs,
-      width,
-      this.internalStartTime,
-      this.internalEndTime,
-      MARGIN,
-    );
-    const markerWidth = xEnd - xStart;
-    if (markerWidth <= 0) return;
-
-    ctx.save();
-    ctx.globalAlpha = 0.7;
-    ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
-    ctx.strokeStyle = "rgba(255, 215, 0, 0.8)";
-    ctx.lineWidth = 2;
-    ctx.fillRect(xStart, yStart, markerWidth, yEnd - yStart);
-    ctx.strokeRect(xStart, yStart, markerWidth, yEnd - yStart);
-    ctx.restore();
+      markedRegion: this.props.markedRegion,
+      destinationGroups: this.props.destinationGroups,
+      topicsByGroupId: this.topicsByGroupId,
+      startTime: this.internalStartTime,
+      endTime: this.internalEndTime,
+      margin: MARGIN,
+    });
   }
 
   private drawCurrentTimeIndicator(
     ctx: CanvasRenderingContext2D,
     layout: UnifiedChartLayout,
   ): void {
-    const now = new Date();
-    if (now < this.internalStartTime || now > this.internalEndTime) return;
-
-    const x = timeMsToCanvasX(
-      now.getTime(),
-      layout.canvasCssWidth,
+    drawCurrentTimeIndicator(
+      ctx,
+      layout,
       this.internalStartTime,
       this.internalEndTime,
       MARGIN,
     );
-    const axisRowHeight = layout.axisRect.h / 4;
-    const labelY = layout.axisRect.y + axisRowHeight * 3.5;
-    const labelText = this.formatCurrentTimeLabel(now);
-    ctx.save();
-
-    ctx.strokeStyle = "red";
-    ctx.lineWidth = 1;
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    ctx.moveTo(x, layout.axisRect.y);
-    ctx.lineTo(x, layout.canvasCssHeight);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.font = "bold 10px sans-serif";
-    const textWidth = ctx.measureText(labelText).width;
-    const labelPadX = 4;
-    const labelWidth = textWidth + labelPadX * 2;
-    const labelHeight = Math.max(10, axisRowHeight - 2);
-    const labelTop = labelY - labelHeight / 2;
-
-    ctx.fillStyle = "rgba(255, 0, 0, 0.75)";
-    ctx.fillRect(x, labelTop, labelWidth, labelHeight);
-
-    ctx.fillStyle = "white";
-    ctx.font = "bold 10px sans-serif";
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "left";
-    ctx.fillText(labelText, x + labelPadX, labelY);
-
-    ctx.restore();
-  }
-
-  private formatCurrentTimeLabel(value: Date): string {
-    const hh = `${value.getHours()}`.padStart(2, "0");
-    const mm = `${value.getMinutes()}`.padStart(2, "0");
-    return `${hh}:${mm}`;
   }
 
   private applySuggestionForSlot(slotId: string): void {
@@ -3281,16 +3195,16 @@ export class GanttChartCanvasController {
     groupTopics: Topic[],
   ) {
     if (!suggestionsVisible(this.rowHeight)) return null;
-    return hitTestSuggestionButton({
+    return hitSuggestionForGroup({
+      canvasX,
+      contentY,
       width,
-      topics: groupTopics,
+      groupTopics,
       suggestions: this.props.suggestions,
-      margin: MARGIN,
       rowHeight: this.rowHeight,
       startTime: this.internalStartTime,
       endTime: this.internalEndTime,
-      canvasX,
-      contentY,
+      margin: MARGIN,
     });
   }
 
@@ -3302,20 +3216,18 @@ export class GanttChartCanvasController {
   ) {
     const layout = this.getChartLayout();
     if (!layout) return null;
-    const gr = layout.groupRects.get(groupId);
-    if (!gr) return null;
 
-    return hitTestVerticalMarker({
-      markers: this.props.verticalMarkers ?? [],
-      margin: MARGIN,
-      width,
-      startTime: this.internalStartTime,
-      endTime: this.internalEndTime,
-      isReadOnly: this.props.isReadOnly,
+    return hitVerticalMarkerForGroup({
+      groupId,
       canvasX,
       canvasY,
-      groupY: gr.y,
-      groupHeight: gr.h,
+      width,
+      layout,
+      markers: this.props.verticalMarkers,
+      isReadOnly: this.props.isReadOnly,
+      startTime: this.internalStartTime,
+      endTime: this.internalEndTime,
+      margin: MARGIN,
     });
   }
 
