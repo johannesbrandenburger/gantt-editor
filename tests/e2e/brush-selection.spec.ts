@@ -182,7 +182,7 @@ test.describe("canvas rewrite brush selection", () => {
       .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewMode"))
       .toBe("copy");
     await expect
-      .poll(async () => await getCanvasStateField<boolean>(page, "copyCursorIndicatorVisible"))
+      .poll(async () => await getCanvasStateField<boolean>(page, "altCopyModifierActive"))
       .toBe(true);
 
     await page.keyboard.up("Alt");
@@ -192,7 +192,7 @@ test.describe("canvas rewrite brush selection", () => {
       .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewMode"))
       .toBe("move");
     await expect
-      .poll(async () => await getCanvasStateField<boolean>(page, "copyCursorIndicatorVisible"))
+      .poll(async () => await getCanvasStateField<boolean>(page, "altCopyModifierActive"))
       .toBe(false);
   });
 });

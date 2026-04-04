@@ -915,7 +915,6 @@ export class GanttChartCanvasController {
     destinationPreviewSourceSlotIds: string[];
     destinationPreviewMode: "move" | "copy" | null;
     altCopyModifierActive: boolean;
-    copyCursorIndicatorVisible: boolean;
     lastClickedSlotId: string | null;
     lastDoubleClickedSlotId: string | null;
     lastContextClickedSlotId: string | null;
@@ -941,7 +940,6 @@ export class GanttChartCanvasController {
       destinationPreviewSourceSlotIds: destinationPreviewState?.sourceSlotIds ?? [],
       destinationPreviewMode: destinationPreviewState?.mode ?? null,
       altCopyModifierActive: this.altCopyModifierActive,
-      copyCursorIndicatorVisible: this.shouldShowCopyCursorIndicator(),
       lastClickedSlotId: this.lastClickedSlotId,
       lastDoubleClickedSlotId: this.lastDoubleClickedSlotId,
       lastContextClickedSlotId: this.lastContextClickedSlotId,
@@ -2741,7 +2739,6 @@ export class GanttChartCanvasController {
 
     this.drawBrushSelectionOverlay(ctx, layout);
     this.drawClipboardPreviewOverlay(ctx, layout);
-    this.drawCopyCursorIndicatorOverlay(ctx, layout);
     this.drawSuggestionHoverOverlay(ctx, layout);
     this.drawSlotHoverTooltipOverlay(ctx, layout);
 
@@ -2915,35 +2912,6 @@ export class GanttChartCanvasController {
       ctx.fillText(line, x + padX, baseline);
     });
 
-    ctx.restore();
-  }
-
-  private drawCopyCursorIndicatorOverlay(
-    ctx: CanvasRenderingContext2D,
-    layout: UnifiedChartLayout,
-  ): void {
-    if (!this.shouldShowCopyCursorIndicator()) return;
-
-    const cx = Math.max(10, Math.min(layout.canvasCssWidth - 10, this.pointerCanvasX + 18));
-    const cy = Math.max(10, Math.min(layout.canvasCssHeight - 10, this.pointerCanvasY + 18));
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx, cy, 7, 0, Math.PI * 2);
-    ctx.fillStyle = "#16a34a";
-    ctx.fill();
-    ctx.strokeStyle = "#14532d";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.moveTo(cx - 3, cy);
-    ctx.lineTo(cx + 3, cy);
-    ctx.moveTo(cx, cy - 3);
-    ctx.lineTo(cx, cy + 3);
-    ctx.stroke();
     ctx.restore();
   }
 
