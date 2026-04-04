@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  getCanvasState,
   clearHarnessEvents,
   dispatchCanvasMouseEvent,
   findSlotPoint,
@@ -12,6 +13,44 @@ import {
 const SLOT_A = "LH123-20250101-F";
 const SLOT_B = "OS200-20250101-G";
 const SLOT_C = "AA300-20250101-U";
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+async function pointForDayOffset(page: Parameters<typeof openE2eHarness>[0], dayOffset: number) {
+  const state = await getCanvasState<{
+    internalStartTimeMs: number;
+    internalEndTimeMs: number;
+    margin: { left: number; right: number };
+    layout: {
+      canvasCssWidth: number;
+      groups: Array<{ id: string; y: number; h: number }>;
+    } | null;
+  }>(page);
+
+  expect(state?.layout).not.toBeNull();
+
+  const baseDay = new Date("2025-01-01T00:00:00Z").getTime();
+  const targetMs = baseDay + dayOffset * DAY_IN_MS + 12 * 60 * 60 * 1000;
+  const chartWidth = state!.layout!.canvasCssWidth - state!.margin.left - state!.margin.right;
+  const spanMs = state!.internalEndTimeMs - state!.internalStartTimeMs;
+  const ratio = Math.max(0, Math.min(1, (targetMs - state!.internalStartTimeMs) / spanMs));
+  const x = state!.margin.left + ratio * chartWidth;
+
+  const firstGroup = state!.layout!.groups[0];
+  expect(firstGroup).toBeTruthy();
+  return { x, y: firstGroup.y + firstGroup.h / 2 };
+}
+
+async function seedSelection(page: Parameters<typeof openE2eHarness>[0], slotIds: string[]) {
+  await page.evaluate(async (ids) => {
+    const harness = (window as Window & {
+      __ganttE2eHarness?: { getConfig: () => { slots: Array<Record<string, unknown>> } };
+    }).__ganttE2eHarness;
+    const config = harness?.getConfig();
+    const slots = config?.slots ?? [];
+    const selected = slots.filter((slot) => ids.includes(String(slot.id)));
+    localStorage.setItem("pointerSelection", JSON.stringify(selected));
+  }, slotIds);
+}
 
 test.describe("canvas rewrite slot destination change", () => {
   test("clicking a slot pins it to the selection", async ({ page }) => {
@@ -229,6 +268,146 @@ test.describe("canvas rewrite slot destination change", () => {
         return moves.filter((event) => event.preview === false).length;
       })
       .toBe(0);
+
+    await expect
+      .poll(async () => (await getHarnessConfig(page)).slots.length)
+      .toBe(beforeCount + 2);
+  });
+
+  test("Shift + click on same day does not trigger time-axis move/copy", async ({ page }) => {
+    await openE2eHarness(page, {
+      fixture: "core",
+      query: {
+        startTime: "2025-01-01T00:00:00Z",
+        endTime: "2025-01-03T00:00:00Z",
+      },
+    });
+    await clearHarnessEvents(page);
+
+    await seedSelection(page, [SLOT_A]);
+
+    const sameDayPoint = await pointForDayOffset(page, 0);
+    await dispatchCanvasMouseEvent(page, sameDayPoint, "click", { shiftKey: true });
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        return {
+          move: (events.onMoveSlotOnTimeAxis ?? []).length,
+          bulkMove: (events.onBulkMoveSlotsOnTimeAxis ?? []).length,
+          copy: (events.onCopySlotOnTimeAxis ?? []).length,
+          bulkCopy: (events.onBulkCopySlotsOnTimeAxis ?? []).length,
+        };
+      })
+      .toEqual({ move: 0, bulkMove: 0, copy: 0, bulkCopy: 0 });
+  });
+
+  test("Shift + click on next day moves slot by +24h and shifts deadlines", async ({ page }) => {
+    await openE2eHarness(page, {
+      fixture: "core",
+      query: {
+        startTime: "2025-01-01T00:00:00Z",
+        endTime: "2025-01-03T00:00:00Z",
+      },
+    });
+    await clearHarnessEvents(page);
+
+    const before = await getHarnessConfig(page);
+    const beforeSlot = before.slots.find((slot) => slot.id === SLOT_A) as
+      | {
+          openTime: string;
+          closeTime: string;
+          deadline?: string;
+          secondaryDeadline?: string;
+        }
+      | undefined;
+    expect(beforeSlot).toBeTruthy();
+
+    await seedSelection(page, [SLOT_A]);
+
+    const nextDayPoint = await pointForDayOffset(page, 1);
+    await dispatchCanvasMouseEvent(page, nextDayPoint, "click", { shiftKey: true });
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const moves = (events.onMoveSlotOnTimeAxis ?? []) as Array<{
+          slotId?: string;
+          timeDiffMs?: number;
+          preview?: boolean;
+        }>;
+        return moves.find((event) => event.slotId === SLOT_A && event.preview === false) ?? null;
+      })
+      .toEqual({ slotId: SLOT_A, timeDiffMs: DAY_IN_MS, preview: false });
+
+    await expect
+      .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
+        timeout: 2_000,
+      })
+      .toEqual([]);
+
+    await expect
+      .poll(async () => {
+        const slot = (await getHarnessConfig(page)).slots.find((item) => item.id === SLOT_A) as
+          | {
+              openTime: string;
+              closeTime: string;
+              deadline?: string;
+              secondaryDeadline?: string;
+            }
+          | undefined;
+        return {
+          open: slot ? new Date(slot.openTime).getTime() : null,
+          close: slot ? new Date(slot.closeTime).getTime() : null,
+          deadline: slot?.deadline ? new Date(slot.deadline).getTime() : null,
+          secondaryDeadline: slot?.secondaryDeadline
+            ? new Date(slot.secondaryDeadline).getTime()
+            : null,
+        };
+      })
+      .toEqual({
+        open: new Date(beforeSlot!.openTime).getTime() + DAY_IN_MS,
+        close: new Date(beforeSlot!.closeTime).getTime() + DAY_IN_MS,
+        deadline: beforeSlot!.deadline ? new Date(beforeSlot!.deadline).getTime() + DAY_IN_MS : null,
+        secondaryDeadline: beforeSlot!.secondaryDeadline
+          ? new Date(beforeSlot!.secondaryDeadline).getTime() + DAY_IN_MS
+          : null,
+      });
+  });
+
+  test("Shift + Alt + click with multi-select emits bulk time-axis copy", async ({ page }) => {
+    await openE2eHarness(page, {
+      fixture: "core",
+      query: {
+        startTime: "2025-01-01T00:00:00Z",
+        endTime: "2025-01-03T00:00:00Z",
+      },
+    });
+    await clearHarnessEvents(page);
+
+    const before = await getHarnessConfig(page);
+    const beforeCount = before.slots.length;
+
+    await seedSelection(page, [SLOT_A, SLOT_B]);
+
+    const nextDayPoint = await pointForDayOffset(page, 1);
+    await dispatchCanvasMouseEvent(page, nextDayPoint, "click", { shiftKey: true, altKey: true });
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const bulkCopies = (events.onBulkCopySlotsOnTimeAxis ?? []) as Array<{
+          slotIds?: string[];
+          timeDiffMs?: number;
+          preview?: boolean;
+        }>;
+        const committed = bulkCopies.find((event) => event.preview === false);
+        return {
+          slotIds: [...(committed?.slotIds ?? [])].sort(),
+          timeDiffMs: committed?.timeDiffMs ?? null,
+        };
+      })
+      .toEqual({ slotIds: [SLOT_A, SLOT_B], timeDiffMs: DAY_IN_MS });
 
     await expect
       .poll(async () => (await getHarnessConfig(page)).slots.length)

@@ -43,6 +43,10 @@ interface GanttEditorEmits {
   onBulkChangeDestinationId: [string[], string, boolean],
   onCopyDestinationId: [string, string, boolean],
   onBulkCopyDestinationId: [string[], string, boolean],
+  onMoveSlotOnTimeAxis: [string, number, boolean],
+  onBulkMoveSlotsOnTimeAxis: [string[], number, boolean],
+  onCopySlotOnTimeAxis: [string, number, boolean],
+  onBulkCopySlotsOnTimeAxis: [string[], number, boolean],
   onChangeSlotTime: [string, Date, Date],
   onSelectionChange: [string[]],
   onClickOnSlot: [string],
@@ -142,6 +146,18 @@ const controller = new GanttChartCanvasController(
     },
     onBulkCopyDestinationId: (slotIds, destinationId, preview) => {
       emit("onBulkCopyDestinationId", slotIds, destinationId, preview);
+    },
+    onMoveSlotOnTimeAxis: (slotId, timeDiffMs, preview) => {
+      emit("onMoveSlotOnTimeAxis", slotId, timeDiffMs, preview);
+    },
+    onBulkMoveSlotsOnTimeAxis: (slotIds, timeDiffMs, preview) => {
+      emit("onBulkMoveSlotsOnTimeAxis", slotIds, timeDiffMs, preview);
+    },
+    onCopySlotOnTimeAxis: (slotId, timeDiffMs, preview) => {
+      emit("onCopySlotOnTimeAxis", slotId, timeDiffMs, preview);
+    },
+    onBulkCopySlotsOnTimeAxis: (slotIds, timeDiffMs, preview) => {
+      emit("onBulkCopySlotsOnTimeAxis", slotIds, timeDiffMs, preview);
     },
     onClickOnSlot: (slotId) => {
       emit("onClickOnSlot", slotId);

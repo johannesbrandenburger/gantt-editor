@@ -407,7 +407,36 @@ function buildCopiedSlot(
   return {
     ...source,
     id: nextId,
+    group: nextId,
     destinationId,
+    isCopied: false,
+  };
+}
+
+function shiftDateByMs(value: Date | undefined, timeDiffMs: number): Date | undefined {
+  return value ? new Date(value.getTime() + timeDiffMs) : undefined;
+}
+
+function buildCopiedSlotOnTimeAxis(
+  source: GanttEditorSlotWithUiAttributes,
+  timeDiffMs: number,
+  existingIds: Set<string>,
+): GanttEditorSlotWithUiAttributes {
+  let copyNumber = 1;
+  let nextId = `${source.id}__time_copy__${copyNumber}`;
+  while (existingIds.has(nextId)) {
+    copyNumber += 1;
+    nextId = `${source.id}__time_copy__${copyNumber}`;
+  }
+  existingIds.add(nextId);
+  return {
+    ...source,
+    id: nextId,
+    group: nextId,
+    openTime: new Date(source.openTime.getTime() + timeDiffMs),
+    closeTime: new Date(source.closeTime.getTime() + timeDiffMs),
+    deadline: shiftDateByMs(source.deadline, timeDiffMs),
+    secondaryDeadline: shiftDateByMs(source.secondaryDeadline, timeDiffMs),
     isCopied: false,
   };
 }
@@ -490,6 +519,79 @@ function onChangeSlotTime(slotId: string, openTime: Date, closeTime: Date): void
     ),
   };
   logEvent("onChangeSlotTime", { slotId, openTime, closeTime });
+}
+
+function onMoveSlotOnTimeAxis(slotId: string, timeDiffMs: number, preview: boolean): void {
+  if (!preview && timeDiffMs !== 0) {
+    harnessData.value = {
+      ...harnessData.value,
+      slots: harnessData.value.slots.map((slot) =>
+        slot.id === slotId
+          ? {
+              ...slot,
+              openTime: new Date(slot.openTime.getTime() + timeDiffMs),
+              closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
+              deadline: shiftDateByMs(slot.deadline, timeDiffMs),
+              secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
+            }
+          : slot,
+      ),
+    };
+  }
+  logEvent("onMoveSlotOnTimeAxis", { slotId, timeDiffMs, preview });
+}
+
+function onBulkMoveSlotsOnTimeAxis(slotIds: string[], timeDiffMs: number, preview: boolean): void {
+  if (!preview && timeDiffMs !== 0) {
+    const movedSlotIds = new Set(slotIds);
+    harnessData.value = {
+      ...harnessData.value,
+      slots: harnessData.value.slots.map((slot) =>
+        movedSlotIds.has(slot.id)
+          ? {
+              ...slot,
+              openTime: new Date(slot.openTime.getTime() + timeDiffMs),
+              closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
+              deadline: shiftDateByMs(slot.deadline, timeDiffMs),
+              secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
+            }
+          : slot,
+      ),
+    };
+  }
+  logEvent("onBulkMoveSlotsOnTimeAxis", { slotIds, timeDiffMs, preview });
+}
+
+function onCopySlotOnTimeAxis(slotId: string, timeDiffMs: number, preview: boolean): void {
+  if (!preview && timeDiffMs !== 0) {
+    const existingIds = new Set(harnessData.value.slots.map((slot) => slot.id));
+    const source = harnessData.value.slots.find((slot) => slot.id === slotId);
+    if (source) {
+      harnessData.value = {
+        ...harnessData.value,
+        slots: [...harnessData.value.slots, buildCopiedSlotOnTimeAxis(source, timeDiffMs, existingIds)],
+      };
+    }
+  }
+  logEvent("onCopySlotOnTimeAxis", { slotId, timeDiffMs, preview });
+}
+
+function onBulkCopySlotsOnTimeAxis(slotIds: string[], timeDiffMs: number, preview: boolean): void {
+  if (!preview && timeDiffMs !== 0) {
+    const sourceIds = new Set(slotIds);
+    const existingIds = new Set(harnessData.value.slots.map((slot) => slot.id));
+    const sources = harnessData.value.slots.filter((slot) => sourceIds.has(slot.id));
+    if (sources.length > 0) {
+      harnessData.value = {
+        ...harnessData.value,
+        slots: [
+          ...harnessData.value.slots,
+          ...sources.map((source) => buildCopiedSlotOnTimeAxis(source, timeDiffMs, existingIds)),
+        ],
+      };
+    }
+  }
+  logEvent("onBulkCopySlotsOnTimeAxis", { slotIds, timeDiffMs, preview });
 }
 
 function onClickOnSlot(slotId: string): void {
@@ -582,6 +684,10 @@ onBeforeUnmount(() => {
       @onBulkChangeDestinationId="onBulkChangeDestinationId"
       @onCopyDestinationId="onCopyDestinationId"
       @onBulkCopyDestinationId="onBulkCopyDestinationId"
+      @onMoveSlotOnTimeAxis="onMoveSlotOnTimeAxis"
+      @onBulkMoveSlotsOnTimeAxis="onBulkMoveSlotsOnTimeAxis"
+      @onCopySlotOnTimeAxis="onCopySlotOnTimeAxis"
+      @onBulkCopySlotsOnTimeAxis="onBulkCopySlotsOnTimeAxis"
       @onChangeSlotTime="onChangeSlotTime"
       @onClickOnSlot="onClickOnSlot"
       @onHoverOnSlot="onHoverOnSlot"

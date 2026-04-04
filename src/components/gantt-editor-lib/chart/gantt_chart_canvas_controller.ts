@@ -87,6 +87,8 @@ import {
   hitVerticalMarkerForGroup,
 } from "./gantt_chart_interaction_and_overlay_utils";
 
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
 export class GanttChartCanvasController {
   private props: GanttEditorProps;
   private readonly callbacks: GanttEditorCallbacks;
@@ -135,8 +137,10 @@ export class GanttChartCanvasController {
   private pointerCanvasX = 0;
   private pointerCanvasY = 0;
   private altCopyModifierActive = false;
+  private shiftTimeAxisModifierActive = false;
   private clipboardItems: GanttEditorSlot[] = [];
   private hoveredClipboardTopicId: string | null = null;
+  private hoveredTimeAxisDiffMs: number | null = null;
 
   private destinationPreviewTopicsCache: {
     key: string;
@@ -308,6 +312,9 @@ export class GanttChartCanvasController {
       this.scrollToMarkedRegionDestination(next.markedRegion);
     }
 
+    // Keep isCopied UI flags aligned with current persisted selection after any parent slot updates.
+    this.applyCopiedFlagsFromClipboard(this.clipboardItems);
+
     this.tryStartPendingSlotReflowAnimation(newFp);
 
     this.redraw();
@@ -458,6 +465,7 @@ export class GanttChartCanvasController {
     const canvas = this.canvas;
     if (!layout || !canvas) return;
     const altCopyChanged = this.syncAltCopyModifier(e.altKey);
+    const shiftTimeAxisChanged = this.syncShiftTimeAxisModifier(e.shiftKey);
     this.pointerInChart = true;
     const nextHover = this.resizeHoverKey(layout, e.clientX, e.clientY);
     const hoverChanged = nextHover !== this.hoverResizeBand;
@@ -473,6 +481,7 @@ export class GanttChartCanvasController {
     let hoveredSlotId: string | null = null;
     let hoveredSuggestion: SuggestionButtonDefinition | null = null;
     let hoveredClipboardTopicId: string | null = null;
+    let hoveredTimeAxisDiffMs: number | null = null;
     let ewResize = false;
     let suggestionHit = false;
     let verticalMarkerDraggable = false;
@@ -482,7 +491,14 @@ export class GanttChartCanvasController {
         const scroll = this.verticalScrollOffsets.get(hit.groupId) || 0;
         const contentY = pt.y - gr.y + scroll;
         if (!this.props.isReadOnly && this.clipboardItems.length > 0 && !this.brushSelection) {
-          hoveredClipboardTopicId = this.topicIdAtContentY(hit.groupId, contentY);
+          if (this.shiftTimeAxisModifierActive) {
+            hoveredTimeAxisDiffMs = this.resolveTimeAxisDiffFromCanvasX(
+              pt.x,
+              layout.canvasCssWidth,
+            );
+          } else {
+            hoveredClipboardTopicId = this.topicIdAtContentY(hit.groupId, contentY);
+          }
         }
         const groupTopics = this.topicsForGroup(hit.groupId);
         const suggestionHover = showSuggestions
@@ -563,17 +579,22 @@ export class GanttChartCanvasController {
     const previousHoveredSlotId = this.hoveredSlotId;
     const previousHoveredSuggestionSlotId = this.hoveredSuggestion?.slotId ?? null;
     const previousHoveredClipboardTopicId = this.hoveredClipboardTopicId;
+    const previousHoveredTimeAxisDiffMs = this.hoveredTimeAxisDiffMs;
     this.updateHoverSlot(hoveredSlotId);
     this.hoveredSuggestion = hoveredSuggestion;
     this.hoveredClipboardTopicId = hoveredClipboardTopicId;
+    this.hoveredTimeAxisDiffMs = hoveredTimeAxisDiffMs;
     const hoverSlotChanged = previousHoveredSlotId !== this.hoveredSlotId;
     const hoverSuggestionChanged =
       previousHoveredSuggestionSlotId !== (this.hoveredSuggestion?.slotId ?? null);
     const hoverClipboardTopicChanged =
       previousHoveredClipboardTopicId !== this.hoveredClipboardTopicId;
+    const hoverTimeAxisDiffChanged = previousHoveredTimeAxisDiffMs !== this.hoveredTimeAxisDiffMs;
 
-    if (hoverClipboardTopicChanged) {
+    if (hoverClipboardTopicChanged && !this.shiftTimeAxisModifierActive) {
       this.startDestinationPreviewTransition(previousHoveredClipboardTopicId, this.hoveredClipboardTopicId);
+    } else if (hoverTimeAxisDiffChanged) {
+      this.destinationPreviewTransition = null;
     }
 
     if (hit.type === "topResize" || hit.type === "betweenResize") {
@@ -595,7 +616,9 @@ export class GanttChartCanvasController {
       hoverSlotChanged ||
       hoverSuggestionChanged ||
       hoverClipboardTopicChanged ||
+      hoverTimeAxisDiffChanged ||
       altCopyChanged ||
+      shiftTimeAxisChanged ||
       this.clipboardItems.length > 0 ||
       this.brushSelection ||
       this.hoveredSlotId
@@ -609,6 +632,7 @@ export class GanttChartCanvasController {
     this.pointerInChart = false;
     this.hoveredSuggestion = null;
     this.hoveredClipboardTopicId = null;
+    this.hoveredTimeAxisDiffMs = null;
     this.destinationPreviewTransition = null;
     this.resetHoverSlot();
     const canvas = this.canvas;
@@ -625,6 +649,7 @@ export class GanttChartCanvasController {
     this.pointerInChart = false;
     this.hoveredSuggestion = null;
     this.hoveredClipboardTopicId = null;
+    this.hoveredTimeAxisDiffMs = null;
     this.destinationPreviewTransition = null;
     this.resetHoverSlot();
     this.host.onSelectionVisibility?.(false);
@@ -815,6 +840,17 @@ export class GanttChartCanvasController {
       return;
     }
 
+    if (this.shouldUseTimeAxisSelectionMode(e.shiftKey)) {
+      const timeDiffMs = this.resolveTimeAxisDiffFromCanvasX(
+        ctx.point.x,
+        ctx.layout.canvasCssWidth,
+      );
+      if (timeDiffMs !== null && timeDiffMs !== 0) {
+        this.moveSelectionOnTimeAxis(timeDiffMs, e.altKey);
+      }
+      return;
+    }
+
     const slotHit = slotsAllowLabelsAndInteraction(this.rowHeight)
       ? hitTestSlotBar({
           topics: ctx.groupTopics,
@@ -905,7 +941,9 @@ export class GanttChartCanvasController {
     destinationPreviewTopicId: string | null;
     destinationPreviewSourceSlotIds: string[];
     destinationPreviewMode: "move" | "copy" | null;
+    hoveredTimeAxisDiffMs: number | null;
     altCopyModifierActive: boolean;
+    shiftTimeAxisModifierActive: boolean;
     lastClickedSlotId: string | null;
     lastDoubleClickedSlotId: string | null;
     lastContextClickedSlotId: string | null;
@@ -930,7 +968,9 @@ export class GanttChartCanvasController {
       destinationPreviewTopicId: destinationPreviewState?.topicId ?? null,
       destinationPreviewSourceSlotIds: destinationPreviewState?.sourceSlotIds ?? [],
       destinationPreviewMode: destinationPreviewState?.mode ?? null,
+      hoveredTimeAxisDiffMs: this.hoveredTimeAxisDiffMs,
       altCopyModifierActive: this.altCopyModifierActive,
+      shiftTimeAxisModifierActive: this.shiftTimeAxisModifierActive,
       lastClickedSlotId: this.lastClickedSlotId,
       lastDoubleClickedSlotId: this.lastDoubleClickedSlotId,
       lastContextClickedSlotId: this.lastContextClickedSlotId,
@@ -1727,6 +1767,18 @@ export class GanttChartCanvasController {
     return `${modelKey}:${topicId}:${this.altCopyModifierActive ? "copy" : "move"}:${clipboardKey}`;
   }
 
+  private previewCacheKeyForTimeAxisDiff(timeDiffMs: number): string {
+    const modelKey = this.processDataDeepFingerprint ?? this.computeProcessDataDeepFingerprint(this.props);
+    const clipboardKey = this.clipboardItems
+      .map((slot, index) => {
+        const openMs = new Date(slot.openTime).getTime();
+        const closeMs = new Date(slot.closeTime).getTime();
+        return `${index}:${slot.id}:${slot.destinationId}:${openMs}:${closeMs}:${slot.displayName}`;
+      })
+      .join("|");
+    return `${modelKey}:time-axis:${timeDiffMs}:${this.altCopyModifierActive ? "copy" : "move"}:${clipboardKey}`;
+  }
+
   private getPreviewEligibleClipboardItems(topicId: string): GanttEditorSlot[] {
     if (this.altCopyModifierActive) {
       return this.clipboardItems;
@@ -1808,6 +1860,81 @@ export class GanttChartCanvasController {
     return topicsByGroupId;
   }
 
+  private createTimeAxisPreviewTopics(timeDiffMs: number): Map<string, Topic[]> {
+    const cacheKey = this.previewCacheKeyForTimeAxisDiff(timeDiffMs);
+    if (this.destinationPreviewTopicsCache?.key === cacheKey) {
+      return this.destinationPreviewTopicsCache.topicsByGroupId;
+    }
+
+    const previewSlots: GanttEditorSlotWithUiAttributes[] = [];
+    const copyPreview = this.altCopyModifierActive;
+    this.clipboardItems.forEach((slot, index) => {
+      const openTime = new Date(new Date(slot.openTime).getTime() + timeDiffMs);
+      const closeTime = new Date(new Date(slot.closeTime).getTime() + timeDiffMs);
+      if (!Number.isFinite(openTime.getTime()) || !Number.isFinite(closeTime.getTime())) {
+        return;
+      }
+      previewSlots.push({
+        ...slot,
+        id: `__time_axis_preview__${index}__${slot.id}`,
+        openTime,
+        closeTime,
+        deadline: slot.deadline ? new Date(new Date(slot.deadline).getTime() + timeDiffMs) : undefined,
+        secondaryDeadline: slot.secondaryDeadline
+          ? new Date(new Date(slot.secondaryDeadline).getTime() + timeDiffMs)
+          : undefined,
+        isCopied: false,
+        isPreview: true,
+        isCopyPreview: copyPreview,
+        readOnly: true,
+      });
+    });
+
+    const { processedData_ } = processData(
+      [...this.props.slots, ...previewSlots],
+      this.props.destinations,
+      PROCESS_DATA_VIEW_PLACEHOLDER_START,
+      PROCESS_DATA_VIEW_PLACEHOLDER_END,
+      {
+        groupBy: "destinationId",
+        rowHeight: 0,
+        progressChartsDisplay: "None",
+        collapseGroups: false,
+        editable: !this.props.isReadOnly,
+        compactView: false,
+        sortInFrontend: "None",
+        slotLimit: 0,
+        overlayWeeks: 0,
+        overlayDays: 0,
+        seperateByClasses: false,
+        showSlotState: false,
+        showEventDots: false,
+        showDeparture: null,
+        showEventCharts: false,
+        showBagStateCharts: false,
+        showCheckInCharts: false,
+        showTransferCharts: false,
+        showBagStateTimeline: false,
+      },
+    );
+
+    const topicsByGroupId = new Map<string, Topic[]>();
+    for (const topic of processedData_) {
+      let list = topicsByGroupId.get(topic.groupId);
+      if (!list) {
+        list = [];
+        topicsByGroupId.set(topic.groupId, list);
+      }
+      list.push(topic);
+    }
+
+    this.destinationPreviewTopicsCache = {
+      key: cacheKey,
+      topicsByGroupId,
+    };
+    return topicsByGroupId;
+  }
+
   private getDestinationPreviewState(nowMs: number): {
     topicId: string;
     sourceSlotIds: string[];
@@ -1824,12 +1951,28 @@ export class GanttChartCanvasController {
     if (this.brushSelection) return null;
     if (this.props.isReadOnly) return null;
     if (this.clipboardItems.length === 0) return null;
+    const pulseAlpha = 0.58 + 0.2 * (0.5 + 0.5 * Math.sin(nowMs / 160));
+    if (this.shiftTimeAxisModifierActive) {
+      const timeDiffMs = this.hoveredTimeAxisDiffMs;
+      if (timeDiffMs === null) return null;
+      const sourceSlotIds = this.clipboardItems.map((slot) => slot.id);
+      if (sourceSlotIds.length === 0) return null;
+
+      return {
+        topicId: `__time_axis__${timeDiffMs}`,
+        sourceSlotIds,
+        mode: this.altCopyModifierActive ? "copy" : "move",
+        topicsByGroupId: this.createTimeAxisPreviewTopics(timeDiffMs),
+        pulseAlpha,
+        slotYTransition: null,
+        layoutYTransition: null,
+      };
+    }
+
     const topicId = this.hoveredClipboardTopicId;
     if (!topicId) return null;
     const sourceSlotIds = this.getPreviewEligibleClipboardItems(topicId).map((slot) => slot.id);
     if (sourceSlotIds.length === 0) return null;
-
-    const pulseAlpha = 0.58 + 0.2 * (0.5 + 0.5 * Math.sin(nowMs / 160));
     const transition = this.getActiveDestinationPreviewTransition(nowMs, topicId);
 
     return {
@@ -2039,6 +2182,48 @@ export class GanttChartCanvasController {
     return null;
   }
 
+  private shouldUseTimeAxisSelectionMode(shiftPressed: boolean): boolean {
+    return (
+      shiftPressed &&
+      !this.props.isReadOnly &&
+      !this.brushSelection &&
+      this.readSelection().length > 0
+    );
+  }
+
+  private selectionAnchorDayStartMs(): number | null {
+    const clipboard = this.readSelection();
+    if (clipboard.length === 0) return null;
+
+    const firstSelected = clipboard[0];
+    const source = this.props.slots.find((slot) => slot.id === firstSelected.id);
+    const anchorTimeMs = source?.openTime?.getTime() ?? new Date(firstSelected.openTime).getTime();
+    if (!Number.isFinite(anchorTimeMs)) return null;
+
+    const anchorDay = new Date(anchorTimeMs);
+    anchorDay.setHours(0, 0, 0, 0);
+    return anchorDay.getTime();
+  }
+
+  private resolveTimeAxisDiffFromCanvasX(canvasX: number, canvasCssWidth: number): number | null {
+    const anchorDayStartMs = this.selectionAnchorDayStartMs();
+    if (anchorDayStartMs === null) return null;
+
+    const clampedX = clampVerticalMarkerCanvasX(canvasX, canvasCssWidth, MARGIN);
+    const hoveredDate = verticalMarkerDateFromCanvasX(
+      clampedX,
+      canvasCssWidth,
+      this.internalStartTime,
+      this.internalEndTime,
+      MARGIN,
+    );
+    const hoveredDayStart = new Date(hoveredDate);
+    hoveredDayStart.setHours(0, 0, 0, 0);
+    const dayDiff = Math.round((hoveredDayStart.getTime() - anchorDayStartMs) / DAY_IN_MS);
+    if (dayDiff === 0) return null;
+    return dayDiff * DAY_IN_MS;
+  }
+
   private onSlotPrimaryClick(slotId: string, multiSelect: boolean, copyInsteadOfMove: boolean): void {
     const slot = this.props.slots.find((s) => s.id === slotId);
     if (!slot) return;
@@ -2109,15 +2294,38 @@ export class GanttChartCanvasController {
     return copiedSlotIds.length > 0;
   }
 
+  private emitCopySelectionOnTimeAxis(clipboard: GanttEditorSlot[], timeDiffMs: number): boolean {
+    const copiedSlotIds: string[] = [];
+    for (const copiedSlot of clipboard) {
+      const source = this.props.slots.find((s) => s.id === copiedSlot.id);
+      if (!source || source.readOnly) continue;
+      copiedSlotIds.push(source.id);
+    }
+
+    if (copiedSlotIds.length > 1) {
+      if (this.callbacks.onBulkCopySlotsOnTimeAxis) {
+        this.callbacks.onBulkCopySlotsOnTimeAxis(copiedSlotIds, timeDiffMs, false);
+      } else {
+        for (const slotId of copiedSlotIds) {
+          this.callbacks.onCopySlotOnTimeAxis?.(slotId, timeDiffMs, false);
+        }
+      }
+    } else if (copiedSlotIds.length === 1) {
+      this.callbacks.onCopySlotOnTimeAxis?.(copiedSlotIds[0], timeDiffMs, false);
+    }
+
+    return copiedSlotIds.length > 0;
+  }
+
   private moveSelectionToTopic(topicId: string, copyInsteadOfMove = false): void {
     if (this.props.isReadOnly) return;
     const clipboard = this.readSelection();
     if (clipboard.length === 0) return;
 
     if (copyInsteadOfMove) {
-      const copiedSomething = this.emitCopySelectionToTopic(clipboard, topicId);
       this.writeSelection([]);
       this.updateSelection();
+      const copiedSomething = this.emitCopySelectionToTopic(clipboard, topicId);
       if (copiedSomething) {
         this.redraw();
       }
@@ -2159,6 +2367,49 @@ export class GanttChartCanvasController {
         performance.now(),
         previousLayoutByGroupId,
       );
+      this.redraw();
+    }
+  }
+
+  private moveSelectionOnTimeAxis(timeDiffMs: number, copyInsteadOfMove = false): void {
+    if (this.props.isReadOnly) return;
+    if (timeDiffMs === 0) return;
+
+    const clipboard = this.readSelection();
+    if (clipboard.length === 0) return;
+
+    if (copyInsteadOfMove) {
+      this.writeSelection([]);
+      this.updateSelection();
+      const copiedSomething = this.emitCopySelectionOnTimeAxis(clipboard, timeDiffMs);
+      if (copiedSomething) {
+        this.redraw();
+      }
+      return;
+    }
+
+    const movedSlotIds: string[] = [];
+    for (const copiedSlot of clipboard) {
+      const target = this.props.slots.find((s) => s.id === copiedSlot.id);
+      if (!target || target.readOnly) continue;
+      movedSlotIds.push(target.id);
+    }
+
+    if (movedSlotIds.length > 1) {
+      if (this.callbacks.onBulkMoveSlotsOnTimeAxis) {
+        this.callbacks.onBulkMoveSlotsOnTimeAxis(movedSlotIds, timeDiffMs, false);
+      } else {
+        for (const slotId of movedSlotIds) {
+          this.callbacks.onMoveSlotOnTimeAxis?.(slotId, timeDiffMs, false);
+        }
+      }
+    } else if (movedSlotIds.length === 1) {
+      this.callbacks.onMoveSlotOnTimeAxis?.(movedSlotIds[0], timeDiffMs, false);
+    }
+
+    this.writeSelection([]);
+    this.updateSelection();
+    if (movedSlotIds.length > 0) {
       this.redraw();
     }
   }
@@ -2411,6 +2662,13 @@ export class GanttChartCanvasController {
       return;
     }
 
+    if (e.key === "Shift") {
+      if (this.syncShiftTimeAxisModifier(true)) {
+        this.scheduleFrameRedraw(true);
+      }
+      return;
+    }
+
     if (e.key !== "Escape" && e.keyCode !== 27) return;
     if (this.readSelection().length === 0) return;
     e.preventDefault();
@@ -2418,8 +2676,14 @@ export class GanttChartCanvasController {
   }
 
   private onDocumentKeyUp(e: KeyboardEvent): void {
-    if (e.key !== "Alt") return;
-    if (this.syncAltCopyModifier(false)) {
+    if (e.key === "Alt") {
+      if (this.syncAltCopyModifier(false)) {
+        this.scheduleFrameRedraw(true);
+      }
+      return;
+    }
+    if (e.key !== "Shift") return;
+    if (this.syncShiftTimeAxisModifier(false)) {
       this.scheduleFrameRedraw(true);
     }
   }
@@ -2429,6 +2693,19 @@ export class GanttChartCanvasController {
     this.altCopyModifierActive = active;
     this.destinationPreviewTopicsCache = null;
     this.refreshCopyCursorIndicator();
+    return true;
+  }
+
+  private syncShiftTimeAxisModifier(active: boolean): boolean {
+    if (this.shiftTimeAxisModifierActive === active) return false;
+    this.shiftTimeAxisModifierActive = active;
+    if (active) {
+      this.hoveredClipboardTopicId = null;
+    } else {
+      this.hoveredTimeAxisDiffMs = null;
+    }
+    this.destinationPreviewTransition = null;
+    this.destinationPreviewTopicsCache = null;
     return true;
   }
 

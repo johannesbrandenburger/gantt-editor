@@ -40,6 +40,10 @@ export interface GanttEditorCallbacks {
   onBulkChangeDestinationId?: (slotIds: string[], destinationId: string, preview: boolean) => void;
   onCopyDestinationId?: (slotId: string, destinationId: string, preview: boolean) => void;
   onBulkCopyDestinationId?: (slotIds: string[], destinationId: string, preview: boolean) => void;
+  onMoveSlotOnTimeAxis?: (slotId: string, timeDiffMs: number, preview: boolean) => void;
+  onBulkMoveSlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number, preview: boolean) => void;
+  onCopySlotOnTimeAxis?: (slotId: string, timeDiffMs: number, preview: boolean) => void;
+  onBulkCopySlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number, preview: boolean) => void;
   onClickOnSlot?: (slotId: string) => void;
   onHoverOnSlot?: (slotId: string) => void;
   onDoubleClickOnSlot?: (slotId: string) => void;

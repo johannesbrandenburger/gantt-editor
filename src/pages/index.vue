@@ -24,6 +24,10 @@
             @onBulkChangeDestinationId="handleBulkChangeDestinationId"
             @onCopyDestinationId="handleCopyDestinationId"
             @onBulkCopyDestinationId="handleBulkCopyDestinationId"
+            @onMoveSlotOnTimeAxis="handleMoveSlotOnTimeAxis"
+            @onBulkMoveSlotsOnTimeAxis="handleBulkMoveSlotsOnTimeAxis"
+            @onCopySlotOnTimeAxis="handleCopySlotOnTimeAxis"
+            @onBulkCopySlotsOnTimeAxis="handleBulkCopySlotsOnTimeAxis"
             @onChangeSlotTime="handleChangeSlotTime"
             @onClickOnSlot="handleClickOnSlot"
             @onHoverOnSlot="handleHoverOnSlot"
@@ -489,7 +493,33 @@ const buildCopiedSlot = (slot: GanttEditorSlot, destinationId: string): GanttEdi
     return {
         ...slot,
         id: nextId,
+        group: nextId,
         destinationId,
+        isCopied: false,
+    };
+};
+
+const shiftDateByMs = (value: Date | undefined, timeDiffMs: number): Date | undefined => {
+    return value ? new Date(value.getTime() + timeDiffMs) : undefined;
+};
+
+const buildCopiedSlotOnTimeAxis = (slot: GanttEditorSlot, timeDiffMs: number): GanttEditorSlot => {
+    let copyIndex = 1;
+    let nextId = `${slot.id}-time-copy-${copyIndex}`;
+    const existingIds = new Set(slots.value.map((item) => item.id));
+    while (existingIds.has(nextId)) {
+        copyIndex += 1;
+        nextId = `${slot.id}-time-copy-${copyIndex}`;
+    }
+
+    return {
+        ...slot,
+        id: nextId,
+        group: nextId,
+        openTime: new Date(slot.openTime.getTime() + timeDiffMs),
+        closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
+        deadline: shiftDateByMs(slot.deadline, timeDiffMs),
+        secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
         isCopied: false,
     };
 };
@@ -508,6 +538,62 @@ const handleBulkCopyDestinationId = (slotIds: string[], destinationId: string) =
     const copiedSlots = sources.map((slot) => buildCopiedSlot(slot, destinationId));
     slots.value = [...slots.value, ...copiedSlots];
     showEventMessage(`📋 Copied ${copiedSlots.length} slots to ${destinationId}`);
+};
+
+const handleMoveSlotOnTimeAxis = (slotId: string, timeDiffMs: number) => {
+    if (timeDiffMs === 0) return;
+    slots.value = slots.value.map((slot) =>
+        slot.id === slotId && !slot.readOnly
+            ? {
+                ...slot,
+                openTime: new Date(slot.openTime.getTime() + timeDiffMs),
+                closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
+                deadline: shiftDateByMs(slot.deadline, timeDiffMs),
+                secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
+            }
+            : slot,
+    );
+    showEventMessage(`↔️ Shifted ${slotId} by ${timeDiffMs / (24 * 60 * 60 * 1000)} day(s)`);
+};
+
+const handleBulkMoveSlotsOnTimeAxis = (slotIds: string[], timeDiffMs: number) => {
+    if (timeDiffMs === 0) return;
+    const ids = new Set(slotIds);
+    let movedCount = 0;
+    slots.value = slots.value.map((slot) => {
+        if (!ids.has(slot.id) || slot.readOnly) {
+            return slot;
+        }
+        movedCount += 1;
+        return {
+            ...slot,
+            openTime: new Date(slot.openTime.getTime() + timeDiffMs),
+            closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
+            deadline: shiftDateByMs(slot.deadline, timeDiffMs),
+            secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
+        };
+    });
+    if (movedCount > 0) {
+        showEventMessage(`↔️ Shifted ${movedCount} slot(s) by ${timeDiffMs / (24 * 60 * 60 * 1000)} day(s)`);
+    }
+};
+
+const handleCopySlotOnTimeAxis = (slotId: string, timeDiffMs: number) => {
+    if (timeDiffMs === 0) return;
+    const source = slots.value.find((slot) => slot.id === slotId);
+    if (!source || source.readOnly) return;
+    slots.value = [...slots.value, buildCopiedSlotOnTimeAxis(source, timeDiffMs)];
+    showEventMessage(`📋 Copied ${slotId} by ${timeDiffMs / (24 * 60 * 60 * 1000)} day(s)`);
+};
+
+const handleBulkCopySlotsOnTimeAxis = (slotIds: string[], timeDiffMs: number) => {
+    if (timeDiffMs === 0) return;
+    const slotIdsToCopy = new Set(slotIds);
+    const sources = slots.value.filter((slot) => slotIdsToCopy.has(slot.id) && !slot.readOnly);
+    if (sources.length === 0) return;
+    const copiedSlots = sources.map((slot) => buildCopiedSlotOnTimeAxis(slot, timeDiffMs));
+    slots.value = [...slots.value, ...copiedSlots];
+    showEventMessage(`📋 Copied ${copiedSlots.length} slot(s) by ${timeDiffMs / (24 * 60 * 60 * 1000)} day(s)`);
 };
 
 const handleChangeSlotTime = (slotId: string, openTime: Date, closeTime: Date) => {
