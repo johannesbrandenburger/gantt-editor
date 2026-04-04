@@ -1680,6 +1680,9 @@ export class GanttChartCanvasController {
   }
 
   private getPreviewEligibleClipboardItems(topicId: string): GanttEditorSlot[] {
+    if (this.altCopyModifierActive) {
+      return this.clipboardItems;
+    }
     return this.clipboardItems.filter((slot) => slot.destinationId !== topicId);
   }
 

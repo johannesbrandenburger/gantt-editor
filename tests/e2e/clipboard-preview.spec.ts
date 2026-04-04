@@ -252,4 +252,80 @@ test.describe("canvas rewrite selection preview behavior", () => {
 
     await attachScreenshot(page, testInfo, "destination-preview-cleared");
   });
+
+  test("Alt copy preview includes selected slots already in hovered destination", async ({ page }) => {
+    const selectedSlotIds = await brushSelectDenseFixture(page);
+    expect(selectedSlotIds.length).toBeGreaterThan(2);
+
+    const before = await getHarnessConfig(page);
+    const selectedSlots = before.slots.filter((slot) => selectedSlotIds.includes(slot.id));
+    expect(selectedSlots.length).toBeGreaterThan(2);
+
+    const selectedByDestination = new Map<string, string[]>();
+    selectedSlots.forEach((slot) => {
+      const existing = selectedByDestination.get(slot.destinationId) ?? [];
+      existing.push(slot.id);
+      selectedByDestination.set(slot.destinationId, existing);
+    });
+
+    const targetDestination = Array.from(selectedByDestination.keys()).find((destinationId) => {
+      const inDestination = selectedByDestination.get(destinationId) ?? [];
+      return inDestination.length > 0 && inDestination.length < selectedSlotIds.length;
+    });
+    expect(targetDestination).toBeTruthy();
+    if (!targetDestination) {
+      throw new Error("Expected selected slots across multiple destinations for Alt copy preview assertion");
+    }
+
+    const hoverSlotId =
+      before.slots.find(
+        (slot) => slot.destinationId === targetDestination && !selectedSlotIds.includes(slot.id),
+      )?.id ??
+      selectedByDestination.get(targetDestination)?.[0];
+    expect(hoverSlotId).toBeTruthy();
+    if (!hoverSlotId) {
+      throw new Error("Expected a slot in hovered destination for Alt copy preview assertion");
+    }
+
+    const movePreviewSourceSlotIds = [...selectedSlotIds]
+      .filter((slotId) => !((selectedByDestination.get(targetDestination) ?? []).includes(slotId)))
+      .sort();
+    const copyPreviewSourceSlotIds = [...selectedSlotIds].sort();
+
+    const targetPoint = await findSlotPoint(page, hoverSlotId, "center");
+    const canvas = page.locator("canvas.chart-canvas").first();
+    const targetPagePoint = await canvasPointToPagePoint(canvas, targetPoint);
+    await page.mouse.move(targetPagePoint.x, targetPagePoint.y);
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewTopicId"), {
+        timeout: 2_000,
+      })
+      .toBe(targetDestination);
+
+    await expect
+      .poll(async () => {
+        const ids = (await getCanvasStateField<string[]>(page, "destinationPreviewSourceSlotIds")) ?? [];
+        return [...ids].sort().join(",");
+      })
+      .toBe(movePreviewSourceSlotIds.join(","));
+
+    await page.keyboard.down("Alt");
+    await page.mouse.move(targetPagePoint.x + 2, targetPagePoint.y + 2);
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewMode"), {
+        timeout: 2_000,
+      })
+      .toBe("copy");
+
+    await expect
+      .poll(async () => {
+        const ids = (await getCanvasStateField<string[]>(page, "destinationPreviewSourceSlotIds")) ?? [];
+        return [...ids].sort().join(",");
+      })
+      .toBe(copyPreviewSourceSlotIds.join(","));
+
+    await page.keyboard.up("Alt");
+  });
 });
