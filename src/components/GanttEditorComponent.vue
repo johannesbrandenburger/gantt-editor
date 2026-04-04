@@ -41,6 +41,7 @@ interface GanttEditorEmits {
   onChangeStartAndEndTime: [Date, Date],
   onChangeDestinationId: [string, string, boolean],
   onChangeSlotTime: [string, Date, Date],
+  onSelectionChange: [string[]],
   onClickOnSlot: [string],
   onHoverOnSlot: [string],
   onDoubleClickOnSlot: [string],
@@ -150,6 +151,9 @@ const controller = new GanttChartCanvasController(
     },
   },
   {
+    onSelectionSlotIds: (slotIds) => {
+      emit("onSelectionChange", slotIds);
+    },
     onTopContentHeightPx: (h) => {
       currentTopContentHeight.value = h;
     },
@@ -177,7 +181,7 @@ watch(
 );
 
 onMounted(() => {
-  controller.updateClipboard();
+  controller.updateSelection();
   const root = chartContainerRef.value;
   const canvas = chartCanvasRef.value;
   if (root && canvas) {
@@ -219,11 +223,16 @@ const onMouseLeave = () => {
   controller.onMouseLeave();
 };
 
+const clearSelection = () => {
+  controller.clearSelection();
+};
+
 const clearClipboard = () => {
-  controller.clearClipboard();
+  clearSelection();
 };
 
 defineExpose({
+  clearSelection,
   clearClipboard,
   chartCanvas: chartCanvasRef,
   ganttCanvasTestApi: {

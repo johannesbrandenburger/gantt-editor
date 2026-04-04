@@ -48,12 +48,22 @@ export interface GanttEditorCallbacks {
 /** Optional hooks for host UI state (Vue refs, Angular signals, etc.). */
 export interface GanttEditorHost {
   onCursorMove?: (x: number, y: number) => void;
+  onSelectionVisibility?: (visible: boolean) => void;
+  onSelectionItems?: (items: GanttEditorSlot[]) => void;
+  onSelectionSlotIds?: (slotIds: string[]) => void;
+  /** @deprecated Use onSelectionVisibility instead. */
   onClipboardVisibility?: (visible: boolean) => void;
+  /** @deprecated Use onSelectionItems instead. */
   onClipboardItems?: (items: GanttEditorSlot[]) => void;
   /** Top content height in CSS px (for layout outside the canvas). */
   onTopContentHeightPx?: (heightPx: number) => void;
 }
 
-export function getClipboardItemDisplayName(item: GanttEditorSlot): string {
+export function getSelectionItemDisplayName(item: GanttEditorSlot): string {
   return item.displayName;
+}
+
+/** @deprecated Use getSelectionItemDisplayName instead. */
+export function getClipboardItemDisplayName(item: GanttEditorSlot): string {
+  return getSelectionItemDisplayName(item);
 }

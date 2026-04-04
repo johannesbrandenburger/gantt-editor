@@ -26,6 +26,7 @@
             @onHoverOnSlot="handleHoverOnSlot"
             @onDoubleClickOnSlot="handleDoubleClickOnSlot"
             @onContextClickOnSlot="handleContextClickOnSlot"
+            @onSelectionChange="handleSelectionChange"
             :topContentPortion="topContentPortion"
             @onTopContentPortionChange="(newPortion: number, newHeight: number) => topContentPortion = newPortion"
         >
@@ -80,7 +81,7 @@
                         🔲 {{ markedRegion ? 'Disable' : 'Enable' }} Marked Region (Multiple)
                     </button>
                     <button
-                        @click="handleClearClipboard"
+                        @click="handleClearSelection"
                         data-testid="clear-clipboard-button"
                         :style="{
                             padding: '8px 16px',
@@ -92,7 +93,23 @@
                             fontWeight: 'bold'
                         }"
                     >
-                        🗑️ Clear Clipboard
+                        🗑️ Clear Selection
+                    </button>
+                    <button
+                        @click="handleDeleteSelection"
+                        data-testid="delete-selection-button"
+                        :disabled="selectedSlotIds.length === 0"
+                        :style="{
+                            padding: '8px 16px',
+                            borderRadius: '4px',
+                            border: '1px solid #ccc',
+                            background: selectedSlotIds.length > 0 ? '#c0392b' : '#95a5a6',
+                            color: 'white',
+                            cursor: selectedSlotIds.length > 0 ? 'pointer' : 'not-allowed',
+                            fontWeight: 'bold'
+                        }"
+                    >
+                        ❌ Delete Selection ({{ selectedSlotIds.length }})
                     </button>
                     <div
                         v-if="eventMessage"
@@ -178,6 +195,7 @@ const endTime = ref(new Date(new Date().setHours(23, 59, 59, 999))); // today at
 const isReadOnly = ref(false);
 const eventMessage = ref('');
 const lastHoveredSlotId = ref<string | null>(null);
+const selectedSlotIds = ref<string[]>([]);
 let eventMessageTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // Function to show event message with auto-clear
@@ -192,12 +210,28 @@ const showEventMessage = (message: string, duration = 3000) => {
     }, duration);
 };
 
-// Function to programmatically clear the clipboard via the component ref
-const handleClearClipboard = () => {
+const handleSelectionChange = (slotIds: string[]) => {
+    selectedSlotIds.value = slotIds;
+};
+
+// Function to programmatically clear the selection via the component ref
+const handleClearSelection = () => {
     if (ganttEditorRef.value) {
-        ganttEditorRef.value.clearClipboard();
-        showEventMessage('🗑️ Clipboard cleared programmatically');
+        if (typeof ganttEditorRef.value.clearSelection === 'function') {
+            ganttEditorRef.value.clearSelection();
+        } else {
+            ganttEditorRef.value.clearClipboard();
+        }
+        showEventMessage('🗑️ Selection cleared programmatically');
     }
+};
+
+const handleDeleteSelection = () => {
+    if (selectedSlotIds.value.length === 0) return;
+    const selectedIds = new Set(selectedSlotIds.value);
+    slots.value = slots.value.filter((slot) => !selectedIds.has(slot.id));
+    handleClearSelection();
+    showEventMessage(`❌ Deleted ${selectedIds.size} selected slot(s)`);
 };
 
 // Function to generate random time within the day

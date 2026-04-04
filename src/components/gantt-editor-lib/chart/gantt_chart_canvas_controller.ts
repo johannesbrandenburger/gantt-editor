@@ -70,7 +70,8 @@ const MARGIN = { left: 200, right: 12 };
 const PROCESS_DATA_VIEW_PLACEHOLDER_START = new Date(0);
 const PROCESS_DATA_VIEW_PLACEHOLDER_END = new Date(86400000);
 
-const CLIPBOARD_STORAGE_KEY = "pointerClipboard";
+const SELECTION_STORAGE_KEY = "pointerSelection";
+const LEGACY_CLIPBOARD_STORAGE_KEY = "pointerClipboard";
 const HOVER_DELAY_MS = 500;
 const BRUSH_DRAG_THRESHOLD_PX = 3;
 const CLIPBOARD_PREVIEW_MAX_ITEMS = 5;
@@ -276,7 +277,7 @@ export class GanttChartCanvasController {
     this.props = next;
 
     if (!wasReadOnly && next.isReadOnly) {
-      this.clearClipboard();
+      this.clearSelection();
     }
 
     const newFp = this.computeProcessDataDeepFingerprint(next);
@@ -422,8 +423,8 @@ export class GanttChartCanvasController {
     this.lastNotifiedTopContentHeight = -1;
   }
 
-  updateClipboard(): void {
-    const parsedData = this.readClipboard();
+  updateSelection(): void {
+    const parsedData = this.readSelection();
     this.clipboardItems = parsedData;
     if (parsedData.length === 0) {
       this.hoveredClipboardTopicId = null;
@@ -431,13 +432,25 @@ export class GanttChartCanvasController {
     }
     this.destinationPreviewTopicsCache = null;
     this.applyCopiedFlagsFromClipboard(parsedData);
+    this.host.onSelectionItems?.(parsedData);
+    this.host.onSelectionSlotIds?.(parsedData.map((slot) => slot.id));
     this.host.onClipboardItems?.(parsedData);
     this.redraw();
   }
 
+  /** @deprecated Use updateSelection instead. */
+  updateClipboard(): void {
+    this.updateSelection();
+  }
+
+  clearSelection(): void {
+    this.writeSelection([]);
+    this.updateSelection();
+  }
+
+  /** @deprecated Use clearSelection instead. */
   clearClipboard(): void {
-    this.writeClipboard([]);
-    this.updateClipboard();
+    this.clearSelection();
   }
 
   onContainerMouseMove(e: MouseEvent): void {
@@ -605,6 +618,7 @@ export class GanttChartCanvasController {
   }
 
   onMouseEnter(): void {
+    this.host.onSelectionVisibility?.(true);
     this.host.onClipboardVisibility?.(true);
   }
 
@@ -614,6 +628,7 @@ export class GanttChartCanvasController {
     this.hoveredClipboardTopicId = null;
     this.destinationPreviewTransition = null;
     this.resetHoverSlot();
+    this.host.onSelectionVisibility?.(false);
     this.host.onClipboardVisibility?.(false);
     this.redraw();
   }
@@ -828,7 +843,7 @@ export class GanttChartCanvasController {
         this.toggleTopicCollapse(topicId);
         return;
       }
-      this.moveClipboardToTopic(topicId);
+      this.moveSelectionToTopic(topicId);
     }
   }
 
@@ -884,8 +899,10 @@ export class GanttChartCanvasController {
   /** Test-only snapshot for canvas e2e probes. Returns serializable state only. */
   getTestState(): {
     rowHeight: number;
+    selectionSlotIds: string[];
     hoveredSlotId: string | null;
     pointerInChart: boolean;
+    /** @deprecated Use selectionSlotIds instead. */
     clipboardSlotIds: string[];
     destinationPreviewTopicId: string | null;
     destinationPreviewSourceSlotIds: string[];
@@ -906,6 +923,7 @@ export class GanttChartCanvasController {
     const layout = this.getChartLayout();
     return {
       rowHeight: this.rowHeight,
+      selectionSlotIds: this.clipboardItems.map((slot) => slot.id),
       hoveredSlotId: this.hoveredSlotId,
       pointerInChart: this.pointerInChart,
       clipboardSlotIds: this.clipboardItems.map((slot) => slot.id),
@@ -1891,21 +1909,34 @@ export class GanttChartCanvasController {
     this.hoveredSlotId = null;
   }
 
-  private readClipboard(): GanttEditorSlot[] {
-    const storedData = localStorage.getItem(CLIPBOARD_STORAGE_KEY);
+  private readSelection(): GanttEditorSlot[] {
+    const storedData =
+      localStorage.getItem(SELECTION_STORAGE_KEY) ??
+      localStorage.getItem(LEGACY_CLIPBOARD_STORAGE_KEY);
     if (!storedData) return [];
     try {
       const parsed = JSON.parse(storedData) as GanttEditorSlot[];
       if (!Array.isArray(parsed)) return [];
       return parsed;
     } catch (e) {
-      console.error("Error parsing clipboard content:", e);
+      console.error("Error parsing selection content:", e);
       return [];
     }
   }
 
+  /** @deprecated Use readSelection instead. */
+  private readClipboard(): GanttEditorSlot[] {
+    return this.readSelection();
+  }
+
+  private writeSelection(items: GanttEditorSlot[]): void {
+    localStorage.setItem(SELECTION_STORAGE_KEY, JSON.stringify(items));
+    localStorage.removeItem(LEGACY_CLIPBOARD_STORAGE_KEY);
+  }
+
+  /** @deprecated Use writeSelection instead. */
   private writeClipboard(items: GanttEditorSlot[]): void {
-    localStorage.setItem(CLIPBOARD_STORAGE_KEY, JSON.stringify(items));
+    this.writeSelection(items);
   }
 
   private applyCopiedFlagsFromClipboard(clipboard: GanttEditorSlot[]): void {
@@ -1968,33 +1999,33 @@ export class GanttChartCanvasController {
     if (!slot) return;
 
     if (!this.props.isReadOnly && !slot.readOnly) {
-      const clipboard = this.readClipboard();
+      const clipboard = this.readSelection();
       if (clipboard.length === 0 || multiSelect) {
-        this.toggleSlotClipboardSelection(slotId);
+        this.toggleSlotSelection(slotId);
       } else {
-        this.moveClipboardToTopic(slot.destinationId);
+        this.moveSelectionToTopic(slot.destinationId);
       }
     }
   }
 
-  private toggleSlotClipboardSelection(slotId: string): void {
+  private toggleSlotSelection(slotId: string): void {
     const slot = this.props.slots.find((s) => s.id === slotId);
     if (!slot || slot.readOnly) return;
 
-    const clipboard = this.readClipboard();
+    const clipboard = this.readSelection();
     const idx = clipboard.findIndex((s) => s.id === slotId);
     if (idx >= 0) {
       clipboard.splice(idx, 1);
     } else {
       clipboard.push(this.slotSnapshotForClipboard(slot));
     }
-    this.writeClipboard(clipboard);
-    this.updateClipboard();
+    this.writeSelection(clipboard);
+    this.updateSelection();
   }
 
-  private addSlotsToClipboard(slotIds: string[]): void {
+  private addSlotsToSelection(slotIds: string[]): void {
     if (slotIds.length === 0) return;
-    const clipboard = this.readClipboard();
+    const clipboard = this.readSelection();
     const idsInClipboard = new Set(clipboard.map((s) => s.id));
     let changed = false;
     for (const slotId of slotIds) {
@@ -2006,13 +2037,13 @@ export class GanttChartCanvasController {
       changed = true;
     }
     if (!changed) return;
-    this.writeClipboard(clipboard);
-    this.updateClipboard();
+    this.writeSelection(clipboard);
+    this.updateSelection();
   }
 
-  private moveClipboardToTopic(topicId: string): void {
+  private moveSelectionToTopic(topicId: string): void {
     if (this.props.isReadOnly) return;
-    const clipboard = this.readClipboard();
+    const clipboard = this.readSelection();
     if (clipboard.length === 0) return;
 
     const previousRowYBySlotId = this.captureSlotRowYById();
@@ -2028,8 +2059,8 @@ export class GanttChartCanvasController {
       this.callbacks.onChangeDestinationId?.(target.id, topicId, false);
     }
 
-    this.writeClipboard([]);
-    this.updateClipboard();
+    this.writeSelection([]);
+    this.updateSelection();
     if (movedSomething) {
       this.cachedProcessedTopics = null;
       this.startSlotReflowAnimationFromPreviousRows(
@@ -2039,6 +2070,21 @@ export class GanttChartCanvasController {
       );
       this.redraw();
     }
+  }
+
+  /** @deprecated Use toggleSlotSelection instead. */
+  private toggleSlotClipboardSelection(slotId: string): void {
+    this.toggleSlotSelection(slotId);
+  }
+
+  /** @deprecated Use addSlotsToSelection instead. */
+  private addSlotsToClipboard(slotIds: string[]): void {
+    this.addSlotsToSelection(slotIds);
+  }
+
+  /** @deprecated Use moveSelectionToTopic instead. */
+  private moveClipboardToTopic(topicId: string): void {
+    this.moveSelectionToTopic(topicId);
   }
 
   private toggleTopicCollapse(topicId: string): void {
@@ -2243,7 +2289,7 @@ export class GanttChartCanvasController {
         excludeReadOnly: true,
       });
       const slotIds = Array.from(new Set(selectedSlots.map((s) => s.id)));
-      this.addSlotsToClipboard(slotIds);
+      this.addSlotsToSelection(slotIds);
     }
 
     this.brushSelection = null;
@@ -2252,9 +2298,9 @@ export class GanttChartCanvasController {
 
   private onDocumentKeyDown(e: KeyboardEvent): void {
     if (e.key !== "Escape" && e.keyCode !== 27) return;
-    if (this.readClipboard().length === 0) return;
+    if (this.readSelection().length === 0) return;
     e.preventDefault();
-    this.clearClipboard();
+    this.clearSelection();
   }
 
   private ensureCanvasContext(
@@ -2706,7 +2752,7 @@ export class GanttChartCanvasController {
       .map((item) => item.displayName || item.id);
     const extraCount = Math.max(0, count - visibleItems.length);
 
-    const lines = [`Clipboard (${count})`, ...visibleItems];
+    const lines = [`Selection (${count})`, ...visibleItems];
     if (extraCount > 0) {
       lines.push(`+${extraCount} more...`);
     }

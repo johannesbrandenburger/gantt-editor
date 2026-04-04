@@ -14,7 +14,10 @@ export type {
     GanttEditorCallbacks,
     GanttEditorHost,
 } from './components/gantt-editor-lib/chart/gantt_canvas_props'
-export { getClipboardItemDisplayName } from './components/gantt-editor-lib/chart/gantt_canvas_props'
+export {
+    getSelectionItemDisplayName,
+    getClipboardItemDisplayName,
+} from './components/gantt-editor-lib/chart/gantt_canvas_props'
 export { GanttChartCanvasController } from './components/gantt-editor-lib/chart/gantt_chart_canvas_controller'
 
 // Named export
