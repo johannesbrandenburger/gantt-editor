@@ -65,6 +65,8 @@
                 @onChangeStartAndEndTime="handleChangeStartAndEndTime"
                 @onChangeDestinationId="handleChangeDestinationId"
                 @onBulkChangeDestinationId="handleBulkChangeDestinationId"
+                @onCopyDestinationId="handleCopyDestinationId"
+                @onBulkCopyDestinationId="handleBulkCopyDestinationId"
                 @onChangeSlotTime="handleChangeSlotTime"
                 @onClickOnSlot="() => {}"
                 @onHoverOnSlot="() => {}"
@@ -198,6 +200,23 @@ const handleBulkChangeDestinationId = (slotIds: string[], destinationId: string)
     slots.value = slots.value.map(slot =>
         movedSlotIds.has(slot.id) ? { ...slot, destinationId } : slot
     );
+};
+
+const makeCopyId = (slotId: string): string => `${slotId}-copy-${Date.now()}-${Math.floor(Math.random() * 10_000)}`;
+
+const handleCopyDestinationId = (slotId: string, destinationId: string) => {
+    const source = slots.value.find((slot) => slot.id === slotId);
+    if (!source) return;
+    slots.value = [...slots.value, { ...source, id: makeCopyId(source.id), destinationId }];
+};
+
+const handleBulkCopyDestinationId = (slotIds: string[], destinationId: string) => {
+    const slotIdsToCopy = new Set(slotIds);
+    const copiedSlots = slots.value
+        .filter((slot) => slotIdsToCopy.has(slot.id))
+        .map((slot) => ({ ...slot, id: makeCopyId(slot.id), destinationId }));
+    if (copiedSlots.length === 0) return;
+    slots.value = [...slots.value, ...copiedSlots];
 };
 
 const handleChangeSlotTime = (slotId: string, openTime: Date, closeTime: Date) => {

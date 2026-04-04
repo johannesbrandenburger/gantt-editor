@@ -38,6 +38,8 @@ export interface GanttEditorCallbacks {
   onChangeSlotTime: (slotId: string, openTime: Date, closeTime: Date) => void;
   onChangeDestinationId?: (slotId: string, destinationId: string, preview: boolean) => void;
   onBulkChangeDestinationId?: (slotIds: string[], destinationId: string, preview: boolean) => void;
+  onCopyDestinationId?: (slotId: string, destinationId: string, preview: boolean) => void;
+  onBulkCopyDestinationId?: (slotIds: string[], destinationId: string, preview: boolean) => void;
   onClickOnSlot?: (slotId: string) => void;
   onHoverOnSlot?: (slotId: string) => void;
   onDoubleClickOnSlot?: (slotId: string) => void;

@@ -41,6 +41,8 @@ interface GanttEditorEmits {
   onChangeStartAndEndTime: [Date, Date],
   onChangeDestinationId: [string, string, boolean],
   onBulkChangeDestinationId: [string[], string, boolean],
+  onCopyDestinationId: [string, string, boolean],
+  onBulkCopyDestinationId: [string[], string, boolean],
   onChangeSlotTime: [string, Date, Date],
   onSelectionChange: [string[]],
   onClickOnSlot: [string],
@@ -134,6 +136,12 @@ const controller = new GanttChartCanvasController(
     },
     onBulkChangeDestinationId: (slotIds, destinationId, preview) => {
       emit("onBulkChangeDestinationId", slotIds, destinationId, preview);
+    },
+    onCopyDestinationId: (slotId, destinationId, preview) => {
+      emit("onCopyDestinationId", slotId, destinationId, preview);
+    },
+    onBulkCopyDestinationId: (slotIds, destinationId, preview) => {
+      emit("onBulkCopyDestinationId", slotIds, destinationId, preview);
     },
     onClickOnSlot: (slotId) => {
       emit("onClickOnSlot", slotId);

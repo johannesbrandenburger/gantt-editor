@@ -22,6 +22,8 @@
             @onChangeStartAndEndTime="handleChangeStartAndEndTime"
             @onChangeDestinationId="handleChangeDestinationId"
             @onBulkChangeDestinationId="handleBulkChangeDestinationId"
+            @onCopyDestinationId="handleCopyDestinationId"
+            @onBulkCopyDestinationId="handleBulkCopyDestinationId"
             @onChangeSlotTime="handleChangeSlotTime"
             @onClickOnSlot="handleClickOnSlot"
             @onHoverOnSlot="handleHoverOnSlot"
@@ -473,6 +475,39 @@ const handleBulkChangeDestinationId = (slotIds: string[], destinationId: string,
     if (movedCount > 0) {
         showEventMessage(`📦 Moved ${movedCount} slots to ${destinationId}`);
     }
+};
+
+const buildCopiedSlot = (slot: GanttEditorSlot, destinationId: string): GanttEditorSlot => {
+    let copyIndex = 1;
+    let nextId = `${slot.id}-copy-${copyIndex}`;
+    const existingIds = new Set(slots.value.map((item) => item.id));
+    while (existingIds.has(nextId)) {
+        copyIndex += 1;
+        nextId = `${slot.id}-copy-${copyIndex}`;
+    }
+
+    return {
+        ...slot,
+        id: nextId,
+        destinationId,
+        isCopied: false,
+    };
+};
+
+const handleCopyDestinationId = (slotId: string, destinationId: string) => {
+    const source = slots.value.find((slot) => slot.id === slotId);
+    if (!source || source.readOnly) return;
+    slots.value = [...slots.value, buildCopiedSlot(source, destinationId)];
+    showEventMessage(`📋 Copied ${slotId} to ${destinationId}`);
+};
+
+const handleBulkCopyDestinationId = (slotIds: string[], destinationId: string) => {
+    const slotIdsToCopy = new Set(slotIds);
+    const sources = slots.value.filter((slot) => slotIdsToCopy.has(slot.id) && !slot.readOnly);
+    if (sources.length === 0) return;
+    const copiedSlots = sources.map((slot) => buildCopiedSlot(slot, destinationId));
+    slots.value = [...slots.value, ...copiedSlots];
+    showEventMessage(`📋 Copied ${copiedSlots.length} slots to ${destinationId}`);
 };
 
 const handleChangeSlotTime = (slotId: string, openTime: Date, closeTime: Date) => {

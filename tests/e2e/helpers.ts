@@ -209,7 +209,7 @@ export async function dispatchCanvasMouseEvent(
   page: Page,
   canvasPoint: { x: number; y: number },
   type: "click" | "dblclick" | "contextmenu",
-  modifiers?: { ctrlKey?: boolean; metaKey?: boolean },
+  modifiers?: { ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean },
 ): Promise<void> {
   await page.evaluate(
     ({ x, y, eventType, eventModifiers }) => {
@@ -226,6 +226,7 @@ export async function dispatchCanvasMouseEvent(
           button,
           ctrlKey: !!eventModifiers?.ctrlKey,
           metaKey: !!eventModifiers?.metaKey,
+          altKey: !!eventModifiers?.altKey,
         }),
       );
     },

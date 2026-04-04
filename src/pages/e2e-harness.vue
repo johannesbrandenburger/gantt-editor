@@ -392,6 +392,26 @@ function logEvent(name: string, payload: unknown): void {
   console.log(`[e2e-harness] ${name}`, payload);
 }
 
+function buildCopiedSlot(
+  source: GanttEditorSlotWithUiAttributes,
+  destinationId: string,
+  existingIds: Set<string>,
+): GanttEditorSlotWithUiAttributes {
+  let copyNumber = 1;
+  let nextId = `${source.id}__copy__${copyNumber}`;
+  while (existingIds.has(nextId)) {
+    copyNumber += 1;
+    nextId = `${source.id}__copy__${copyNumber}`;
+  }
+  existingIds.add(nextId);
+  return {
+    ...source,
+    id: nextId,
+    destinationId,
+    isCopied: false,
+  };
+}
+
 function onChangeStartAndEndTime(start: Date, end: Date): void {
   harnessData.value = { ...harnessData.value, startTime: start, endTime: end };
   logEvent("onChangeStartAndEndTime", { start, end });
@@ -420,6 +440,40 @@ function onBulkChangeDestinationId(slotIds: string[], destinationId: string, pre
     };
   }
   logEvent("onBulkChangeDestinationId", { slotIds, destinationId, preview });
+}
+
+function onCopyDestinationId(slotId: string, destinationId: string, preview: boolean): void {
+  if (!preview) {
+    const existingIds = new Set(harnessData.value.slots.map((slot) => slot.id));
+    const source = harnessData.value.slots.find((slot) => slot.id === slotId);
+    if (source && source.destinationId !== destinationId) {
+      harnessData.value = {
+        ...harnessData.value,
+        slots: [...harnessData.value.slots, buildCopiedSlot(source, destinationId, existingIds)],
+      };
+    }
+  }
+  logEvent("onCopyDestinationId", { slotId, destinationId, preview });
+}
+
+function onBulkCopyDestinationId(slotIds: string[], destinationId: string, preview: boolean): void {
+  if (!preview) {
+    const sourceIds = new Set(slotIds);
+    const existingIds = new Set(harnessData.value.slots.map((slot) => slot.id));
+    const sources = harnessData.value.slots.filter(
+      (slot) => sourceIds.has(slot.id) && slot.destinationId !== destinationId,
+    );
+    if (sources.length > 0) {
+      harnessData.value = {
+        ...harnessData.value,
+        slots: [
+          ...harnessData.value.slots,
+          ...sources.map((source) => buildCopiedSlot(source, destinationId, existingIds)),
+        ],
+      };
+    }
+  }
+  logEvent("onBulkCopyDestinationId", { slotIds, destinationId, preview });
 }
 
 function onChangeSlotTime(slotId: string, openTime: Date, closeTime: Date): void {
@@ -526,6 +580,8 @@ onBeforeUnmount(() => {
       @onChangeStartAndEndTime="onChangeStartAndEndTime"
       @onChangeDestinationId="onChangeDestinationId"
       @onBulkChangeDestinationId="onBulkChangeDestinationId"
+      @onCopyDestinationId="onCopyDestinationId"
+      @onBulkCopyDestinationId="onBulkCopyDestinationId"
       @onChangeSlotTime="onChangeSlotTime"
       @onClickOnSlot="onClickOnSlot"
       @onHoverOnSlot="onHoverOnSlot"

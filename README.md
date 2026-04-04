@@ -99,6 +99,9 @@ function onChangeVerticalMarker(id: string, date: Date) {
 
             @onChangeStartAndEndTime="(newStartTime, newEndTime) => console.log(`onChangeStartAndEndTime(${newStartTime}, ${newEndTime})`)"
             @onChangeDestinationId="(slotId, newDestinationId) => console.log(`onChangeDestinationId(${slotId}, ${newDestinationId})`)"
+            @onBulkChangeDestinationId="(slotIds, newDestinationId) => console.log(`onBulkChangeDestinationId(${slotIds.join(',')}, ${newDestinationId})`)"
+            @onCopyDestinationId="(slotId, newDestinationId) => console.log(`onCopyDestinationId(${slotId}, ${newDestinationId})`)"
+            @onBulkCopyDestinationId="(slotIds, newDestinationId) => console.log(`onBulkCopyDestinationId(${slotIds.join(',')}, ${newDestinationId})`)"
             @onChangeSlotTime="(slotId, newOpenTime, newCloseTime) => console.log(`onChangeSlotTime(${slotId}, ${newOpenTime}, ${newCloseTime})`)"
             @onClickOnSlot="(slotId) => console.log(`onClickOnSlot(${slotId})`)"
             @onHoverOnSlot="(slotId) => console.log(`onHoverOnSlot(${slotId})`)"

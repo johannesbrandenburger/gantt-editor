@@ -140,4 +140,98 @@ test.describe("canvas rewrite slot destination change", () => {
       })
       .toBe(0);
   });
+
+  test("Alt + click pastes selected slot as copy and emits copy event", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
+    await clearHarnessEvents(page);
+
+    const before = await getHarnessConfig(page);
+    const beforeCount = before.slots.length;
+
+    const sourcePoint = await findSlotPoint(page, SLOT_A, "center");
+    await dispatchCanvasMouseEvent(page, sourcePoint, "click");
+
+    const targetDestination = before.slots.find((slot) => slot.id === SLOT_B)?.destinationId;
+    expect(targetDestination).toBeTruthy();
+
+    const targetPoint = await findSlotPoint(page, SLOT_B, "center");
+    await dispatchCanvasMouseEvent(page, targetPoint, "click", { altKey: true });
+
+    await expect
+      .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
+        timeout: 2_000,
+      })
+      .toEqual([]);
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const copies = (events.onCopyDestinationId ?? []) as Array<{
+          slotId?: string;
+          destinationId?: string;
+          preview?: boolean;
+        }>;
+        return copies.find((event) => event.slotId === SLOT_A && event.preview === false) ?? null;
+      })
+      .toEqual({ slotId: SLOT_A, destinationId: targetDestination, preview: false });
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const moves = (events.onChangeDestinationId ?? []) as Array<{ preview?: boolean }>;
+        return moves.filter((event) => event.preview === false).length;
+      })
+      .toBe(0);
+
+    await expect
+      .poll(async () => (await getHarnessConfig(page)).slots.length)
+      .toBe(beforeCount + 1);
+  });
+
+  test("Alt + click with multi-select emits one bulk copy event", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
+    await clearHarnessEvents(page);
+
+    const before = await getHarnessConfig(page);
+    const beforeCount = before.slots.length;
+
+    const first = await findSlotPoint(page, SLOT_A, "center");
+    const second = await findSlotPoint(page, SLOT_B, "center");
+
+    await dispatchCanvasMouseEvent(page, first, "click");
+    await dispatchCanvasMouseEvent(page, second, "click", { metaKey: true, ctrlKey: true });
+
+    const targetDestination = before.slots.find((slot) => slot.id === SLOT_C)?.destinationId;
+    expect(targetDestination).toBeTruthy();
+
+    const target = await findSlotPoint(page, SLOT_C, "center");
+    await dispatchCanvasMouseEvent(page, target, "click", { altKey: true });
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const bulkCopies = (events.onBulkCopyDestinationId ?? []) as Array<{
+          slotIds?: string[];
+          destinationId?: string;
+          preview?: boolean;
+        }>;
+        const committed = bulkCopies.find(
+          (event) => event.preview === false && event.destinationId === targetDestination,
+        );
+        return [...(committed?.slotIds ?? [])].sort();
+      })
+      .toEqual([SLOT_A, SLOT_B]);
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const moves = (events.onBulkChangeDestinationId ?? []) as Array<{ preview?: boolean }>;
+        return moves.filter((event) => event.preview === false).length;
+      })
+      .toBe(0);
+
+    await expect
+      .poll(async () => (await getHarnessConfig(page)).slots.length)
+      .toBe(beforeCount + 2);
+  });
 });

@@ -831,7 +831,7 @@ export class GanttChartCanvasController {
       : null;
 
     if (slotHit) {
-      this.onSlotPrimaryClick(slotHit.slotId, e.metaKey || e.ctrlKey);
+      this.onSlotPrimaryClick(slotHit.slotId, e.metaKey || e.ctrlKey, e.altKey);
       this.lastClickedSlotId = slotHit.slotId;
       this.callbacks.onClickOnSlot?.(slotHit.slotId);
       return;
@@ -843,7 +843,7 @@ export class GanttChartCanvasController {
         this.toggleTopicCollapse(topicId);
         return;
       }
-      this.moveSelectionToTopic(topicId);
+      this.moveSelectionToTopic(topicId, e.altKey);
     }
   }
 
@@ -1994,7 +1994,7 @@ export class GanttChartCanvasController {
     return null;
   }
 
-  private onSlotPrimaryClick(slotId: string, multiSelect: boolean): void {
+  private onSlotPrimaryClick(slotId: string, multiSelect: boolean, copyInsteadOfMove: boolean): void {
     const slot = this.props.slots.find((s) => s.id === slotId);
     if (!slot) return;
 
@@ -2003,7 +2003,7 @@ export class GanttChartCanvasController {
       if (clipboard.length === 0 || multiSelect) {
         this.toggleSlotSelection(slotId);
       } else {
-        this.moveSelectionToTopic(slot.destinationId);
+        this.moveSelectionToTopic(slot.destinationId, copyInsteadOfMove);
       }
     }
   }
@@ -2041,10 +2041,43 @@ export class GanttChartCanvasController {
     this.updateSelection();
   }
 
-  private moveSelectionToTopic(topicId: string): void {
+  private emitCopySelectionToTopic(clipboard: GanttEditorSlot[], topicId: string): boolean {
+    const copiedSlotIds: string[] = [];
+    for (const copiedSlot of clipboard) {
+      const source = this.props.slots.find((s) => s.id === copiedSlot.id);
+      if (!source || source.readOnly || source.destinationId === topicId) continue;
+      copiedSlotIds.push(source.id);
+    }
+
+    if (copiedSlotIds.length > 1) {
+      if (this.callbacks.onBulkCopyDestinationId) {
+        this.callbacks.onBulkCopyDestinationId(copiedSlotIds, topicId, false);
+      } else {
+        for (const slotId of copiedSlotIds) {
+          this.callbacks.onCopyDestinationId?.(slotId, topicId, false);
+        }
+      }
+    } else if (copiedSlotIds.length === 1) {
+      this.callbacks.onCopyDestinationId?.(copiedSlotIds[0], topicId, false);
+    }
+
+    return copiedSlotIds.length > 0;
+  }
+
+  private moveSelectionToTopic(topicId: string, copyInsteadOfMove = false): void {
     if (this.props.isReadOnly) return;
     const clipboard = this.readSelection();
     if (clipboard.length === 0) return;
+
+    if (copyInsteadOfMove) {
+      const copiedSomething = this.emitCopySelectionToTopic(clipboard, topicId);
+      this.writeSelection([]);
+      this.updateSelection();
+      if (copiedSomething) {
+        this.redraw();
+      }
+      return;
+    }
 
     const previousRowYBySlotId = this.captureSlotRowYById();
     const previousLayoutByGroupId = this.captureTopicLayoutSnapshotByGroupId();
