@@ -195,4 +195,58 @@ test.describe("canvas rewrite brush selection", () => {
       .poll(async () => await getCanvasStateField<boolean>(page, "altCopyModifierActive"))
       .toBe(false);
   });
+
+  test("copy cursor appears/disappears without extra mouse movement", async ({ page }) => {
+    const { selectedSlotIds, canvas } = await brushSelectFirstAllocatedGroup(page);
+    expect(selectedSlotIds.length).toBeGreaterThan(1);
+
+    const harnessConfig = await getHarnessConfig(page);
+    const selectedDestinations = new Set(
+      harnessConfig.slots
+        .filter((slot) => selectedSlotIds.includes(slot.id))
+        .map((slot) => slot.destinationId),
+    );
+    const previewTarget = harnessConfig.slots.find(
+      (slot) => !selectedSlotIds.includes(slot.id) && !selectedDestinations.has(slot.destinationId),
+    );
+    expect(previewTarget).toBeDefined();
+    if (!previewTarget) {
+      throw new Error("Expected to find a destination target for copy-cursor assertion");
+    }
+
+    const targetPoint = await findSlotPoint(page, previewTarget.id, "center");
+    const targetPagePoint = await canvasPointToPagePoint(canvas, targetPoint);
+    await page.mouse.move(targetPagePoint.x, targetPagePoint.y);
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewMode"))
+      .toBe("move");
+
+    await page.keyboard.down("Alt");
+
+    await expect
+      .poll(async () => {
+        return await canvas.evaluate((node) => (node as HTMLCanvasElement).style.cursor);
+      })
+      .toBe("copy");
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewMode"))
+      .toBe("copy");
+
+    await page.mouse.click(targetPagePoint.x, targetPagePoint.y);
+
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toEqual([]);
+    await expect
+      .poll(async () => {
+        return await canvas.evaluate((node) => (node as HTMLCanvasElement).style.cursor);
+      })
+      .toBe("");
+
+    await page.keyboard.up("Alt");
+  });
 });

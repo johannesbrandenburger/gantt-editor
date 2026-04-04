@@ -439,6 +439,7 @@ export class GanttChartCanvasController {
     this.host.onSelectionItems?.(parsedData);
     this.host.onSelectionSlotIds?.(parsedData.map((slot) => slot.id));
     this.host.onClipboardItems?.(parsedData);
+    this.refreshCopyCursorIndicator();
     this.redraw();
   }
 
@@ -2395,7 +2396,22 @@ export class GanttChartCanvasController {
     if (this.altCopyModifierActive === active) return false;
     this.altCopyModifierActive = active;
     this.destinationPreviewTopicsCache = null;
+    this.refreshCopyCursorIndicator();
     return true;
+  }
+
+  private refreshCopyCursorIndicator(): void {
+    const canvas = this.canvas;
+    if (!canvas) return;
+    if (this.shouldShowCopyCursorIndicator()) {
+      if (canvas.style.cursor === "" || canvas.style.cursor === "copy") {
+        canvas.style.cursor = "copy";
+      }
+      return;
+    }
+    if (canvas.style.cursor === "copy") {
+      canvas.style.cursor = "";
+    }
   }
 
   private shouldShowCopyCursorIndicator(): boolean {
