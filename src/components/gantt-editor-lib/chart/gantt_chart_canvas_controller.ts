@@ -52,6 +52,7 @@ const MIN_ROW_HEIGHT = 1;
 const MAX_ROW_HEIGHT = 120;
 const SLOT_REFLOW_ANIMATION_MS = 180;
 const SLOT_REFLOW_PENDING_TTL_MS = 2_000;
+const DESTINATION_PREVIEW_TRANSITION_MS = 180;
 
 const MARGIN = { left: 200, right: 12 };
 
@@ -130,6 +131,13 @@ export class GanttChartCanvasController {
   private destinationPreviewTopicsCache: {
     key: string;
     topicsByGroupId: Map<string, Topic[]>;
+  } | null = null;
+
+  private destinationPreviewTransition: {
+    toTopicId: string;
+    startedAtMs: number;
+    durationMs: number;
+    shiftsBySlotId: Map<string, number>;
   } | null = null;
 
   private brushSelection: {
@@ -365,6 +373,7 @@ export class GanttChartCanvasController {
     this.hoveredSuggestion = null;
     this.hoveredClipboardTopicId = null;
     this.destinationPreviewTopicsCache = null;
+    this.destinationPreviewTransition = null;
     this.pointerInChart = false;
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
@@ -390,6 +399,7 @@ export class GanttChartCanvasController {
     this.clipboardItems = parsedData;
     if (parsedData.length === 0) {
       this.hoveredClipboardTopicId = null;
+      this.destinationPreviewTransition = null;
     }
     this.destinationPreviewTopicsCache = null;
     this.applyCopiedFlagsFromClipboard(parsedData);
@@ -525,6 +535,10 @@ export class GanttChartCanvasController {
     const hoverClipboardTopicChanged =
       previousHoveredClipboardTopicId !== this.hoveredClipboardTopicId;
 
+    if (hoverClipboardTopicChanged) {
+      this.startDestinationPreviewTransition(previousHoveredClipboardTopicId, this.hoveredClipboardTopicId);
+    }
+
     if (hit.type === "topResize" || hit.type === "betweenResize") {
       canvas.style.cursor = "ns-resize";
     } else if (suggestionHit) {
@@ -555,6 +569,7 @@ export class GanttChartCanvasController {
     this.pointerInChart = false;
     this.hoveredSuggestion = null;
     this.hoveredClipboardTopicId = null;
+    this.destinationPreviewTransition = null;
     this.resetHoverSlot();
     const canvas = this.canvas;
     if (canvas) canvas.style.cursor = "";
@@ -569,6 +584,7 @@ export class GanttChartCanvasController {
     this.pointerInChart = false;
     this.hoveredSuggestion = null;
     this.hoveredClipboardTopicId = null;
+    this.destinationPreviewTransition = null;
     this.resetHoverSlot();
     this.host.onClipboardVisibility?.(false);
     this.redraw();
@@ -1353,6 +1369,92 @@ export class GanttChartCanvasController {
     return this.cachedProcessedTopics;
   }
 
+  private capturePreviewSlotRowYById(
+    topicsByGroupId: ReadonlyMap<string, Topic[]>,
+  ): Map<string, number> {
+    const rowsBySlotId = new Map<string, number>();
+    topicsByGroupId.forEach((topics) => {
+      const layouts = computeTopicLayout(topics, MARGIN.left, this.rowHeight);
+      for (const layout of layouts) {
+        layout.topic.rows.forEach((row, rowIndex) => {
+          const rowTop = layout.rowYs[rowIndex];
+          if (rowTop === undefined) return;
+          for (const slot of row.slots) {
+            if (slot.isPreview) {
+              rowsBySlotId.set(slot.id, rowTop);
+            }
+          }
+        });
+      }
+    });
+    return rowsBySlotId;
+  }
+
+  private startDestinationPreviewTransition(
+    previousTopicId: string | null,
+    nextTopicId: string | null,
+  ): void {
+    if (!previousTopicId || !nextTopicId || previousTopicId === nextTopicId) {
+      this.destinationPreviewTransition = null;
+      return;
+    }
+    if (this.clipboardItems.length === 0) {
+      this.destinationPreviewTransition = null;
+      return;
+    }
+
+    const previousTopicsByGroupId = this.createDestinationPreviewTopics(previousTopicId);
+    const nextTopicsByGroupId = this.createDestinationPreviewTopics(nextTopicId);
+
+    const previousRows = this.capturePreviewSlotRowYById(previousTopicsByGroupId);
+    const nextRows = this.capturePreviewSlotRowYById(nextTopicsByGroupId);
+
+    const shiftsBySlotId = new Map<string, number>();
+    nextRows.forEach((toY, slotId) => {
+      const fromY = previousRows.get(slotId);
+      if (fromY === undefined) return;
+      const delta = fromY - toY;
+      if (Math.abs(delta) > 0.5) {
+        shiftsBySlotId.set(slotId, delta);
+      }
+    });
+
+    if (shiftsBySlotId.size === 0) {
+      this.destinationPreviewTransition = null;
+      return;
+    }
+
+    this.destinationPreviewTransition = {
+      toTopicId: nextTopicId,
+      startedAtMs: performance.now(),
+      durationMs: DESTINATION_PREVIEW_TRANSITION_MS,
+      shiftsBySlotId,
+    };
+  }
+
+  private getActiveDestinationPreviewTransition(
+    nowMs: number,
+    topicId: string,
+  ): { shiftsBySlotId: ReadonlyMap<string, number>; progress: number } | null {
+    const anim = this.destinationPreviewTransition;
+    if (!anim || anim.toTopicId !== topicId || anim.shiftsBySlotId.size === 0) {
+      return null;
+    }
+
+    const rawProgress = (nowMs - anim.startedAtMs) / anim.durationMs;
+    if (rawProgress >= 1) {
+      this.destinationPreviewTransition = null;
+      return null;
+    }
+
+    const clamped = Math.max(0, Math.min(1, rawProgress));
+    const eased = 1 - Math.pow(1 - clamped, 3);
+    return {
+      shiftsBySlotId: anim.shiftsBySlotId,
+      progress: eased,
+    };
+  }
+
   private previewCacheKeyForTopic(topicId: string): string {
     const modelKey = this.processDataDeepFingerprint ?? this.computeProcessDataDeepFingerprint(this.props);
     const clipboardKey = this.clipboardItems
@@ -1441,6 +1543,7 @@ export class GanttChartCanvasController {
     topicId: string;
     topicsByGroupId: Map<string, Topic[]>;
     pulseAlpha: number;
+    slotYTransition: { shiftsBySlotId: ReadonlyMap<string, number>; progress: number } | null;
   } | null {
     if (!this.pointerInChart) return null;
     if (this.brushSelection) return null;
@@ -1454,6 +1557,7 @@ export class GanttChartCanvasController {
       topicId,
       topicsByGroupId: this.createDestinationPreviewTopics(topicId),
       pulseAlpha,
+      slotYTransition: this.getActiveDestinationPreviewTransition(nowMs, topicId),
     };
   }
 
@@ -2157,7 +2261,7 @@ export class GanttChartCanvasController {
         viewportHeight: viewportHeight,
         topicLayouts,
         slotTimeOverride: this.slotResizePreview,
-        slotYTransition,
+        slotYTransition: destinationPreview?.slotYTransition ?? slotYTransition,
         previewPulseAlpha: destinationPreview?.pulseAlpha,
       });
 
