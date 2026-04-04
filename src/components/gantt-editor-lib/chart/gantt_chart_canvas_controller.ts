@@ -144,6 +144,7 @@ export class GanttChartCanvasController {
   private pointerInChart = false;
   private pointerCanvasX = 0;
   private pointerCanvasY = 0;
+  private altCopyModifierActive = false;
   private clipboardItems: GanttEditorSlot[] = [];
   private hoveredClipboardTopicId: string | null = null;
 
@@ -245,6 +246,7 @@ export class GanttChartCanvasController {
   private readonly boundBrushMouseMove = (e: MouseEvent) => this.onBrushMouseMove(e);
   private readonly boundBrushMouseUp = (e: MouseEvent) => this.onBrushMouseUp(e);
   private readonly boundDocumentKeyDown = (e: KeyboardEvent) => this.onDocumentKeyDown(e);
+  private readonly boundDocumentKeyUp = (e: KeyboardEvent) => this.onDocumentKeyUp(e);
 
   constructor(
     initialProps: GanttEditorProps,
@@ -358,6 +360,7 @@ export class GanttChartCanvasController {
 
     canvas.addEventListener("wheel", this.boundCanvasWheel, { passive: false });
     document.addEventListener("keydown", this.boundDocumentKeyDown);
+    document.addEventListener("keyup", this.boundDocumentKeyUp);
 
     queueMicrotask(() => {
       this.reconcileUnifiedZoomRowHeight();
@@ -416,6 +419,7 @@ export class GanttChartCanvasController {
       this.canvas.removeEventListener("wheel", this.boundCanvasWheel);
     }
     document.removeEventListener("keydown", this.boundDocumentKeyDown);
+    document.removeEventListener("keyup", this.boundDocumentKeyUp);
     clearPanZoomWheelDebounce();
     this.container = null;
     this.canvas = null;
@@ -462,6 +466,7 @@ export class GanttChartCanvasController {
     const layout = this.getChartLayout();
     const canvas = this.canvas;
     if (!layout || !canvas) return;
+    const altCopyChanged = this.syncAltCopyModifier(e.altKey);
     this.pointerInChart = true;
     const nextHover = this.resizeHoverKey(layout, e.clientX, e.clientY);
     const hoverChanged = nextHover !== this.hoverResizeBand;
@@ -588,6 +593,8 @@ export class GanttChartCanvasController {
       canvas.style.cursor = "ew-resize";
     } else if (ewResize) {
       canvas.style.cursor = "ew-resize";
+    } else if (this.shouldShowCopyCursorIndicator()) {
+      canvas.style.cursor = "copy";
     } else {
       canvas.style.cursor = "";
     }
@@ -597,6 +604,7 @@ export class GanttChartCanvasController {
       hoverSlotChanged ||
       hoverSuggestionChanged ||
       hoverClipboardTopicChanged ||
+      altCopyChanged ||
       this.clipboardItems.length > 0 ||
       this.brushSelection ||
       this.hoveredSlotId
@@ -905,6 +913,9 @@ export class GanttChartCanvasController {
     clipboardSlotIds: string[];
     destinationPreviewTopicId: string | null;
     destinationPreviewSourceSlotIds: string[];
+    destinationPreviewMode: "move" | "copy" | null;
+    altCopyModifierActive: boolean;
+    copyCursorIndicatorVisible: boolean;
     lastClickedSlotId: string | null;
     lastDoubleClickedSlotId: string | null;
     lastContextClickedSlotId: string | null;
@@ -928,6 +939,9 @@ export class GanttChartCanvasController {
       clipboardSlotIds: this.clipboardItems.map((slot) => slot.id),
       destinationPreviewTopicId: destinationPreviewState?.topicId ?? null,
       destinationPreviewSourceSlotIds: destinationPreviewState?.sourceSlotIds ?? [],
+      destinationPreviewMode: destinationPreviewState?.mode ?? null,
+      altCopyModifierActive: this.altCopyModifierActive,
+      copyCursorIndicatorVisible: this.shouldShowCopyCursorIndicator(),
       lastClickedSlotId: this.lastClickedSlotId,
       lastDoubleClickedSlotId: this.lastDoubleClickedSlotId,
       lastContextClickedSlotId: this.lastContextClickedSlotId,
@@ -1664,7 +1678,7 @@ export class GanttChartCanvasController {
         return `${index}:${slot.id}:${slot.destinationId}:${openMs}:${closeMs}:${slot.displayName}`;
       })
       .join("|");
-    return `${modelKey}:${topicId}:${clipboardKey}`;
+    return `${modelKey}:${topicId}:${this.altCopyModifierActive ? "copy" : "move"}:${clipboardKey}`;
   }
 
   private getPreviewEligibleClipboardItems(topicId: string): GanttEditorSlot[] {
@@ -1678,6 +1692,7 @@ export class GanttChartCanvasController {
     }
 
     const previewSlots: GanttEditorSlotWithUiAttributes[] = [];
+    const copyPreview = this.altCopyModifierActive;
     this.getPreviewEligibleClipboardItems(topicId).forEach((slot, index) => {
       const openTime = new Date(slot.openTime);
       const closeTime = new Date(slot.closeTime);
@@ -1694,6 +1709,7 @@ export class GanttChartCanvasController {
         secondaryDeadline: slot.secondaryDeadline ? new Date(slot.secondaryDeadline) : undefined,
         isCopied: false,
         isPreview: true,
+        isCopyPreview: copyPreview,
         readOnly: true,
       });
     });
@@ -1746,6 +1762,7 @@ export class GanttChartCanvasController {
   private getDestinationPreviewState(nowMs: number): {
     topicId: string;
     sourceSlotIds: string[];
+    mode: "move" | "copy";
     topicsByGroupId: Map<string, Topic[]>;
     pulseAlpha: number;
     slotYTransition: { shiftsBySlotId: ReadonlyMap<string, number>; progress: number } | null;
@@ -1769,6 +1786,7 @@ export class GanttChartCanvasController {
     return {
       topicId,
       sourceSlotIds,
+      mode: this.altCopyModifierActive ? "copy" : "move",
       topicsByGroupId: this.createDestinationPreviewTopics(topicId),
       pulseAlpha,
       slotYTransition: transition
@@ -2352,10 +2370,41 @@ export class GanttChartCanvasController {
   }
 
   private onDocumentKeyDown(e: KeyboardEvent): void {
+    if (e.key === "Alt") {
+      if (this.syncAltCopyModifier(true)) {
+        this.scheduleFrameRedraw(true);
+      }
+      return;
+    }
+
     if (e.key !== "Escape" && e.keyCode !== 27) return;
     if (this.readSelection().length === 0) return;
     e.preventDefault();
     this.clearSelection();
+  }
+
+  private onDocumentKeyUp(e: KeyboardEvent): void {
+    if (e.key !== "Alt") return;
+    if (this.syncAltCopyModifier(false)) {
+      this.scheduleFrameRedraw(true);
+    }
+  }
+
+  private syncAltCopyModifier(active: boolean): boolean {
+    if (this.altCopyModifierActive === active) return false;
+    this.altCopyModifierActive = active;
+    this.destinationPreviewTopicsCache = null;
+    return true;
+  }
+
+  private shouldShowCopyCursorIndicator(): boolean {
+    return (
+      this.pointerInChart &&
+      !this.brushSelection &&
+      !this.props.isReadOnly &&
+      this.altCopyModifierActive &&
+      this.clipboardItems.length > 0
+    );
   }
 
   private ensureCanvasContext(
@@ -2692,6 +2741,7 @@ export class GanttChartCanvasController {
 
     this.drawBrushSelectionOverlay(ctx, layout);
     this.drawClipboardPreviewOverlay(ctx, layout);
+    this.drawCopyCursorIndicatorOverlay(ctx, layout);
     this.drawSuggestionHoverOverlay(ctx, layout);
     this.drawSlotHoverTooltipOverlay(ctx, layout);
 
@@ -2865,6 +2915,35 @@ export class GanttChartCanvasController {
       ctx.fillText(line, x + padX, baseline);
     });
 
+    ctx.restore();
+  }
+
+  private drawCopyCursorIndicatorOverlay(
+    ctx: CanvasRenderingContext2D,
+    layout: UnifiedChartLayout,
+  ): void {
+    if (!this.shouldShowCopyCursorIndicator()) return;
+
+    const cx = Math.max(10, Math.min(layout.canvasCssWidth - 10, this.pointerCanvasX + 18));
+    const cy = Math.max(10, Math.min(layout.canvasCssHeight - 10, this.pointerCanvasY + 18));
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+    ctx.fillStyle = "#16a34a";
+    ctx.fill();
+    ctx.strokeStyle = "#14532d";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(cx - 3, cy);
+    ctx.lineTo(cx + 3, cy);
+    ctx.moveTo(cx, cy - 3);
+    ctx.lineTo(cx, cy + 3);
+    ctx.stroke();
     ctx.restore();
   }
 

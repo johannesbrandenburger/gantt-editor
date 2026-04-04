@@ -6,6 +6,7 @@ import {
   findSlotPoint,
   getCanvasState,
   getCanvasStateField,
+  getHarnessConfig,
   getHarnessEvents,
   mouseDrag,
   openE2eHarness,
@@ -21,7 +22,9 @@ type CanvasState = {
 
 const DENSE_TARGET_SLOT_ID = "DENSE-0002";
 
-async function brushSelectFirstAllocatedGroup(page: Page): Promise<{ selectedSlotIds: string[] }> {
+async function brushSelectFirstAllocatedGroup(
+  page: Page,
+): Promise<{ selectedSlotIds: string[]; canvas: Awaited<ReturnType<typeof openE2eHarness>> }> {
   const canvas = await openE2eHarness(page, { fixture: "dense", query: { slots: 80 } });
   await page.evaluate(() => localStorage.removeItem("pointerSelection"));
 
@@ -61,7 +64,7 @@ async function brushSelectFirstAllocatedGroup(page: Page): Promise<{ selectedSlo
     .toBeGreaterThan(1);
 
   const selectedSlotIds = (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [];
-  return { selectedSlotIds };
+  return { selectedSlotIds, canvas };
 }
 
 test.describe("canvas rewrite brush selection", () => {
@@ -144,5 +147,52 @@ test.describe("canvas rewrite brush selection", () => {
         { timeout: 2_000 },
       )
       .toEqual([]);
+  });
+
+  test("Alt toggles copy-mode indicator and destination preview mode", async ({ page }) => {
+    const { selectedSlotIds, canvas } = await brushSelectFirstAllocatedGroup(page);
+    expect(selectedSlotIds.length).toBeGreaterThan(1);
+
+    const harnessConfig = await getHarnessConfig(page);
+    const selectedDestinations = new Set(
+      harnessConfig.slots
+        .filter((slot) => selectedSlotIds.includes(slot.id))
+        .map((slot) => slot.destinationId),
+    );
+    const previewTarget = harnessConfig.slots.find(
+      (slot) => !selectedSlotIds.includes(slot.id) && !selectedDestinations.has(slot.destinationId),
+    );
+    expect(previewTarget).toBeDefined();
+    if (!previewTarget) {
+      throw new Error("Expected to find a destination target for preview mode assertion");
+    }
+
+    const targetPoint = await findSlotPoint(page, previewTarget.id, "center");
+    const targetPagePoint = await canvasPointToPagePoint(canvas, targetPoint);
+    await page.mouse.move(targetPagePoint.x, targetPagePoint.y);
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewMode"))
+      .toBe("move");
+
+    await page.keyboard.down("Alt");
+    await page.mouse.move(targetPagePoint.x + 2, targetPagePoint.y + 2);
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewMode"))
+      .toBe("copy");
+    await expect
+      .poll(async () => await getCanvasStateField<boolean>(page, "copyCursorIndicatorVisible"))
+      .toBe(true);
+
+    await page.keyboard.up("Alt");
+    await page.mouse.move(targetPagePoint.x + 4, targetPagePoint.y + 4);
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewMode"))
+      .toBe("move");
+    await expect
+      .poll(async () => await getCanvasStateField<boolean>(page, "copyCursorIndicatorVisible"))
+      .toBe(false);
   });
 });

@@ -183,6 +183,7 @@ export type GanttEditorXAxisOptions = {
 - to **move up and down** (vertical scroll)
   - simple vertical scroll (mousewheel/trackpad)
 - cmd/ctrl + click on **multiple slots selects** them one at a time
+- hold **alt** while moving a selection to **copy instead of move** (green `+` cursor badge and green destination preview)
 - **zoom in and out** by shift + scroll (mousewheel/trackpad)
 - **clear selection** by pressing escape
 

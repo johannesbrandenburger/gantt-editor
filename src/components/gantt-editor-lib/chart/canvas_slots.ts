@@ -157,7 +157,7 @@ export function drawSlots(params: DrawSlotsParams) {
         ctx.fillRect(slotDef.x, slotDef.y, slotDef.width, slotDef.height);
 
         if (slotDef.isPreview) {
-          ctx.strokeStyle = "#1d4ed8";
+          ctx.strokeStyle = slotDef.slot.isCopyPreview ? "#166534" : "#1d4ed8";
           ctx.lineWidth = 1.25;
           ctx.setLineDash([6, 4]);
           ctx.strokeRect(slotDef.x + 0.5, slotDef.y + 0.5, Math.max(0, slotDef.width - 1), Math.max(0, slotDef.height - 1));
@@ -240,7 +240,7 @@ export function computeSlotRect(
   const isPreview = !!slot.isPreview;
   let fill = slot.color ?? mapSlotToStateColor(slot) ?? "lightgrey";
   if (isPreview) {
-    fill = "rgba(37, 99, 235, 0.65)";
+    fill = slot.isCopyPreview ? "rgba(34, 197, 94, 0.6)" : "rgba(37, 99, 235, 0.65)";
   }
 
   return {
