@@ -72,6 +72,16 @@ const HOVER_DELAY_MS = 500;
 const BRUSH_DRAG_THRESHOLD_PX = 3;
 const CLIPBOARD_PREVIEW_MAX_ITEMS = 5;
 
+type TopicLayoutSnapshot = {
+  topicYById: Map<string, number>;
+  contentHeight: number;
+};
+
+type TopicLayoutShiftByGroup = {
+  shiftsByTopicId: Map<string, number>;
+  contentHeightShift: number;
+};
+
 function destinationGroupsSnapshot(
   groups: GanttEditorProps["destinationGroups"],
 ): string {
@@ -143,6 +153,7 @@ export class GanttChartCanvasController {
     startedAtMs: number;
     durationMs: number;
     shiftsBySlotId: Map<string, number>;
+    shiftsByGroupId: Map<string, TopicLayoutShiftByGroup>;
   } | null = null;
 
   private brushSelection: {
@@ -179,6 +190,7 @@ export class GanttChartCanvasController {
   private pendingSlotReflowFromResize: {
     capturedAtMs: number;
     previousRowYBySlotId: Map<string, number>;
+    previousLayoutByGroupId: Map<string, TopicLayoutSnapshot>;
   } | null = null;
 
   /** Short-lived row-shift animation for slots moved by post-resize reflow. */
@@ -186,19 +198,14 @@ export class GanttChartCanvasController {
     startedAtMs: number;
     durationMs: number;
     shiftsBySlotId: Map<string, number>;
+    shiftsByGroupId: Map<string, TopicLayoutShiftByGroup>;
   } | null = null;
 
   /** Per-group topic Y-shift interpolation used for collapse/expand height transitions. */
   private collapseLayoutAnimation: {
     startedAtMs: number;
     durationMs: number;
-    shiftsByGroupId: Map<
-      string,
-      {
-        shiftsByTopicId: Map<string, number>;
-        contentHeightShift: number;
-      }
-    >;
+    shiftsByGroupId: Map<string, TopicLayoutShiftByGroup>;
   } | null = null;
 
   private cachedCanvasEl: HTMLCanvasElement | null = null;
@@ -1280,7 +1287,11 @@ export class GanttChartCanvasController {
       return;
     }
     this.pendingSlotReflowFromResize = null;
-    this.startSlotReflowAnimationFromPreviousRows(pending.previousRowYBySlotId, now);
+    this.startSlotReflowAnimationFromPreviousRows(
+      pending.previousRowYBySlotId,
+      now,
+      pending.previousLayoutByGroupId,
+    );
   }
 
   private buildSlotRowShiftMap(
@@ -1302,9 +1313,17 @@ export class GanttChartCanvasController {
   private startSlotReflowAnimationFromPreviousRows(
     previousRowYBySlotId: ReadonlyMap<string, number>,
     startedAtMs = performance.now(),
+    previousLayoutByGroupId?: ReadonlyMap<string, TopicLayoutSnapshot>,
   ): void {
     const shiftsBySlotId = this.buildSlotRowShiftMap(previousRowYBySlotId);
-    if (shiftsBySlotId.size === 0) {
+    const shiftsByGroupId = previousLayoutByGroupId
+      ? this.buildTopicLayoutShiftByGroupId(
+          previousLayoutByGroupId,
+          this.captureTopicLayoutSnapshotByGroupId(),
+        )
+      : new Map<string, TopicLayoutShiftByGroup>();
+
+    if (shiftsBySlotId.size === 0 && shiftsByGroupId.size === 0) {
       this.slotReflowAnimation = null;
       return;
     }
@@ -1313,15 +1332,19 @@ export class GanttChartCanvasController {
       startedAtMs,
       durationMs: SLOT_REFLOW_ANIMATION_MS,
       shiftsBySlotId,
+      shiftsByGroupId,
     };
   }
 
-  private getActiveSlotYTransition(nowMs: number): {
+  private getActiveSlotReflowTransition(nowMs: number): {
     shiftsBySlotId: ReadonlyMap<string, number>;
+    shiftsByGroupId: ReadonlyMap<string, TopicLayoutShiftByGroup>;
     progress: number;
   } | null {
     const anim = this.slotReflowAnimation;
-    if (!anim || anim.shiftsBySlotId.size === 0) return null;
+    if (!anim || (anim.shiftsBySlotId.size === 0 && anim.shiftsByGroupId.size === 0)) {
+      return null;
+    }
 
     const rawProgress = (nowMs - anim.startedAtMs) / anim.durationMs;
     if (rawProgress >= 1) {
@@ -1332,6 +1355,7 @@ export class GanttChartCanvasController {
     const eased = this.easeOutCubic(rawProgress);
     return {
       shiftsBySlotId: anim.shiftsBySlotId,
+      shiftsByGroupId: anim.shiftsByGroupId,
       progress: eased,
     };
   }
@@ -1347,23 +1371,12 @@ export class GanttChartCanvasController {
     return 1 - Math.pow(1 - clamped, 3);
   }
 
-  private captureTopicLayoutSnapshotByGroupId(): Map<
-    string,
-    {
-      topicYById: Map<string, number>;
-      contentHeight: number;
-    }
-  > {
-    this.getProcessedTopics();
-    const snapshots = new Map<
-      string,
-      {
-        topicYById: Map<string, number>;
-        contentHeight: number;
-      }
-    >();
+  private captureTopicLayoutSnapshotForGroups(
+    topicsByGroupId: ReadonlyMap<string, Topic[]>,
+  ): Map<string, TopicLayoutSnapshot> {
+    const snapshots = new Map<string, TopicLayoutSnapshot>();
 
-    this.topicsByGroupId.forEach((topics, groupId) => {
+    topicsByGroupId.forEach((topics, groupId) => {
       const layouts = computeTopicLayout(topics, MARGIN.left, this.rowHeight);
       const topicYById = new Map<string, number>();
       for (const layout of layouts) {
@@ -1378,24 +1391,16 @@ export class GanttChartCanvasController {
     return snapshots;
   }
 
-  private startCollapseLayoutAnimation(
-    previousByGroupId: ReadonlyMap<
-      string,
-      {
-        topicYById: ReadonlyMap<string, number>;
-        contentHeight: number;
-      }
-    >,
-    startedAtMs = performance.now(),
-  ): void {
-    const nextByGroupId = this.captureTopicLayoutSnapshotByGroupId();
-    const shiftsByGroupId = new Map<
-      string,
-      {
-        shiftsByTopicId: Map<string, number>;
-        contentHeightShift: number;
-      }
-    >();
+  private captureTopicLayoutSnapshotByGroupId(): Map<string, TopicLayoutSnapshot> {
+    this.getProcessedTopics();
+    return this.captureTopicLayoutSnapshotForGroups(this.topicsByGroupId);
+  }
+
+  private buildTopicLayoutShiftByGroupId(
+    previousByGroupId: ReadonlyMap<string, TopicLayoutSnapshot>,
+    nextByGroupId: ReadonlyMap<string, TopicLayoutSnapshot>,
+  ): Map<string, TopicLayoutShiftByGroup> {
+    const shiftsByGroupId = new Map<string, TopicLayoutShiftByGroup>();
 
     nextByGroupId.forEach((next, groupId) => {
       const previous = previousByGroupId.get(groupId);
@@ -1420,6 +1425,16 @@ export class GanttChartCanvasController {
       }
     });
 
+    return shiftsByGroupId;
+  }
+
+  private startCollapseLayoutAnimation(
+    previousByGroupId: ReadonlyMap<string, TopicLayoutSnapshot>,
+    startedAtMs = performance.now(),
+  ): void {
+    const nextByGroupId = this.captureTopicLayoutSnapshotByGroupId();
+    const shiftsByGroupId = this.buildTopicLayoutShiftByGroupId(previousByGroupId, nextByGroupId);
+
     if (shiftsByGroupId.size === 0) {
       this.collapseLayoutAnimation = null;
       return;
@@ -1434,13 +1449,7 @@ export class GanttChartCanvasController {
 
   private getActiveCollapseLayoutTransition(nowMs: number): {
     progress: number;
-    shiftsByGroupId: ReadonlyMap<
-      string,
-      {
-        shiftsByTopicId: ReadonlyMap<string, number>;
-        contentHeightShift: number;
-      }
-    >;
+    shiftsByGroupId: ReadonlyMap<string, TopicLayoutShiftByGroup>;
   } | null {
     const anim = this.collapseLayoutAnimation;
     if (!anim || anim.shiftsByGroupId.size === 0) return null;
@@ -1561,6 +1570,8 @@ export class GanttChartCanvasController {
 
     const previousTopicsByGroupId = this.createDestinationPreviewTopics(previousTopicId);
     const nextTopicsByGroupId = this.createDestinationPreviewTopics(nextTopicId);
+    const previousLayoutByGroupId = this.captureTopicLayoutSnapshotForGroups(previousTopicsByGroupId);
+    const nextLayoutByGroupId = this.captureTopicLayoutSnapshotForGroups(nextTopicsByGroupId);
 
     const previousRows = this.capturePreviewSlotRowYById(previousTopicsByGroupId);
     const nextRows = this.capturePreviewSlotRowYById(nextTopicsByGroupId);
@@ -1575,7 +1586,12 @@ export class GanttChartCanvasController {
       }
     });
 
-    if (shiftsBySlotId.size === 0) {
+    const shiftsByGroupId = this.buildTopicLayoutShiftByGroupId(
+      previousLayoutByGroupId,
+      nextLayoutByGroupId,
+    );
+
+    if (shiftsBySlotId.size === 0 && shiftsByGroupId.size === 0) {
       this.destinationPreviewTransition = null;
       return;
     }
@@ -1585,15 +1601,26 @@ export class GanttChartCanvasController {
       startedAtMs: performance.now(),
       durationMs: DESTINATION_PREVIEW_TRANSITION_MS,
       shiftsBySlotId,
+      shiftsByGroupId,
     };
   }
 
   private getActiveDestinationPreviewTransition(
     nowMs: number,
     topicId: string,
-  ): { shiftsBySlotId: ReadonlyMap<string, number>; progress: number } | null {
+  ):
+    | {
+        shiftsBySlotId: ReadonlyMap<string, number>;
+        shiftsByGroupId: ReadonlyMap<string, TopicLayoutShiftByGroup>;
+        progress: number;
+      }
+    | null {
     const anim = this.destinationPreviewTransition;
-    if (!anim || anim.toTopicId !== topicId || anim.shiftsBySlotId.size === 0) {
+    if (
+      !anim ||
+      anim.toTopicId !== topicId ||
+      (anim.shiftsBySlotId.size === 0 && anim.shiftsByGroupId.size === 0)
+    ) {
       return null;
     }
 
@@ -1605,6 +1632,7 @@ export class GanttChartCanvasController {
 
     return {
       shiftsBySlotId: anim.shiftsBySlotId,
+      shiftsByGroupId: anim.shiftsByGroupId,
       progress: this.easeOutCubic(rawProgress),
     };
   }
@@ -1703,6 +1731,10 @@ export class GanttChartCanvasController {
     topicsByGroupId: Map<string, Topic[]>;
     pulseAlpha: number;
     slotYTransition: { shiftsBySlotId: ReadonlyMap<string, number>; progress: number } | null;
+    layoutYTransition: {
+      shiftsByGroupId: ReadonlyMap<string, TopicLayoutShiftByGroup>;
+      progress: number;
+    } | null;
   } | null {
     if (!this.pointerInChart) return null;
     if (this.brushSelection) return null;
@@ -1714,12 +1746,19 @@ export class GanttChartCanvasController {
     if (sourceSlotIds.length === 0) return null;
 
     const pulseAlpha = 0.58 + 0.2 * (0.5 + 0.5 * Math.sin(nowMs / 160));
+    const transition = this.getActiveDestinationPreviewTransition(nowMs, topicId);
+
     return {
       topicId,
       sourceSlotIds,
       topicsByGroupId: this.createDestinationPreviewTopics(topicId),
       pulseAlpha,
-      slotYTransition: this.getActiveDestinationPreviewTransition(nowMs, topicId),
+      slotYTransition: transition
+        ? { shiftsBySlotId: transition.shiftsBySlotId, progress: transition.progress }
+        : null,
+      layoutYTransition: transition
+        ? { shiftsByGroupId: transition.shiftsByGroupId, progress: transition.progress }
+        : null,
     };
   }
 
@@ -1976,6 +2015,7 @@ export class GanttChartCanvasController {
     if (clipboard.length === 0) return;
 
     const previousRowYBySlotId = this.captureSlotRowYById();
+    const previousLayoutByGroupId = this.captureTopicLayoutSnapshotByGroupId();
 
     let movedSomething = false;
     for (const copiedSlot of clipboard) {
@@ -1991,7 +2031,11 @@ export class GanttChartCanvasController {
     this.updateClipboard();
     if (movedSomething) {
       this.cachedProcessedTopics = null;
-      this.startSlotReflowAnimationFromPreviousRows(previousRowYBySlotId);
+      this.startSlotReflowAnimationFromPreviousRows(
+        previousRowYBySlotId,
+        performance.now(),
+        previousLayoutByGroupId,
+      );
       this.redraw();
     }
   }
@@ -2082,6 +2126,9 @@ export class GanttChartCanvasController {
       (prev.openTime.getTime() !== openTime.getTime() ||
         prev.closeTime.getTime() !== closeTime.getTime());
     const previousRowYBySlotId = shouldCommit ? this.captureSlotRowYById() : null;
+    const previousLayoutByGroupId = shouldCommit
+      ? this.captureTopicLayoutSnapshotByGroupId()
+      : null;
 
     this.slotResizeDrag = null;
     this.slotResizePreview = null;
@@ -2091,6 +2138,7 @@ export class GanttChartCanvasController {
       this.pendingSlotReflowFromResize = {
         capturedAtMs: performance.now(),
         previousRowYBySlotId,
+        previousLayoutByGroupId: previousLayoutByGroupId ?? new Map(),
       };
       this.callbacks.onChangeSlotTime(d.slotId, openTime, closeTime);
     }
@@ -2374,7 +2422,7 @@ export class GanttChartCanvasController {
     });
 
     const nowMs = performance.now();
-    const slotYTransition = this.getActiveSlotYTransition(nowMs);
+    const slotReflowTransition = this.getActiveSlotReflowTransition(nowMs);
     const collapseLayoutTransition = this.getActiveCollapseLayoutTransition(nowMs);
     const destinationPreview = this.getDestinationPreviewState(nowMs);
 
@@ -2388,12 +2436,24 @@ export class GanttChartCanvasController {
         this.topicsByGroupId.get(group.id) ??
         [];
       const contentHeight = computeContentHeight(groupTopics, this.rowHeight);
+      const slotReflowGroupTransition = slotReflowTransition?.shiftsByGroupId.get(group.id);
       const collapseGroupTransition = collapseLayoutTransition?.shiftsByGroupId.get(group.id);
+      const previewGroupTransition = destinationPreview?.layoutYTransition?.shiftsByGroupId.get(
+        group.id,
+      );
+      const slotReflowProgress = slotReflowTransition?.progress ?? 1;
       const collapseProgress = collapseLayoutTransition?.progress ?? 1;
+      const previewProgress = destinationPreview?.layoutYTransition?.progress ?? 1;
       const displayContentHeight =
         contentHeight +
+        (slotReflowGroupTransition
+          ? slotReflowGroupTransition.contentHeightShift * (1 - slotReflowProgress)
+          : 0) +
         (collapseGroupTransition
           ? collapseGroupTransition.contentHeightShift * (1 - collapseProgress)
+          : 0) +
+        (previewGroupTransition
+          ? previewGroupTransition.contentHeightShift * (1 - previewProgress)
           : 0);
       const scrollOffset = this.verticalScrollOffsets.get(group.id) || 0;
 
@@ -2410,14 +2470,28 @@ export class GanttChartCanvasController {
       ctx.translate(0, gr.y - clampedOffset);
 
       const topicLayouts = computeTopicLayout(groupTopics, MARGIN.left, this.rowHeight);
-      const animatedTopicLayouts =
-        collapseGroupTransition && collapseLayoutTransition
-          ? this.applyTopicLayoutYShift(
-              topicLayouts,
-              collapseGroupTransition.shiftsByTopicId,
-              collapseProgress,
-            )
-          : topicLayouts;
+      let animatedTopicLayouts = topicLayouts;
+      if (slotReflowGroupTransition && slotReflowTransition) {
+        animatedTopicLayouts = this.applyTopicLayoutYShift(
+          animatedTopicLayouts,
+          slotReflowGroupTransition.shiftsByTopicId,
+          slotReflowProgress,
+        );
+      }
+      if (collapseGroupTransition && collapseLayoutTransition) {
+        animatedTopicLayouts = this.applyTopicLayoutYShift(
+          animatedTopicLayouts,
+          collapseGroupTransition.shiftsByTopicId,
+          collapseProgress,
+        );
+      }
+      if (previewGroupTransition && destinationPreview?.layoutYTransition) {
+        animatedTopicLayouts = this.applyTopicLayoutYShift(
+          animatedTopicLayouts,
+          previewGroupTransition.shiftsByTopicId,
+          previewProgress,
+        );
+      }
 
       drawTopicLines({
         ctx,
@@ -2444,7 +2518,7 @@ export class GanttChartCanvasController {
         viewportHeight: viewportHeight,
         topicLayouts: animatedTopicLayouts,
         slotTimeOverride: this.slotResizePreview,
-        slotYTransition: destinationPreview?.slotYTransition ?? slotYTransition,
+        slotYTransition: destinationPreview?.slotYTransition ?? slotReflowTransition,
         previewPulseAlpha: destinationPreview?.pulseAlpha,
       });
 
@@ -2519,7 +2593,7 @@ export class GanttChartCanvasController {
     this.drawSuggestionHoverOverlay(ctx, layout);
     this.drawSlotHoverTooltipOverlay(ctx, layout);
 
-    if (slotYTransition || collapseLayoutTransition || destinationPreview) {
+    if (slotReflowTransition || collapseLayoutTransition || destinationPreview) {
       this.scheduleFrameRedraw(false);
     }
   }
@@ -2957,10 +3031,15 @@ export class GanttChartCanvasController {
     if (!slot || slot.readOnly) return;
 
     const previousRowYBySlotId = this.captureSlotRowYById();
+    const previousLayoutByGroupId = this.captureTopicLayoutSnapshotByGroupId();
 
     slot.destinationId = suggestion.alternativeDestinationId;
     this.cachedProcessedTopics = null;
-    this.startSlotReflowAnimationFromPreviousRows(previousRowYBySlotId);
+    this.startSlotReflowAnimationFromPreviousRows(
+      previousRowYBySlotId,
+      performance.now(),
+      previousLayoutByGroupId,
+    );
     this.callbacks.onChangeDestinationId?.(slot.id, suggestion.alternativeDestinationId, true);
     this.redraw();
   }
