@@ -31,6 +31,8 @@ export interface DrawDepartureMarkersParams {
   viewportHeight?: number;
   topicLayouts?: TopicLayout[];
   slotTimeOverride?: { slotId: string; openTime: Date; closeTime: Date } | null;
+  slotYTransition?: { shiftsBySlotId: ReadonlyMap<string, number>; progress: number } | null;
+  previewPulseAlpha?: number;
 }
 
 export interface HitTestDepartureGapParams {
@@ -78,6 +80,8 @@ export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
     viewportHeight,
     topicLayouts,
     slotTimeOverride,
+    slotYTransition,
+    previewPulseAlpha,
   } = params;
 
   const chartWidth = width - margin.left - margin.right;
@@ -104,7 +108,7 @@ export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
       const rowTop = layout.rowYs[rowIndex];
       if (rowTop === undefined) return;
 
-      const lineY = rowTop - gap / 2;
+      const baseLineY = rowTop - gap / 2;
       const lineHeight = step;
 
       const slots = row.slots;
@@ -133,6 +137,12 @@ export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
           topic.isCollapsed,
         );
         if (!slotRect) continue;
+
+        const shift = slotYTransition?.shiftsBySlotId.get(slot.id);
+        const lineY =
+          shift !== undefined && slotYTransition
+            ? baseLineY + shift * (1 - slotYTransition.progress)
+            : baseLineY;
 
         const hasEstimatedTime = !!slot.secondaryDeadline;
         const deadlinesDiffer =
@@ -173,7 +183,10 @@ export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
             lineY,
             lineHeight,
             lineColor: marker.lineColor,
-            markerOpacity: marker.markerOpacity,
+            markerOpacity:
+              slot.isPreview && previewPulseAlpha !== undefined
+                ? Math.max(0.25, Math.min(1, (marker.markerOpacity ?? 1) * previewPulseAlpha))
+                : marker.markerOpacity,
             layer: marker.layer,
             lineVisible: departureX < barEndX,
           });

@@ -1348,13 +1348,18 @@ export class GanttChartCanvasController {
     startedAtMs = performance.now(),
     previousLayoutByGroupId?: ReadonlyMap<string, TopicLayoutSnapshot>,
   ): void {
-    const shiftsBySlotId = this.buildSlotRowShiftMap(previousRowYBySlotId);
+    const rawShiftsBySlotId = this.buildSlotRowShiftMap(previousRowYBySlotId);
     const shiftsByGroupId = previousLayoutByGroupId
       ? this.buildTopicLayoutShiftByGroupId(
           previousLayoutByGroupId,
           this.captureTopicLayoutSnapshotByGroupId(),
         )
       : new Map<string, TopicLayoutShiftByGroup>();
+    const shiftsBySlotId = this.subtractTopicShiftFromSlotShifts(
+      rawShiftsBySlotId,
+      shiftsByGroupId,
+      this.topicsByGroupId,
+    );
 
     if (shiftsBySlotId.size === 0 && shiftsByGroupId.size === 0) {
       this.slotReflowAnimation = null;
@@ -1367,6 +1372,49 @@ export class GanttChartCanvasController {
       shiftsBySlotId,
       shiftsByGroupId,
     };
+  }
+
+  private subtractTopicShiftFromSlotShifts(
+    shiftsBySlotId: ReadonlyMap<string, number>,
+    shiftsByGroupId: ReadonlyMap<string, TopicLayoutShiftByGroup>,
+    topicsByGroupId: ReadonlyMap<string, Topic[]>,
+  ): Map<string, number> {
+    if (shiftsBySlotId.size === 0 || shiftsByGroupId.size === 0) {
+      return new Map(shiftsBySlotId);
+    }
+
+    const adjusted = new Map<string, number>();
+    const topicAdjustedSlotIds = new Set<string>();
+
+    topicsByGroupId.forEach((topics, groupId) => {
+      const topicShifts = shiftsByGroupId.get(groupId)?.shiftsByTopicId;
+      if (!topicShifts || topicShifts.size === 0) return;
+
+      for (const topic of topics) {
+        const topicShift = topicShifts.get(topic.id);
+        if (topicShift === undefined || Math.abs(topicShift) < 0.5) continue;
+
+        for (const row of topic.rows) {
+          for (const slot of row.slots) {
+            const slotShift = shiftsBySlotId.get(slot.id);
+            if (slotShift === undefined) continue;
+            topicAdjustedSlotIds.add(slot.id);
+            const residualShift = slotShift - topicShift;
+            if (Math.abs(residualShift) >= 0.5) {
+              adjusted.set(slot.id, residualShift);
+            }
+          }
+        }
+      }
+    });
+
+    shiftsBySlotId.forEach((shift, slotId) => {
+      if (!adjusted.has(slotId) && !topicAdjustedSlotIds.has(slotId)) {
+        adjusted.set(slotId, shift);
+      }
+    });
+
+    return adjusted;
   }
 
   private getActiveSlotReflowTransition(nowMs: number): {
@@ -1515,10 +1563,14 @@ export class GanttChartCanvasController {
       }
 
       const appliedShift = shift * (1 - progress);
-      layout.topic.yStart += appliedShift;
-      layout.topic.yEnd += appliedShift;
+      const shiftedTopic = {
+        ...layout.topic,
+        yStart: layout.topic.yStart + appliedShift,
+        yEnd: layout.topic.yEnd + appliedShift,
+      };
       shiftedLayouts.push({
         ...layout,
+        topic: shiftedTopic,
         gridlineY: layout.gridlineY + appliedShift,
         labelY: layout.labelY + appliedShift,
         rowYs: layout.rowYs.map((y) => y + appliedShift),
@@ -1607,19 +1659,24 @@ export class GanttChartCanvasController {
     const previousRows = this.captureSlotRowYByIdForTopics(previousTopicsByGroupId);
     const nextRows = this.captureSlotRowYByIdForTopics(nextTopicsByGroupId);
 
-    const shiftsBySlotId = new Map<string, number>();
+    const rawShiftsBySlotId = new Map<string, number>();
     nextRows.forEach((toY, slotId) => {
       const fromY = previousRows.get(slotId);
       if (fromY === undefined) return;
       const delta = fromY - toY;
       if (Math.abs(delta) > 0.5) {
-        shiftsBySlotId.set(slotId, delta);
+        rawShiftsBySlotId.set(slotId, delta);
       }
     });
 
     const shiftsByGroupId = this.buildTopicLayoutShiftByGroupId(
       previousLayoutByGroupId,
       nextLayoutByGroupId,
+    );
+    const shiftsBySlotId = this.subtractTopicShiftFromSlotShifts(
+      rawShiftsBySlotId,
+      shiftsByGroupId,
+      nextTopicsByGroupId,
     );
 
     if (shiftsBySlotId.size === 0 && shiftsByGroupId.size === 0) {
@@ -2703,6 +2760,8 @@ export class GanttChartCanvasController {
           viewportHeight: viewportHeight,
           topicLayouts: animatedTopicLayouts,
           slotTimeOverride: this.slotResizePreview,
+          slotYTransition: destinationPreview?.slotYTransition ?? slotReflowTransition,
+          previewPulseAlpha: destinationPreview?.pulseAlpha,
         });
       }
 
