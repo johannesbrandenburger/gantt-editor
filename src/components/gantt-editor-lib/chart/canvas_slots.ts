@@ -33,6 +33,7 @@ export interface SlotRect {
   opacity: number;
   text: string;
   isCopied: boolean;
+  isPreview: boolean;
   isHighlighted: boolean;
   slotId: string;
   slot: GanttEditorSlotWithUiAttributes;
@@ -56,6 +57,8 @@ export interface DrawSlotsParams {
   slotTimeOverride?: { slotId: string; openTime: Date; closeTime: Date } | null;
   /** Transitional Y-shift animation for slots after row arrangement changes. */
   slotYTransition?: { shiftsBySlotId: ReadonlyMap<string, number>; progress: number } | null;
+  /** Optional alpha pulse applied to temporary destination preview slots. */
+  previewPulseAlpha?: number;
 }
 
 /** First index of slot with closeTime > t (slots sorted by openTime ascending). */
@@ -92,6 +95,7 @@ export function drawSlots(params: DrawSlotsParams) {
     topicLayouts,
     slotTimeOverride,
     slotYTransition,
+    previewPulseAlpha,
   } = params;
 
   const hasViewport = viewportTop !== undefined && viewportHeight !== undefined;
@@ -145,9 +149,20 @@ export function drawSlots(params: DrawSlotsParams) {
         }
 
         // Draw the filled bar
-        ctx.globalAlpha = slotDef.opacity;
+        ctx.globalAlpha =
+          slotDef.isPreview && previewPulseAlpha !== undefined
+            ? Math.max(0.25, Math.min(1, slotDef.opacity * previewPulseAlpha))
+            : slotDef.opacity;
         ctx.fillStyle = slotDef.fill;
         ctx.fillRect(slotDef.x, slotDef.y, slotDef.width, slotDef.height);
+
+        if (slotDef.isPreview) {
+          ctx.strokeStyle = "#1d4ed8";
+          ctx.lineWidth = 1.25;
+          ctx.setLineDash([6, 4]);
+          ctx.strokeRect(slotDef.x + 0.5, slotDef.y + 0.5, Math.max(0, slotDef.width - 1), Math.max(0, slotDef.height - 1));
+          ctx.setLineDash([]);
+        }
 
         // Highlight border (orange) when label-selected
         if (slotDef.isHighlighted) {
@@ -222,7 +237,11 @@ export function computeSlotRect(
 
   if (slotWidth <= 0) return null;
 
+  const isPreview = !!slot.isPreview;
   let fill = slot.color ?? mapSlotToStateColor(slot) ?? "lightgrey";
+  if (isPreview) {
+    fill = "rgba(37, 99, 235, 0.65)";
+  }
 
   return {
     x,
@@ -230,9 +249,10 @@ export function computeSlotRect(
     width: slotWidth,
     height: bandwidth,
     fill,
-    opacity: isCollapsed ? 0.4 : 1,
+    opacity: isCollapsed ? (isPreview ? 0.32 : 0.4) : (isPreview ? 0.72 : 1),
     text: slot.displayName,
     isCopied: !!slot.isCopied,
+    isPreview,
     isHighlighted: false,
     slotId: slot.id,
     slot,

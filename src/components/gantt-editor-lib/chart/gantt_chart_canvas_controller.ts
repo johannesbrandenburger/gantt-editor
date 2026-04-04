@@ -125,6 +125,12 @@ export class GanttChartCanvasController {
   private pointerCanvasX = 0;
   private pointerCanvasY = 0;
   private clipboardItems: GanttEditorSlot[] = [];
+  private hoveredClipboardTopicId: string | null = null;
+
+  private destinationPreviewTopicsCache: {
+    key: string;
+    topicsByGroupId: Map<string, Topic[]>;
+  } | null = null;
 
   private brushSelection: {
     groupId: string;
@@ -357,6 +363,8 @@ export class GanttChartCanvasController {
     this.brushSelection = null;
     this.hoveredSlotId = null;
     this.hoveredSuggestion = null;
+    this.hoveredClipboardTopicId = null;
+    this.destinationPreviewTopicsCache = null;
     this.pointerInChart = false;
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
@@ -380,6 +388,10 @@ export class GanttChartCanvasController {
   updateClipboard(): void {
     const parsedData = this.readClipboard();
     this.clipboardItems = parsedData;
+    if (parsedData.length === 0) {
+      this.hoveredClipboardTopicId = null;
+    }
+    this.destinationPreviewTopicsCache = null;
     this.applyCopiedFlagsFromClipboard(parsedData);
     this.host.onClipboardItems?.(parsedData);
     this.redraw();
@@ -413,6 +425,7 @@ export class GanttChartCanvasController {
 
     let hoveredSlotId: string | null = null;
     let hoveredSuggestion: SuggestionButtonDefinition | null = null;
+    let hoveredClipboardTopicId: string | null = null;
     let ewResize = false;
     let suggestionHit = false;
     let verticalMarkerDraggable = false;
@@ -421,6 +434,9 @@ export class GanttChartCanvasController {
       if (gr) {
         const scroll = this.verticalScrollOffsets.get(hit.groupId) || 0;
         const contentY = pt.y - gr.y + scroll;
+        if (!this.props.isReadOnly && this.clipboardItems.length > 0 && !this.brushSelection) {
+          hoveredClipboardTopicId = this.topicIdAtContentY(hit.groupId, contentY);
+        }
         const groupTopics = this.topicsForGroup(hit.groupId);
         const suggestionHover = showSuggestions
           ? this.hitSuggestionForGroup(
@@ -499,11 +515,15 @@ export class GanttChartCanvasController {
     }
     const previousHoveredSlotId = this.hoveredSlotId;
     const previousHoveredSuggestionSlotId = this.hoveredSuggestion?.slotId ?? null;
+    const previousHoveredClipboardTopicId = this.hoveredClipboardTopicId;
     this.updateHoverSlot(hoveredSlotId);
     this.hoveredSuggestion = hoveredSuggestion;
+    this.hoveredClipboardTopicId = hoveredClipboardTopicId;
     const hoverSlotChanged = previousHoveredSlotId !== this.hoveredSlotId;
     const hoverSuggestionChanged =
       previousHoveredSuggestionSlotId !== (this.hoveredSuggestion?.slotId ?? null);
+    const hoverClipboardTopicChanged =
+      previousHoveredClipboardTopicId !== this.hoveredClipboardTopicId;
 
     if (hit.type === "topResize" || hit.type === "betweenResize") {
       canvas.style.cursor = "ns-resize";
@@ -521,6 +541,7 @@ export class GanttChartCanvasController {
       hoverChanged ||
       hoverSlotChanged ||
       hoverSuggestionChanged ||
+      hoverClipboardTopicChanged ||
       this.clipboardItems.length > 0 ||
       this.brushSelection ||
       this.hoveredSlotId
@@ -533,6 +554,7 @@ export class GanttChartCanvasController {
     this.hoverResizeBand = null;
     this.pointerInChart = false;
     this.hoveredSuggestion = null;
+    this.hoveredClipboardTopicId = null;
     this.resetHoverSlot();
     const canvas = this.canvas;
     if (canvas) canvas.style.cursor = "";
@@ -546,6 +568,7 @@ export class GanttChartCanvasController {
   onMouseLeave(): void {
     this.pointerInChart = false;
     this.hoveredSuggestion = null;
+    this.hoveredClipboardTopicId = null;
     this.resetHoverSlot();
     this.host.onClipboardVisibility?.(false);
     this.redraw();
@@ -820,6 +843,8 @@ export class GanttChartCanvasController {
     hoveredSlotId: string | null;
     pointerInChart: boolean;
     clipboardSlotIds: string[];
+    destinationPreviewTopicId: string | null;
+    destinationPreviewSourceSlotIds: string[];
     lastClickedSlotId: string | null;
     lastDoubleClickedSlotId: string | null;
     lastContextClickedSlotId: string | null;
@@ -839,6 +864,14 @@ export class GanttChartCanvasController {
       hoveredSlotId: this.hoveredSlotId,
       pointerInChart: this.pointerInChart,
       clipboardSlotIds: this.clipboardItems.map((slot) => slot.id),
+      destinationPreviewTopicId:
+        this.pointerInChart && this.hoveredClipboardTopicId && this.clipboardItems.length > 0
+          ? this.hoveredClipboardTopicId
+          : null,
+      destinationPreviewSourceSlotIds:
+        this.pointerInChart && this.hoveredClipboardTopicId && this.clipboardItems.length > 0
+          ? this.clipboardItems.map((slot) => slot.id)
+          : [],
       lastClickedSlotId: this.lastClickedSlotId,
       lastDoubleClickedSlotId: this.lastDoubleClickedSlotId,
       lastContextClickedSlotId: this.lastContextClickedSlotId,
@@ -1318,6 +1351,110 @@ export class GanttChartCanvasController {
     this.cacheCollapsedLocalStorage = localStorage.getItem("collapsedTopics") ?? "[]";
     this.rebuildTopicsByGroupId(processedData_);
     return this.cachedProcessedTopics;
+  }
+
+  private previewCacheKeyForTopic(topicId: string): string {
+    const modelKey = this.processDataDeepFingerprint ?? this.computeProcessDataDeepFingerprint(this.props);
+    const clipboardKey = this.clipboardItems
+      .map((slot, index) => {
+        const openMs = new Date(slot.openTime).getTime();
+        const closeMs = new Date(slot.closeTime).getTime();
+        return `${index}:${slot.id}:${slot.destinationId}:${openMs}:${closeMs}:${slot.displayName}`;
+      })
+      .join("|");
+    return `${modelKey}:${topicId}:${clipboardKey}`;
+  }
+
+  private createDestinationPreviewTopics(topicId: string): Map<string, Topic[]> {
+    const cacheKey = this.previewCacheKeyForTopic(topicId);
+    if (this.destinationPreviewTopicsCache?.key === cacheKey) {
+      return this.destinationPreviewTopicsCache.topicsByGroupId;
+    }
+
+    const previewSlots: GanttEditorSlotWithUiAttributes[] = [];
+    this.clipboardItems.forEach((slot, index) => {
+      const openTime = new Date(slot.openTime);
+      const closeTime = new Date(slot.closeTime);
+      if (!Number.isFinite(openTime.getTime()) || !Number.isFinite(closeTime.getTime())) {
+        return;
+      }
+      previewSlots.push({
+        ...slot,
+        id: `__destination_preview__${index}__${slot.id}`,
+        destinationId: topicId,
+        openTime,
+        closeTime,
+        deadline: slot.deadline ? new Date(slot.deadline) : undefined,
+        secondaryDeadline: slot.secondaryDeadline ? new Date(slot.secondaryDeadline) : undefined,
+        isCopied: false,
+        isPreview: true,
+        readOnly: true,
+      });
+    });
+
+    const { processedData_ } = processData(
+      [...this.props.slots, ...previewSlots],
+      this.props.destinations,
+      PROCESS_DATA_VIEW_PLACEHOLDER_START,
+      PROCESS_DATA_VIEW_PLACEHOLDER_END,
+      {
+        groupBy: "destinationId",
+        rowHeight: 0,
+        progressChartsDisplay: "None",
+        collapseGroups: false,
+        editable: !this.props.isReadOnly,
+        compactView: false,
+        sortInFrontend: "None",
+        slotLimit: 0,
+        overlayWeeks: 0,
+        overlayDays: 0,
+        seperateByClasses: false,
+        showSlotState: false,
+        showEventDots: false,
+        showDeparture: null,
+        showEventCharts: false,
+        showBagStateCharts: false,
+        showCheckInCharts: false,
+        showTransferCharts: false,
+        showBagStateTimeline: false,
+      },
+    );
+
+    const topicsByGroupId = new Map<string, Topic[]>();
+    for (const topic of processedData_) {
+      let list = topicsByGroupId.get(topic.groupId);
+      if (!list) {
+        list = [];
+        topicsByGroupId.set(topic.groupId, list);
+      }
+      list.push(topic);
+    }
+
+    this.destinationPreviewTopicsCache = {
+      key: cacheKey,
+      topicsByGroupId,
+    };
+    return topicsByGroupId;
+  }
+
+  private getDestinationPreviewState(nowMs: number): {
+    topicId: string;
+    topicsByGroupId: Map<string, Topic[]>;
+    pulseAlpha: number;
+  } | null {
+    if (!this.pointerInChart) return null;
+    if (this.brushSelection) return null;
+    if (this.props.isReadOnly) return null;
+    if (this.clipboardItems.length === 0) return null;
+    const topicId = this.hoveredClipboardTopicId;
+    if (!topicId) return null;
+
+    const pulseAlpha = 0.58 + 0.2 * (0.5 + 0.5 * Math.sin(nowMs / 160));
+    return {
+      topicId,
+      topicsByGroupId: this.createDestinationPreviewTopics(topicId),
+      pulseAlpha,
+    };
   }
 
   private maybeNotifyTopContentLayout(): void {
@@ -1965,14 +2102,19 @@ export class GanttChartCanvasController {
       offsetY: layout.axisRect.y,
     });
 
-    const slotYTransition = this.getActiveSlotYTransition(performance.now());
+    const nowMs = performance.now();
+    const slotYTransition = this.getActiveSlotYTransition(nowMs);
+    const destinationPreview = this.getDestinationPreviewState(nowMs);
 
     for (const group of this.props.destinationGroups) {
       const gr = layout.groupRects.get(group.id);
       if (!gr || gr.h <= 0) continue;
 
       const viewportHeight = gr.h;
-      const groupTopics = this.topicsByGroupId.get(group.id) ?? [];
+      const groupTopics =
+        destinationPreview?.topicsByGroupId.get(group.id) ??
+        this.topicsByGroupId.get(group.id) ??
+        [];
       const contentHeight = computeContentHeight(groupTopics, this.rowHeight);
       const scrollOffset = this.verticalScrollOffsets.get(group.id) || 0;
 
@@ -2016,6 +2158,7 @@ export class GanttChartCanvasController {
         topicLayouts,
         slotTimeOverride: this.slotResizePreview,
         slotYTransition,
+        previewPulseAlpha: destinationPreview?.pulseAlpha,
       });
 
       if (departureMarkersVisible(this.rowHeight)) {
@@ -2089,7 +2232,7 @@ export class GanttChartCanvasController {
     this.drawSuggestionHoverOverlay(ctx, layout);
     this.drawSlotHoverTooltipOverlay(ctx, layout);
 
-    if (slotYTransition) {
+    if (slotYTransition || destinationPreview) {
       this.scheduleFrameRedraw(false);
     }
   }
