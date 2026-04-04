@@ -106,4 +106,67 @@ test.describe("canvas rewrite rendering and display", () => {
     const departureGapSlotId = await findDepartureGapSlotId(page);
     expect(departureGapSlotId).toBeTruthy();
   });
+
+  test("treats departure marker line as a hit region", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
+
+    const hitOnMarker = await page.evaluate(() => {
+      const w = window as Window & {
+        __ganttCanvasTestApi?: {
+          flush: () => void;
+          getState: () => {
+            margin: { left: number; right: number };
+            internalStartTimeMs: number;
+            internalEndTimeMs: number;
+            layout: { canvasCssWidth: number; canvasCssHeight: number } | null;
+          };
+          findSlotPoint: (slotId: string, mode?: "center" | "left-edge" | "right-edge") => { x: number; y: number } | null;
+          probeCanvasPoint: (x: number, y: number) => { departureGapSlotId: string | null };
+        };
+        __ganttE2eHarness?: {
+          getConfig: () => {
+            slots: Array<{ id: string; deadline?: string | Date; secondaryDeadline?: string | Date }>;
+          };
+        };
+      };
+
+      const api = w.__ganttCanvasTestApi;
+      const harness = w.__ganttE2eHarness;
+      api?.flush();
+      const state = api?.getState();
+      const config = harness?.getConfig();
+      if (!api || !state?.layout || !config?.slots?.length) return null;
+
+      const minTime = state.internalStartTimeMs;
+      const maxTime = state.internalEndTimeMs;
+      const span = maxTime - minTime;
+      const chartWidth = state.layout.canvasCssWidth - state.margin.left - state.margin.right;
+      if (span <= 0 || chartWidth <= 0) return null;
+
+      const markerXForTimeMs = (timeMs: number): number =>
+        state.margin.left + ((timeMs - minTime) / span) * chartWidth;
+
+      for (const slot of config.slots) {
+        const center = api.findSlotPoint(slot.id, "center");
+        if (!center) continue;
+
+        const markerCandidates = [slot.deadline, slot.secondaryDeadline]
+          .filter((d): d is string | Date => !!d)
+          .map((d) => new Date(d).getTime())
+          .filter((timeMs) => Number.isFinite(timeMs) && timeMs >= minTime && timeMs <= maxTime);
+
+        for (const markerTimeMs of markerCandidates) {
+          const markerX = markerXForTimeMs(markerTimeMs);
+          const slotId = api.probeCanvasPoint(markerX, center.y).departureGapSlotId;
+          if (slotId === slot.id) {
+            return { slotId, markerX, y: center.y };
+          }
+        }
+      }
+
+      return null;
+    });
+
+    expect(hitOnMarker).toBeTruthy();
+  });
 });

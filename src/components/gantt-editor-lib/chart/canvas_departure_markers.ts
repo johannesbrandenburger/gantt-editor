@@ -47,6 +47,8 @@ export interface HitTestDepartureGapParams {
   contentY: number;
 }
 
+const DEPARTURE_MARKER_HOVER_HALF_WIDTH_PX = 4;
+
 /** First index of slot with closeTime > t (slots sorted by openTime ascending). */
 function firstSlotIndexCloseAfter(
   slots: { openTime: Date; closeTime: Date }[],
@@ -223,8 +225,8 @@ export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
 }
 
 /**
- * Returns the slot id when the pointer is inside a departure-marker hover corridor
- * (the area between slot end and a visible marker, with small margins at both ends).
+ * Returns the slot id when the pointer is inside a departure-marker hover area:
+ * either the line corridor between slot end and marker, or directly on the marker line.
  */
 export function hitTestDepartureGap(params: HitTestDepartureGapParams): string | null {
   const {
@@ -286,6 +288,12 @@ export function hitTestDepartureGap(params: HitTestDepartureGapParams): string |
         const barEndX = slotRect.x + slotRect.width;
         for (const markerDate of markerDates) {
           const markerX = margin.left + xScale(markerDate);
+
+          // Treat the marker line itself as hoverable.
+          if (Math.abs(canvasX - markerX) <= DEPARTURE_MARKER_HOVER_HALF_WIDTH_PX) {
+            return slot.id;
+          }
+
           const x0 = Math.min(barEndX, markerX) + 4;
           const x1 = Math.max(barEndX, markerX) - 4;
           if (x1 <= x0) continue;
