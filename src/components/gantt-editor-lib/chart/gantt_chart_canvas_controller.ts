@@ -107,6 +107,8 @@ type ContextMenuActionPayload = {
 
 const RULER_SNAP_CATCHMENT_PX = 3;
 const RESIZE_RULER_TICK_LENGTH_PX = 10;
+const RESIZE_TIME_LABEL_OFFSET_X = 14;
+const RESIZE_TIME_LABEL_OFFSET_Y = -16;
 
 type ResizeRulerSnapPointKind = "openTime" | "closeTime" | "deadline" | "secondaryDeadline";
 
@@ -891,6 +893,11 @@ export class GanttChartCanvasController {
         e.preventDefault();
         this.suppressNextCanvasClick = true;
         this.cancelSlotReflowAnimation();
+        this.hoveredSuggestion = null;
+        this.hoveredClipboardTopicId = null;
+        this.hoveredTimeAxisDiffMs = null;
+        this.destinationPreviewTransition = null;
+        this.resetHoverSlot();
         const chartWidth = layout.canvasCssWidth - MARGIN.left - MARGIN.right;
         const rulerMode = this.resolveRulerMode();
         this.slotResizeDrag = {
@@ -1205,6 +1212,8 @@ export class GanttChartCanvasController {
       snappedTimeMs: number;
       kinds: ResizeRulerSnapPointKind[];
     } | null;
+    slotResizeActive: boolean;
+    resizePreviewEdgeTimeMs: number | null;
     margin: { left: number; right: number };
     layout: {
       canvasCssWidth: number;
@@ -1218,6 +1227,12 @@ export class GanttChartCanvasController {
     const contextMenuLayout = layout
       ? this.getContextMenuLayout(layout.canvasCssWidth, layout.canvasCssHeight)
       : null;
+    const resizePreviewEdgeTimeMs =
+      this.slotResizeDrag && this.slotResizePreview
+        ? (this.slotResizeDrag.edge === "left"
+            ? this.slotResizePreview.openTime.getTime()
+            : this.slotResizePreview.closeTime.getTime())
+        : null;
     return {
       rowHeight: this.rowHeight,
       selectionSlotIds: this.clipboardItems.map((slot) => slot.id),
@@ -1266,6 +1281,8 @@ export class GanttChartCanvasController {
             kinds: [...this.slotResizeRuler.kinds],
           }
         : null,
+      slotResizeActive: !!this.slotResizeDrag,
+      resizePreviewEdgeTimeMs,
       margin: { left: MARGIN.left, right: MARGIN.right },
       layout: layout
         ? {
@@ -2427,6 +2444,10 @@ export class GanttChartCanvasController {
   }
 
   private updateHoverSlot(nextSlotId: string | null): void {
+    if (this.slotResizeDrag) {
+      if (this.hoveredSlotId !== null) this.hoveredSlotId = null;
+      return;
+    }
     if (nextSlotId === this.hoveredSlotId) return;
     if (this.hoverTimeout) {
       clearTimeout(this.hoverTimeout);
@@ -2976,6 +2997,7 @@ export class GanttChartCanvasController {
           kinds: preview.ruler.kinds,
         }
       : null;
+    this.updateCursorPosition(e);
     this.redraw();
   }
 
@@ -3563,6 +3585,7 @@ export class GanttChartCanvasController {
     this.drawClipboardPreviewOverlay(ctx, layout);
     this.drawSuggestionHoverOverlay(ctx, layout);
     this.drawSlotHoverTooltipOverlay(ctx, layout);
+    this.drawSlotResizeCursorTimeOverlay(ctx, layout);
     this.drawContextMenuOverlay(ctx, layout);
 
     if (slotReflowTransition || collapseLayoutTransition || destinationPreview) {
@@ -3574,6 +3597,7 @@ export class GanttChartCanvasController {
     ctx: CanvasRenderingContext2D,
     layout: UnifiedChartLayout,
   ): void {
+    if (this.slotResizeDrag) return;
     if (!suggestionsVisible(this.rowHeight)) return;
     const suggestion = this.hoveredSuggestion;
     if (!this.pointerInChart || !suggestion) return;
@@ -3834,6 +3858,7 @@ export class GanttChartCanvasController {
     ctx: CanvasRenderingContext2D,
     layout: UnifiedChartLayout,
   ): void {
+    if (this.slotResizeDrag) return;
     if (!slotsAllowLabelsAndInteraction(this.rowHeight)) return;
     if (!this.pointerInChart) return;
     if (!this.hoveredSlotId) return;
@@ -3890,6 +3915,69 @@ export class GanttChartCanvasController {
     });
 
     ctx.restore();
+  }
+
+  private drawSlotResizeCursorTimeOverlay(
+    ctx: CanvasRenderingContext2D,
+    layout: UnifiedChartLayout,
+  ): void {
+    const drag = this.slotResizeDrag;
+    const preview = this.slotResizePreview;
+    if (!drag || !preview) return;
+
+    const time = drag.edge === "left" ? preview.openTime : preview.closeTime;
+    const label = this.formatResizeTimeLabel(time);
+    if (!label) return;
+
+    ctx.save();
+    ctx.font = "600 12px sans-serif";
+    const textWidth = ctx.measureText(label).width;
+    const padX = 7;
+    const boxWidth = Math.ceil(textWidth + padX * 2);
+    const boxHeight = 24;
+    const margin = 6;
+
+    const preferredX = this.pointerCanvasX + RESIZE_TIME_LABEL_OFFSET_X;
+    const preferredY = this.pointerCanvasY + RESIZE_TIME_LABEL_OFFSET_Y - boxHeight;
+    const x = Math.max(
+      margin,
+      Math.min(layout.canvasCssWidth - boxWidth - margin, preferredX),
+    );
+    const y = Math.max(
+      margin,
+      Math.min(layout.canvasCssHeight - boxHeight - margin, preferredY),
+    );
+
+    const radius = 5;
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + boxWidth - radius, y);
+    ctx.quadraticCurveTo(x + boxWidth, y, x + boxWidth, y + radius);
+    ctx.lineTo(x + boxWidth, y + boxHeight - radius);
+    ctx.quadraticCurveTo(x + boxWidth, y + boxHeight, x + boxWidth - radius, y + boxHeight);
+    ctx.lineTo(x + radius, y + boxHeight);
+    ctx.quadraticCurveTo(x, y + boxHeight, x, y + boxHeight - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+
+    ctx.fillStyle = "rgba(30, 41, 59, 0.92)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.9)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = "#f8fafc";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    ctx.fillText(label, x + padX, y + boxHeight / 2);
+    ctx.restore();
+  }
+
+  private formatResizeTimeLabel(value: Date): string {
+    const hh = `${value.getHours()}`.padStart(2, "0");
+    const mm = `${value.getMinutes()}`.padStart(2, "0");
+    return `${hh}:${mm}`;
   }
 
   private drawContextMenuOverlay(
