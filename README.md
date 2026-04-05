@@ -41,6 +41,7 @@ src/components/
 import { ref } from "vue";
 import GanttEditorComponent, {
   type GanttEditorVerticalMarker,
+  type GanttEditorRulerMode,
   type GanttEditorSlot,
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
@@ -77,6 +78,8 @@ const destinationGroups = ref<GanttEditorDestinationGroup[]>([
   { id: "unallocated", displayName: "Unallocated", heightPortion: 0.2 },
 ]);
 
+const activateRulers = ref<GanttEditorRulerMode>("ROW");
+
 const verticalMarkers = ref<GanttEditorVerticalMarker[]>([
   { id: "vm-1", date: new Date("2025-01-01T13:00:00Z"), color: "#16a34a", label: "Cut-off" },
   {
@@ -108,6 +111,7 @@ function onChangeVerticalMarker(id: string, date: Date) {
       :markedRegion="null"
       :verticalMarkers="verticalMarkers"
       :xAxisOptions="{}"
+      :activateRulers="activateRulers"
       @onChangeStartAndEndTime="(newStart, newEnd) => console.log('range', newStart, newEnd)"
       @onTopContentPortionChange="(portion, heightPx) => console.log('top-content', portion, heightPx)"
       @onChangeDestinationId="(slotId, destinationId, preview) => console.log('move', slotId, destinationId, preview)"
@@ -147,11 +151,20 @@ function onChangeVerticalMarker(id: string, date: Date) {
 | `destinations` | `GanttEditorDestination[]` | yes | - | Destination rows |
 | `destinationGroups` | `GanttEditorDestinationGroup[]` | yes | - | Destination group layout |
 | `suggestions` | `GanttEditorSuggestion[]` | yes | - | Suggestion overlays |
+| `activateRulers` | `"ROW" \| "GLOBAL" \| null` | no | `undefined` | Enables resize snap rulers while dragging slot start/end |
 | `verticalMarkers` | `GanttEditorVerticalMarker[]` | no | `undefined` | Full-height vertical timeline markers |
 | `markedRegion` | `GanttEditorMarkedRegion \| null` | yes | - | Highlighted time region |
 | `isReadOnly` | `boolean` | yes | - | Disables interactive editing |
 | `topContentPortion` | `number` | no | `0` | Relative height reserved for the `top-content` slot |
 | `xAxisOptions` | `GanttEditorXAxisOptions` | no | `undefined` | Tick format / tick generation customization |
+
+#### Rulers (`activateRulers`)
+
+- `null` (or omitted): rulers disabled.
+- `"ROW"`: snapping only considers slots in the same destination row as the edited slot.
+- `"GLOBAL"`: snapping considers all slots in all rows.
+- Snap candidates include slot `openTime`, `closeTime`, `deadline`, and `secondaryDeadline`.
+- While resizing, the edited edge snaps within a small pixel catchment and shows a ruler line segment to the referenced point.
 
 ### Events
 
@@ -262,6 +275,8 @@ export type GanttEditorVerticalMarker = {
   draggable?: boolean; // when false marker cannot be moved by direct drag
   movableByContextMenu?: boolean; // when false marker is hidden from context-menu move actions
 };
+
+export type GanttEditorRulerMode = "ROW" | "GLOBAL" | null;
 ```
 
 `GanttEditorXAxisOptions`:

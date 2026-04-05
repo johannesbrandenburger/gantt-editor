@@ -20,6 +20,7 @@ import {
   drawTopicLines,
   computeContentHeight,
   computeTopicLayout,
+  TOPIC_BAND_PADDING,
   type TopicLayout,
 } from "./canvas_topics";
 import {
@@ -47,6 +48,7 @@ import type {
   GanttEditorHost,
   GanttEditorCallbacks,
   GanttEditorProps,
+  GanttEditorRulerMode,
 } from "./gantt_canvas_props";
 import {
   X_AXIS_HEIGHT,
@@ -101,6 +103,17 @@ type ContextMenuActionPayload = {
   kind: "move-vertical-marker";
   markerId: string;
   targetDate: Date;
+};
+
+const RULER_SNAP_CATCHMENT_PX = 3;
+const RESIZE_RULER_TICK_LENGTH_PX = 10;
+
+type ResizeRulerSnapPointKind = "openTime" | "closeTime" | "deadline" | "secondaryDeadline";
+
+type ResizeRulerSnapPoint = {
+  timeMs: number;
+  kind: ResizeRulerSnapPointKind;
+  slotId: string;
 };
 
 export class GanttChartCanvasController {
@@ -196,6 +209,10 @@ export class GanttChartCanvasController {
   private slotResizeDrag: {
     edge: SlotResizeEdge;
     slotId: string;
+    groupId: string;
+    destinationId: string;
+    rulerMode: Exclude<GanttEditorRulerMode, null> | null;
+    snapPoints: ResizeRulerSnapPoint[];
     startClientX: number;
     displayInnerLeft: number;
     displayInnerWidth: number;
@@ -204,6 +221,16 @@ export class GanttChartCanvasController {
 
   /** Live bar geometry while resizing; cleared on mouseup. */
   private slotResizePreview: { slotId: string; openTime: Date; closeTime: Date } | null = null;
+
+  /** Current locked ruler while resizing a slot edge. */
+  private slotResizeRuler: {
+    groupId: string;
+    slotId: string;
+    referenceSlotIds: string[];
+    canvasX: number;
+    snappedTimeMs: number;
+    kinds: ResizeRulerSnapPointKind[];
+  } | null = null;
 
   /** Active drag for a vertical marker line. */
   private verticalMarkerDrag: { markerId: string; currentX: number } | null = null;
@@ -311,6 +338,7 @@ export class GanttChartCanvasController {
       previousProps.destinations === next.destinations &&
       previousProps.destinationGroups === next.destinationGroups &&
       previousProps.suggestions === next.suggestions &&
+      previousProps.activateRulers === next.activateRulers &&
       previousProps.verticalMarkers === next.verticalMarkers &&
       previousProps.markedRegion === next.markedRegion &&
       previousProps.isReadOnly === next.isReadOnly &&
@@ -466,6 +494,7 @@ export class GanttChartCanvasController {
     }
     this.slotResizeDrag = null;
     this.slotResizePreview = null;
+    this.slotResizeRuler = null;
     this.verticalMarkerDrag = null;
     this.pendingSlotReflowFromResize = null;
     this.slotReflowAnimation = null;
@@ -863,14 +892,20 @@ export class GanttChartCanvasController {
         this.suppressNextCanvasClick = true;
         this.cancelSlotReflowAnimation();
         const chartWidth = layout.canvasCssWidth - MARGIN.left - MARGIN.right;
+        const rulerMode = this.resolveRulerMode();
         this.slotResizeDrag = {
           edge: rh.edge,
           slotId: rh.slotId,
+          groupId: hit.groupId,
+          destinationId: rh.slot.destinationId,
+          rulerMode,
+          snapPoints: this.collectResizeSnapPoints(rh.slotId, rh.slot.destinationId, rulerMode),
           startClientX: e.clientX,
           displayInnerLeft: rh.displayInnerLeft,
           displayInnerWidth: rh.displayInnerWidth,
           chartWidth,
         };
+        this.slotResizeRuler = null;
         document.addEventListener("mousemove", this.boundSlotResizeMouseMove);
         document.addEventListener("mouseup", this.boundSlotResizeMouseUp);
         return;
@@ -1162,6 +1197,14 @@ export class GanttChartCanvasController {
       rootItems: Array<{ id: string; label: string; center: { x: number; y: number } }>;
       childItems: Array<{ id: string; label: string; center: { x: number; y: number } }>;
     } | null;
+    resizeRuler: {
+      groupId: string;
+      slotId: string;
+      referenceSlotIds: string[];
+      canvasX: number;
+      snappedTimeMs: number;
+      kinds: ResizeRulerSnapPointKind[];
+    } | null;
     margin: { left: number; right: number };
     layout: {
       canvasCssWidth: number;
@@ -1211,6 +1254,16 @@ export class GanttChartCanvasController {
                 y: item.rect.y + item.rect.height / 2,
               },
             })),
+          }
+        : null,
+      resizeRuler: this.slotResizeRuler
+        ? {
+            groupId: this.slotResizeRuler.groupId,
+            slotId: this.slotResizeRuler.slotId,
+            referenceSlotIds: [...this.slotResizeRuler.referenceSlotIds],
+            canvasX: this.slotResizeRuler.canvasX,
+            snappedTimeMs: this.slotResizeRuler.snappedTimeMs,
+            kinds: [...this.slotResizeRuler.kinds],
           }
         : null,
       margin: { left: MARGIN.left, right: MARGIN.right },
@@ -2747,22 +2800,182 @@ export class GanttChartCanvasController {
     return null;
   }
 
+  private resolveRulerMode(): Exclude<GanttEditorRulerMode, null> | null {
+    const mode = this.props.activateRulers ?? null;
+    return mode === "ROW" || mode === "GLOBAL" ? mode : null;
+  }
+
+  private collectResizeSnapPoints(
+    slotId: string,
+    destinationId: string,
+    mode: Exclude<GanttEditorRulerMode, null> | null,
+  ): ResizeRulerSnapPoint[] {
+    if (!mode) return [];
+
+    const points: ResizeRulerSnapPoint[] = [];
+    for (const slot of this.props.slots) {
+      if (mode === "ROW" && slot.destinationId !== destinationId) continue;
+
+      const sameSlot = slot.id === slotId;
+      if (!sameSlot) {
+        points.push({ timeMs: slot.openTime.getTime(), kind: "openTime", slotId: slot.id });
+        points.push({ timeMs: slot.closeTime.getTime(), kind: "closeTime", slotId: slot.id });
+      }
+      if (slot.deadline) {
+        points.push({ timeMs: slot.deadline.getTime(), kind: "deadline", slotId: slot.id });
+      }
+      if (slot.secondaryDeadline) {
+        points.push({
+          timeMs: slot.secondaryDeadline.getTime(),
+          kind: "secondaryDeadline",
+          slotId: slot.id,
+        });
+      }
+    }
+    return points;
+  }
+
+  private resolveResizePreviewWithRulers(
+    drag: NonNullable<GanttChartCanvasController["slotResizeDrag"]>,
+    dx: number,
+    canvasWidth: number,
+  ): {
+    openTime: Date;
+    closeTime: Date;
+    ruler: {
+      canvasX: number;
+      snappedTimeMs: number;
+      kinds: ResizeRulerSnapPointKind[];
+      referenceSlotIds: string[];
+    } | null;
+  } {
+    const base = slotTimesForResizeDragStep(
+      drag.edge,
+      dx,
+      drag.displayInnerLeft,
+      drag.displayInnerWidth,
+      drag.chartWidth,
+      this.internalStartTime,
+      this.internalEndTime,
+    );
+
+    if (!drag.rulerMode || drag.snapPoints.length === 0) {
+      return { ...base, ruler: null };
+    }
+
+    const edgeTimeMs =
+      drag.edge === "left" ? base.openTime.getTime() : base.closeTime.getTime();
+    const edgeCanvasX = timeMsToCanvasX(
+      edgeTimeMs,
+      canvasWidth,
+      this.internalStartTime,
+      this.internalEndTime,
+      MARGIN,
+    );
+
+    let bestPoint: ResizeRulerSnapPoint | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const point of drag.snapPoints) {
+      const pointX = timeMsToCanvasX(
+        point.timeMs,
+        canvasWidth,
+        this.internalStartTime,
+        this.internalEndTime,
+        MARGIN,
+      );
+      const dist = Math.abs(pointX - edgeCanvasX);
+      if (dist > RULER_SNAP_CATCHMENT_PX) continue;
+      if (
+        dist < bestDistance ||
+        (dist === bestDistance && bestPoint && point.timeMs < bestPoint.timeMs)
+      ) {
+        bestDistance = dist;
+        bestPoint = point;
+      }
+    }
+
+    if (!bestPoint) {
+      return { ...base, ruler: null };
+    }
+
+    const lockedCanvasX = timeMsToCanvasX(
+      bestPoint.timeMs,
+      canvasWidth,
+      this.internalStartTime,
+      this.internalEndTime,
+      MARGIN,
+    );
+    const lockedInnerX = lockedCanvasX - MARGIN.left;
+    let snappedDx = dx;
+    if (drag.edge === "left") {
+      snappedDx = lockedInnerX - drag.displayInnerLeft;
+    } else {
+      const lockedWidth = lockedInnerX - drag.displayInnerLeft;
+      snappedDx = lockedWidth - drag.displayInnerWidth;
+    }
+
+    const snapped = slotTimesForResizeDragStep(
+      drag.edge,
+      snappedDx,
+      drag.displayInnerLeft,
+      drag.displayInnerWidth,
+      drag.chartWidth,
+      this.internalStartTime,
+      this.internalEndTime,
+    );
+
+    const snappedEdgeMs =
+      drag.edge === "left" ? snapped.openTime.getTime() : snapped.closeTime.getTime();
+    const snappedEdgeCanvasX = timeMsToCanvasX(
+      snappedEdgeMs,
+      canvasWidth,
+      this.internalStartTime,
+      this.internalEndTime,
+      MARGIN,
+    );
+    if (Math.abs(snappedEdgeCanvasX - lockedCanvasX) > 0.5) {
+      return { ...base, ruler: null };
+    }
+
+    const kinds = drag.snapPoints
+      .filter((p) => p.timeMs === bestPoint.timeMs)
+      .map((p) => p.kind);
+    const referenceSlotIds = Array.from(
+      new Set(drag.snapPoints.filter((p) => p.timeMs === bestPoint.timeMs).map((p) => p.slotId)),
+    );
+
+    return {
+      ...snapped,
+      ruler: {
+        canvasX: snappedEdgeCanvasX,
+        snappedTimeMs: snappedEdgeMs,
+        kinds: kinds.length > 0 ? Array.from(new Set(kinds)) : [bestPoint.kind],
+        referenceSlotIds,
+      },
+    };
+  }
+
   private onSlotResizeMouseMove(e: MouseEvent): void {
     if (!this.slotResizeDrag) return;
     const dx = e.clientX - this.slotResizeDrag.startClientX;
     const d = this.slotResizeDrag;
+    const canvasWidth = d.chartWidth + MARGIN.left + MARGIN.right;
+    const preview = this.resolveResizePreviewWithRulers(d, dx, canvasWidth);
     this.slotResizePreview = {
       slotId: d.slotId,
-      ...slotTimesForResizeDragStep(
-        d.edge,
-        dx,
-        d.displayInnerLeft,
-        d.displayInnerWidth,
-        d.chartWidth,
-        this.internalStartTime,
-        this.internalEndTime,
-      ),
+      openTime: preview.openTime,
+      closeTime: preview.closeTime,
     };
+    this.slotResizeRuler = preview.ruler
+      ? {
+          groupId: d.groupId,
+          slotId: d.slotId,
+          referenceSlotIds: preview.ruler.referenceSlotIds,
+          canvasX: preview.ruler.canvasX,
+          snappedTimeMs: preview.ruler.snappedTimeMs,
+          kinds: preview.ruler.kinds,
+        }
+      : null;
     this.redraw();
   }
 
@@ -2772,15 +2985,9 @@ export class GanttChartCanvasController {
     if (!this.slotResizeDrag) return;
     const d = this.slotResizeDrag;
     const dx = e.clientX - d.startClientX;
-    const { openTime, closeTime } = slotTimesForResizeDragStep(
-      d.edge,
-      dx,
-      d.displayInnerLeft,
-      d.displayInnerWidth,
-      d.chartWidth,
-      this.internalStartTime,
-      this.internalEndTime,
-    );
+    const canvasWidth = d.chartWidth + MARGIN.left + MARGIN.right;
+    const preview = this.resolveResizePreviewWithRulers(d, dx, canvasWidth);
+    const { openTime, closeTime } = preview;
 
     const prev = this.props.slots.find((s) => s.id === d.slotId);
     const shouldCommit =
@@ -2795,6 +3002,7 @@ export class GanttChartCanvasController {
 
     this.slotResizeDrag = null;
     this.slotResizePreview = null;
+    this.slotResizeRuler = null;
     this.redraw();
 
     if (shouldCommit && previousRowYBySlotId) {
@@ -3097,6 +3305,7 @@ export class GanttChartCanvasController {
       document.removeEventListener("mouseup", this.boundSlotResizeMouseUp);
       this.slotResizeDrag = null;
       this.slotResizePreview = null;
+      this.slotResizeRuler = null;
     }
 
     this.getProcessedTopics();
@@ -3335,6 +3544,8 @@ export class GanttChartCanvasController {
       ctx.restore();
     }
 
+    this.drawSlotResizeRulerOverlay(ctx, layout);
+
     drawWeekdayOverlay({
       ctx,
       width: layout.canvasCssWidth,
@@ -3421,6 +3632,98 @@ export class GanttChartCanvasController {
     });
 
     ctx.restore();
+  }
+
+  private drawSlotResizeRulerOverlay(
+    ctx: CanvasRenderingContext2D,
+    layout: UnifiedChartLayout,
+  ): void {
+    const ruler = this.slotResizeRuler;
+    if (!ruler) return;
+    const groupRect = layout.groupRects.get(ruler.groupId);
+    if (!groupRect) return;
+
+    const x = Math.max(MARGIN.left, Math.min(layout.canvasCssWidth - MARGIN.right, ruler.canvasX));
+    const movingSlotCenterY = this.resolveSlotCenterCanvasY(ruler.groupId, ruler.slotId, layout);
+    if (movingSlotCenterY === null) return;
+
+    let referenceSlotCenterY: number | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const referenceSlotId of ruler.referenceSlotIds) {
+      const y = this.resolveSlotCenterCanvasY(ruler.groupId, referenceSlotId, layout);
+      if (y === null) continue;
+      const distance = Math.abs(y - movingSlotCenterY);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        referenceSlotCenterY = y;
+      }
+    }
+
+    if (referenceSlotCenterY === null) {
+      referenceSlotCenterY = movingSlotCenterY;
+    }
+
+    const y0 = Math.min(movingSlotCenterY, referenceSlotCenterY);
+    const y1 = Math.max(movingSlotCenterY, referenceSlotCenterY);
+    const topY = Math.max(groupRect.y + 1, y0);
+    const bottomY = Math.min(groupRect.y + groupRect.h - 1, y1);
+    if (bottomY - topY < 1) return;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, topY, layout.canvasCssWidth, groupRect.h);
+    ctx.clip();
+
+    ctx.strokeStyle = "rgba(37, 99, 235, 0.8)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(x + 0.5, topY + 1);
+    ctx.lineTo(x + 0.5, bottomY - 1);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = "#1d4ed8";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x + 0.5, topY + 1);
+    ctx.lineTo(x + 0.5, Math.min(bottomY - 1, topY + RESIZE_RULER_TICK_LENGTH_PX));
+    ctx.moveTo(x + 0.5, Math.max(topY + 1, bottomY - RESIZE_RULER_TICK_LENGTH_PX));
+    ctx.lineTo(x + 0.5, bottomY - 1);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  private resolveSlotCenterCanvasY(
+    groupId: string,
+    slotId: string,
+    layout: UnifiedChartLayout,
+  ): number | null {
+    const groupRect = layout.groupRects.get(groupId);
+    if (!groupRect) return null;
+
+    const groupTopics = this.topicsByGroupId.get(groupId) ?? [];
+    if (groupTopics.length === 0) return null;
+
+    const topicLayouts = this.getTopicLayouts(groupTopics);
+    const rowHeight = this.rowHeight;
+    const rowBandwidth = rowHeight * (1 - TOPIC_BAND_PADDING);
+    const scrollOffset = this.verticalScrollOffsets.get(groupId) || 0;
+
+    for (const layoutEntry of topicLayouts) {
+      for (let rowIndex = 0; rowIndex < layoutEntry.topic.rows.length; rowIndex++) {
+        const row = layoutEntry.topic.rows[rowIndex];
+        if (!row) continue;
+        const hasSlot = row.slots.some((slot) => slot.id === slotId);
+        if (!hasSlot) continue;
+        const rowTop = layoutEntry.rowYs[rowIndex];
+        if (rowTop === undefined) return null;
+        return groupRect.y - scrollOffset + rowTop + rowBandwidth / 2;
+      }
+    }
+
+    return null;
   }
 
   private drawBrushSelectionOverlay(

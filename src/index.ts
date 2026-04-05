@@ -14,6 +14,7 @@ export type {
     GanttEditorCallbacks,
     GanttEditorHost,
 } from './components/gantt-editor-lib/chart/gantt_canvas_props'
+export type { GanttEditorRulerMode } from './components/gantt-editor-lib/chart/gantt_canvas_props'
 export {
     getSelectionItemDisplayName,
     getClipboardItemDisplayName,

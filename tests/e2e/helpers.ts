@@ -23,6 +23,7 @@ type HarnessConfig = {
   slots: Array<{
     id: string;
     displayName?: string;
+    group?: string;
     destinationId: string;
     openTime?: Date | string;
     closeTime: Date | string;
@@ -44,6 +45,7 @@ type HarnessConfig = {
     endTime: Date | string;
     destinationId: string;
   } | null;
+  activateRulers?: "ROW" | "GLOBAL" | null;
 };
 
 type HarnessEvents = Record<string, unknown[]>;

@@ -9,6 +9,8 @@ import type {
   GanttEditorXAxisOptions,
 } from "./types";
 
+export type GanttEditorRulerMode = "ROW" | "GLOBAL" | null;
+
 /**
  * Framework-agnostic input model for the canvas Gantt chart.
  * Kept aligned with the Vue component’s `defineProps` surface so other frameworks
@@ -21,6 +23,8 @@ export interface GanttEditorProps {
   destinations: Array<GanttEditorDestination>;
   destinationGroups: Array<GanttEditorDestinationGroup>;
   suggestions: Array<GanttEditorSuggestion>;
+  /** Enable slot-edge snap rulers while resizing (`null` disables). */
+  activateRulers?: GanttEditorRulerMode;
   verticalMarkers?: Array<GanttEditorVerticalMarker>;
   markedRegion: GanttEditorMarkedRegion | null;
   isReadOnly: boolean;

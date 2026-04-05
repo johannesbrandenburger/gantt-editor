@@ -20,6 +20,7 @@
             :suggestions="suggestions"
             :verticalMarkers="verticalMarkers"
             :markedRegion="markedRegion"
+            :activate-rulers="'GLOBAL'"
             @onChangeStartAndEndTime="handleChangeStartAndEndTime"
             @onChangeDestinationId="handleChangeDestinationId"
             @onBulkChangeDestinationId="handleBulkChangeDestinationId"

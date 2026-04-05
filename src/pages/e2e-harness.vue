@@ -2,6 +2,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import GanttEditorComponent from "@/components/GanttEditorComponent.vue";
+import type { GanttEditorRulerMode } from "@/components/gantt-editor-lib/chart/gantt_canvas_props";
 import type {
   GanttEditorDestination,
   GanttEditorDestinationGroup,
@@ -29,6 +30,7 @@ type HarnessData = {
   suggestions: GanttEditorSuggestion[];
   verticalMarkers: GanttEditorVerticalMarker[];
   markedRegion: GanttEditorMarkedRegion | null;
+  activateRulers: GanttEditorRulerMode;
   isReadOnly: boolean;
   topContentPortion: number;
 };
@@ -40,6 +42,7 @@ type QueryInput = Partial<{
   suggestions: string;
   markers: string;
   markedRegion: string;
+  activateRulers: string;
   topContentPortion: string;
   startTime: string;
   endTime: string;
@@ -263,6 +266,7 @@ function baseData(fixture: FixtureName, slotCount: number): HarnessData {
     suggestions: [],
     verticalMarkers: [],
     markedRegion: null,
+    activateRulers: null,
     isReadOnly: fixture === "readonly",
     topContentPortion: 0,
   };
@@ -330,6 +334,7 @@ function cloneData(data: HarnessData): HarnessData {
           endTime: new Date(data.markedRegion.endTime),
         }
       : null,
+    activateRulers: data.activateRulers ?? null,
   };
 }
 
@@ -350,6 +355,8 @@ function fromQuery(query: QueryInput): HarnessData {
   const data = baseData(fixture, slotCount);
 
   data.isReadOnly = parseBoolean(query.readOnly ?? null, data.isReadOnly);
+  const rulersRaw = (query.activateRulers ?? "").toUpperCase();
+  data.activateRulers = rulersRaw === "ROW" || rulersRaw === "GLOBAL" ? rulersRaw : null;
   data.topContentPortion = Math.max(0, Math.min(0.5, parseNumber(query.topContentPortion ?? null, 0)));
   data.startTime = parseDate(query.startTime ?? null, data.startTime);
   data.endTime = parseDate(query.endTime ?? null, data.endTime);
@@ -394,6 +401,7 @@ function fromQuery(query: QueryInput): HarnessData {
             endTime: new Date(custom.markedRegion.endTime),
           }
         : data.markedRegion,
+        activateRulers: custom.activateRulers ?? data.activateRulers,
     });
   }
 
@@ -743,6 +751,7 @@ onBeforeUnmount(() => {
       :verticalMarkers="harnessData.verticalMarkers"
       :markedRegion="harnessData.markedRegion"
       :topContentPortion="harnessData.topContentPortion"
+      :activateRulers="harnessData.activateRulers"
       @onChangeStartAndEndTime="onChangeStartAndEndTime"
       @onChangeDestinationId="onChangeDestinationId"
       @onBulkChangeDestinationId="onBulkChangeDestinationId"
