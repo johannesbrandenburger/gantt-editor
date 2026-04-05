@@ -30,7 +30,14 @@ type HarnessConfig = {
   isReadOnly?: boolean;
   topContentPortion?: number;
   suggestions?: Array<{ slotId: string; alternativeDestinationId: string }>;
-  verticalMarkers?: Array<{ id: string; date: Date | string; color?: string }>;
+  verticalMarkers?: Array<{
+    id: string;
+    date: Date | string;
+    color?: string;
+    label?: string;
+    draggable?: boolean;
+    movableByContextMenu?: boolean;
+  }>;
   destinations?: Array<{ id: string; displayName?: string; groupId?: string }>;
   markedRegion?: {
     startTime: Date | string;
@@ -85,7 +92,15 @@ type ContextMenuState = {
 };
 
 type ProbeCanvasApi = CanvasTestApi<ProbeCanvasState> & {
-  probeCanvasPoint: (x: number, y: number) => Record<ProbeField, string | null>;
+  probeCanvasPoint: (x: number, y: number) => {
+    chartHitType: string;
+    slotId: string | null;
+    slotResize: { slotId: string; edge: "left" | "right" } | null;
+    departureGapSlotId: string | null;
+    verticalMarkerId: string | null;
+    suggestionSlotId: string | null;
+    topicId: string | null;
+  };
 };
 
 type ProbeScanOptions = {
@@ -446,13 +461,13 @@ export async function findEmptyChartBackgroundPoint(page: Page): Promise<{ x: nu
 
     for (let y = 1; y <= maxY; y += 3) {
       for (let x = minX; x <= maxX; x += 3) {
-        const probe = api.probeCanvasPoint(x, y);
-        if (probe.chartHitType !== "group") continue;
-        if (probe.slotId) continue;
-        if (probe.slotResize) continue;
-        if (probe.departureGapSlotId) continue;
-        if (probe.verticalMarkerId) continue;
-        if (probe.suggestionSlotId) continue;
+        const probe = api.probeCanvasPoint(x, y) as Record<string, unknown>;
+        if (probe["chartHitType"] !== "group") continue;
+        if (probe["slotId"]) continue;
+        if (probe["slotResize"]) continue;
+        if (probe["departureGapSlotId"]) continue;
+        if (probe["verticalMarkerId"]) continue;
+        if (probe["suggestionSlotId"]) continue;
         return { x, y };
       }
     }

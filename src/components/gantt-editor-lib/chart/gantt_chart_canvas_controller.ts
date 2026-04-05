@@ -1080,8 +1080,8 @@ export class GanttChartCanvasController {
 
     if (ctx.point.x < MARGIN.left) return;
 
-    const draggableMarkers = this.getDraggableMarkers();
-    if (draggableMarkers.length === 0) return;
+    const contextMenuMovableMarkers = this.getContextMenuMovableMarkers();
+    if (contextMenuMovableMarkers.length === 0) return;
 
     const targetX = clampVerticalMarkerCanvasX(ctx.point.x, ctx.layout.canvasCssWidth, MARGIN);
     const targetDate = verticalMarkerDateFromCanvasX(
@@ -1093,14 +1093,14 @@ export class GanttChartCanvasController {
     );
 
     const menuItems: CanvasContextMenuItem<ContextMenuActionPayload>[] =
-      draggableMarkers.length === 1
+      contextMenuMovableMarkers.length === 1
         ? [
             {
               id: "move-marker-here",
               label: "Move marker here",
               payload: {
                 kind: "move-vertical-marker",
-                markerId: draggableMarkers[0]!.id,
+                markerId: contextMenuMovableMarkers[0]!.id,
                 targetDate,
               },
             },
@@ -1109,7 +1109,7 @@ export class GanttChartCanvasController {
             {
               id: "move-marker-here",
               label: "Move marker here",
-              children: draggableMarkers.map((marker) => ({
+              children: contextMenuMovableMarkers.map((marker) => ({
                 id: `move-marker:${marker.id}`,
                 label: marker.label && marker.label.trim().length > 0 ? marker.label : marker.id,
                 payload: {
@@ -3833,11 +3833,11 @@ export class GanttChartCanvasController {
     }
   }
 
-  private getDraggableMarkers(): Array<{ id: string; label?: string }> {
+  private getContextMenuMovableMarkers(): Array<{ id: string; label?: string }> {
     if (this.props.isReadOnly) return [];
     const markers = this.props.verticalMarkers ?? [];
     return markers
-      .filter((marker) => marker.draggable !== false)
+      .filter((marker) => marker.movableByContextMenu !== false)
       .map((marker) => ({ id: marker.id, label: marker.label }));
   }
 

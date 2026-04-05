@@ -49,6 +49,8 @@ export type GanttEditorVerticalMarker = {
     label?: string,
     /** When false, the marker cannot be dragged (still clickable if a handler is provided). Default: true when the chart is not read-only. */
     draggable?: boolean,
+    /** When false, the marker is excluded from the background context-menu "Move marker here" action. Default: true when the chart is not read-only. */
+    movableByContextMenu?: boolean,
 };
 
 export type GanttEditorSlotWithUiAttributes = GanttEditorSlot & {

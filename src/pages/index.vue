@@ -391,15 +391,19 @@ const suggestions = computed(() => {
 const verticalMarkers = ref<GanttEditorVerticalMarker[]>([
     {
         id: 'demo-marker-cuttoff',
-        label: 'Cutoff',
+        label: 'Operational Cutoff',
         date: new Date(new Date().setHours(11, 0, 0, 0)),
         color: '#e74c3c',
+        draggable: false,
+        movableByContextMenu: true,
     },
     {
         id: 'demo-marker-test',
         label: 'Test',
         date: new Date(new Date().setHours(12, 0, 0, 0)),
         color: '#3498db',
+        draggable: true,
+        movableByContextMenu: false,
     },
 ]);
 

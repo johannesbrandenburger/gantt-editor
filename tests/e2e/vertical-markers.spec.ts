@@ -6,6 +6,7 @@ import {
   dispatchCanvasMouseEvent,
   findEmptyChartBackgroundPoint,
   findVerticalMarkerPoint,
+  getCanvasStateField,
   getHarnessConfig,
   getHarnessEvents,
   mouseDrag,
@@ -149,5 +150,110 @@ test.describe("canvas rewrite vertical markers", () => {
         return marker?.date ? new Date(marker.date).getTime() : null;
       })
       .toBe(beforeEtd ? new Date(beforeEtd).getTime() : null);
+  });
+
+  test("marker can be context-menu movable even when dragging is disabled", async ({ page }) => {
+    const customData = encodeURIComponent(
+      JSON.stringify({
+        verticalMarkers: [
+          {
+            id: "menu-only-marker",
+            label: "Menu Only",
+            date: "2025-01-01T11:00:00Z",
+            color: "#e74c3c",
+            draggable: false,
+            movableByContextMenu: true,
+          },
+        ],
+      }),
+    );
+
+    await openE2eHarness(page, { fixture: "core", query: { data: customData } });
+    await clearHarnessEvents(page);
+
+    const before = (await getHarnessConfig(page)).verticalMarkers?.find(
+      (marker) => marker.id === "menu-only-marker",
+    )?.date;
+    expect(before).toBeTruthy();
+
+    const backgroundPoint = await findEmptyChartBackgroundPoint(page);
+    await dispatchCanvasMouseEvent(page, backgroundPoint, "contextmenu");
+    await clickCanvasContextMenuItem(page, "Move marker here");
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const changes = (events.onChangeVerticalMarker ?? []) as Array<{ id?: string }>;
+        return changes.at(-1)?.id ?? null;
+      })
+      .toBe("menu-only-marker");
+
+    await expect
+      .poll(async () => {
+        const marker = (await getHarnessConfig(page)).verticalMarkers?.find(
+          (item) => item.id === "menu-only-marker",
+        );
+        return marker?.date ? new Date(marker.date).getTime() : null;
+      })
+      .not.toBe(before ? new Date(before).getTime() : null);
+  });
+
+  test("marker can stay draggable but be excluded from context-menu movement", async ({ page }) => {
+    const customData = encodeURIComponent(
+      JSON.stringify({
+        verticalMarkers: [
+          {
+            id: "drag-only-marker",
+            label: "Drag Only",
+            date: "2025-01-01T11:00:00Z",
+            color: "#2ecc71",
+            draggable: true,
+            movableByContextMenu: false,
+          },
+        ],
+      }),
+    );
+
+    await openE2eHarness(page, { fixture: "core", query: { data: customData } });
+    await clearHarnessEvents(page);
+
+    const backgroundPoint = await findEmptyChartBackgroundPoint(page);
+    await dispatchCanvasMouseEvent(page, backgroundPoint, "contextmenu");
+
+    await expect
+      .poll(async () => {
+        const config = await getHarnessConfig(page);
+        return config.verticalMarkers?.find((marker) => marker.id === "drag-only-marker")?.date
+          ? new Date(
+              config.verticalMarkers!.find((marker) => marker.id === "drag-only-marker")!.date,
+            ).getTime()
+          : null;
+      })
+      .toBeTruthy();
+
+    await expect
+      .poll(async () => {
+        return await getCanvasStateField<boolean>(page, "contextMenuOpen");
+      })
+      .toBe(false);
+
+    const canvas = await page.locator("canvas.chart-canvas").first();
+    const markerPoint = await findVerticalMarkerPoint(page, "drag-only-marker");
+    const from = await canvasPointToPagePoint(canvas, markerPoint);
+    const to = { x: from.x + 80, y: from.y };
+
+    const before = (await getHarnessConfig(page)).verticalMarkers?.find(
+      (marker) => marker.id === "drag-only-marker",
+    )?.date;
+    await mouseDrag(page, from, to);
+
+    await expect
+      .poll(async () => {
+        const marker = (await getHarnessConfig(page)).verticalMarkers?.find(
+          (item) => item.id === "drag-only-marker",
+        );
+        return marker?.date ? new Date(marker.date).getTime() : null;
+      })
+      .not.toBe(before ? new Date(before).getTime() : null);
   });
 });
