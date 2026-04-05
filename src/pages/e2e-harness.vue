@@ -271,6 +271,22 @@ function baseData(fixture: FixtureName, slotCount: number): HarnessData {
     data.verticalMarkers = [
       { id: "m-std", date: new Date(`${isoDay}T11:00:00Z`), color: "#e74c3c", label: "STD" },
       { id: "m-etd", date: new Date(`${isoDay}T11:30:00Z`), color: "#2ecc71", label: "ETD" },
+      {
+        id: "m-context-only",
+        date: new Date(`${isoDay}T12:00:00Z`),
+        color: "#f39c12",
+        label: "CTX",
+        draggable: false,
+        movableByContextMenu: true,
+      },
+      {
+        id: "m-drag-only",
+        date: new Date(`${isoDay}T12:20:00Z`),
+        color: "#34495e",
+        label: "DRAG",
+        draggable: true,
+        movableByContextMenu: false,
+      },
     ];
     data.suggestions = [{ slotId: "LH123-20250101-F", alternativeDestinationId: "chute-3" }];
     data.markedRegion = {

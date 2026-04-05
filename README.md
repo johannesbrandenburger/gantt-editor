@@ -79,6 +79,14 @@ const destinationGroups = ref<GanttEditorDestinationGroup[]>([
 
 const verticalMarkers = ref<GanttEditorVerticalMarker[]>([
   { id: "vm-1", date: new Date("2025-01-01T13:00:00Z"), color: "#16a34a", label: "Cut-off" },
+  {
+    id: "vm-2",
+    date: new Date("2025-01-01T13:30:00Z"),
+    color: "#f59e0b",
+    label: "Context menu only",
+    draggable: false,
+    movableByContextMenu: true,
+  },
 ]);
 
 function onChangeVerticalMarker(id: string, date: Date) {
@@ -251,7 +259,8 @@ export type GanttEditorVerticalMarker = {
   date: Date; // marker time position
   color?: string; // optional marker line color
   label?: string; // optional hover tooltip label
-  draggable?: boolean; // when false marker stays fixed even in editable mode
+  draggable?: boolean; // when false marker cannot be moved by direct drag
+  movableByContextMenu?: boolean; // when false marker is hidden from context-menu move actions
 };
 ```
 
@@ -290,7 +299,9 @@ export type GanttEditorXAxisOptions = {
 - Dragging marker emits `onChangeVerticalMarker(id, date)`; update your state for persistence.
 - Clicking marker emits `onClickVerticalMarker(id)`.
 - `isReadOnly` disables marker dragging globally.
-- `draggable: false` disables dragging for one marker.
+- `draggable: false` disables direct dragging for one marker.
+- `movableByContextMenu: false` excludes one marker from background context-menu move actions.
+- These props are independent; e.g. a marker can be `draggable: false` and still `movableByContextMenu: true`.
 
 ## Utility Exports
 
