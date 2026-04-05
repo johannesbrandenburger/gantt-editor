@@ -5,8 +5,26 @@
  */
 
 // Composables
-import { createRouter, createWebHistory } from 'vue-router/auto'
-import { routes } from 'vue-router/auto-routes'
+import { createRouter, createWebHistory } from 'vue-router'
+
+const routes = [
+  {
+    path: '/',
+    component: () => import('../pages/index.vue'),
+  },
+  {
+    path: '/small-example',
+    component: () => import('../pages/small-example.vue'),
+  },
+  {
+    path: '/performance',
+    component: () => import('../pages/performance.vue'),
+  },
+  {
+    path: '/e2e-harness',
+    component: () => import('../pages/e2e-harness.vue'),
+  },
+]
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),

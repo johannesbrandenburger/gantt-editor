@@ -228,7 +228,6 @@ const buildCopiedSlot = (
     ...source,
     id: nextId,
     group: nextId,
-    isCopied: false,
     ...overrides,
 });
 

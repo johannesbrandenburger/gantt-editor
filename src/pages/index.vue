@@ -495,7 +495,6 @@ const buildCopiedSlot = (slot: GanttEditorSlot, destinationId: string): GanttEdi
         id: nextId,
         group: nextId,
         destinationId,
-        isCopied: false,
     };
 };
 
@@ -520,7 +519,6 @@ const buildCopiedSlotOnTimeAxis = (slot: GanttEditorSlot, timeDiffMs: number): G
         closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
         deadline: shiftDateByMs(slot.deadline, timeDiffMs),
         secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
-        isCopied: false,
     };
 };
 

@@ -1,7 +1,12 @@
-import path from "node:path";
-import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
+import path from "path";
+import { copyFile, mkdir, rm, writeFile } from "fs/promises";
+import type { FullConfig, Reporter, TestCase, TestResult } from "@playwright/test/reporter";
 
-function sanitizeSegment(value) {
+type OrderedScreenshotsReporterOptions = {
+  outputDir?: string;
+};
+
+function sanitizeSegment(value: unknown): string {
   return String(value)
     .trim()
     .replace(/[^a-zA-Z0-9._-]+/g, "-")
@@ -9,17 +14,22 @@ function sanitizeSegment(value) {
     .replace(/^[-.]+|[-.]+$/g, "") || "unnamed";
 }
 
-function pad3(index) {
+function pad3(index: number): string {
   return String(index).padStart(3, "0");
 }
 
-export default class OrderedScreenshotsReporter {
-  constructor(options = {}) {
+export default class OrderedScreenshotsReporter implements Reporter {
+  private readonly outputDir: string;
+
+  private readonly workspaceRoot: string;
+
+  constructor(options: OrderedScreenshotsReporterOptions = {}) {
     this.outputDir = options.outputDir || "test-results/ordered-screenshots";
-    this.workspaceRoot = process.cwd();
+    const maybeProcess = globalThis as { process?: { cwd?: () => string } };
+    this.workspaceRoot = maybeProcess.process?.cwd?.() || ".";
   }
 
-  async onBegin() {
+  async onBegin(_config: FullConfig): Promise<void> {
     const absoluteOutputDir = path.resolve(this.workspaceRoot, this.outputDir);
     const legacyOutputDir = path.resolve(this.workspaceRoot, "tests/e2e", this.outputDir);
 
@@ -28,17 +38,20 @@ export default class OrderedScreenshotsReporter {
     await mkdir(absoluteOutputDir, { recursive: true });
   }
 
-  async onTestEnd(test, result) {
-    const fileAttachments = result.attachments.filter((attachment) => Boolean(attachment.path));
+  async onTestEnd(test: TestCase, result: TestResult): Promise<void> {
+    const fileAttachments = result.attachments.filter(
+      (attachment): attachment is TestResult["attachments"][number] & { path: string } =>
+        Boolean(attachment.path),
+    );
 
     if (fileAttachments.length === 0) {
       return;
     }
 
-    const projectName = test.parent?.project?.().name || "default-project";
+    const projectName = test.parent?.project?.()?.name || "default-project";
     const projectFolder = sanitizeSegment(projectName);
     const relativeSpecPath = path.relative(this.workspaceRoot, test.location.file);
-    const specPathParts = relativeSpecPath.split(path.sep).map((segment, index, parts) => {
+    const specPathParts = relativeSpecPath.split(path.sep).map((segment, index, parts): string => {
       if (index === parts.length - 1) {
         return sanitizeSegment(path.basename(segment, path.extname(segment)));
       }
@@ -88,7 +101,13 @@ export default class OrderedScreenshotsReporter {
 
     await mkdir(destinationDir, { recursive: true });
 
-    const attachmentIndex = [];
+    const attachmentIndex: Array<{
+      order: number;
+      source: string;
+      file: string;
+      name: string;
+      contentType: string | undefined;
+    }> = [];
 
     for (let index = 0; index < fileAttachments.length; index += 1) {
       const attachment = fileAttachments[index];

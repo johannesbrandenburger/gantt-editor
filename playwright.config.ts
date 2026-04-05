@@ -10,7 +10,7 @@ export default defineConfig({
     ["line"],
     ["html", { open: "never" }],
     ["json", { outputFile: "test-results/results.json" }],
-    ["./tests/e2e/reporters/ordered-screenshots-reporter.mjs", { outputDir: "test-results/ordered-screenshots" }],
+    ["./tests/e2e/reporters/ordered-screenshots-reporter.ts", { outputDir: "test-results/ordered-screenshots" }],
   ],
   preserveOutput: "always",
   use: {

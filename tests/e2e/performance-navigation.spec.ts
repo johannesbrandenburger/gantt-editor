@@ -29,7 +29,8 @@ type WheelPerfResult = {
   frameCount: number;
 };
 
-const IS_CI = !!process.env.CI;
+const maybeProcess = globalThis as { process?: { env?: Record<string, string | undefined> } };
+const IS_CI = !!maybeProcess.process?.env?.CI;
 const MIN_ZOOM_FPS = IS_CI ? 30 : 65;
 const MIN_VERTICAL_SCROLL_FPS = IS_CI ? 55 : 75;
 
