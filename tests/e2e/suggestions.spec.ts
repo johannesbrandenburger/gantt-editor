@@ -116,10 +116,25 @@ test.describe("canvas rewrite suggestions", () => {
       .toBe(0);
   });
 
-  test("suggestion tooltip and hover-size visuals", async () => {
-    test.skip(
-      true,
-      "Skipping: tooltip and icon-size animation are canvas raster effects not exposed through deterministic DOM/test API selectors.",
-    );
+  test("clicking suggestion does not emit onClickOnSlot", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "suggestions" });
+    await clearHarnessEvents(page);
+
+    const suggestionPoint = await findSuggestionPoint(page, SLOT_ID);
+    await dispatchCanvasMouseEvent(page, suggestionPoint, "click");
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        return (events.onClickOnSlot ?? []).length;
+      })
+      .toBe(0);
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        return (events.onChangeDestinationId ?? []).length;
+      })
+      .toBe(1);
   });
 });

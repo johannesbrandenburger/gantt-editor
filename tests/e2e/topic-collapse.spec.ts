@@ -1,7 +1,12 @@
-import { expect, test, type Page } from "./coverage-test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./coverage-test";
 import {
+  clearHarnessEvents,
   dispatchCanvasMouseEvent,
+  findSlotPoint,
   findTopicTogglePoint,
+  getHarnessConfig,
+  getHarnessEvents,
   openE2eHarness,
   waitForCanvasApi,
 } from "./helpers";
@@ -68,10 +73,36 @@ test.describe("canvas rewrite topic collapse", () => {
       .toContain(togglePoint.topicId);
   });
 
-  test("collapsed topic renders slots with reduced opacity", async () => {
-    test.skip(
-      true,
-      "Skipping: slot opacity is rasterized in canvas and not directly introspectable via deterministic DOM/test API selectors.",
-    );
+  test("collapsed topic still allows deterministic slot hit-testing and clicks", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "topic-collapse" });
+    await clearHarnessEvents(page);
+
+    const togglePoint = await findTopicTogglePoint(page);
+    await dispatchCanvasMouseEvent(page, { x: togglePoint.x, y: togglePoint.y }, "click");
+
+    await expect.poll(async () => await getCollapsedTopics(page)).toContain(togglePoint.topicId);
+
+    await expect
+      .poll(async () => {
+        const config = await getHarnessConfig(page);
+        return config.slots.find((slot) => slot.destinationId === togglePoint.topicId)?.id ?? null;
+      })
+      .not.toBeNull();
+
+    const collapsedSlotId = (await getHarnessConfig(page)).slots.find(
+      (slot) => slot.destinationId === togglePoint.topicId,
+    )?.id;
+    expect(collapsedSlotId).not.toBeNull();
+
+    const slotCenter = await findSlotPoint(page, collapsedSlotId as string, "center");
+    await dispatchCanvasMouseEvent(page, slotCenter, "click");
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const clicks = (events.onClickOnSlot ?? []) as Array<{ slotId?: string }>;
+        return clicks.at(-1)?.slotId ?? null;
+      })
+      .toBe(collapsedSlotId as string);
   });
 });

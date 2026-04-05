@@ -4,6 +4,7 @@ import {
   clearHarnessEvents,
   dispatchCanvasMouseEvent,
   findSlotPoint,
+  getCanvasStateField,
   getHarnessEvents,
   getHarnessSlotCloseTimeMs,
   mouseDrag,
@@ -29,11 +30,14 @@ test.describe("canvas rewrite slot interactions", () => {
       .toBe(SLOT_ID);
   });
 
-  test("hover on slot updates hovered slot state", async () => {
-    test.skip(
-      true,
-      "Skipping: hover callbacks/state are currently not deterministically observable in headless harness runs.",
-    );
+  test("click on slot updates canvas test state lastClickedSlotId", async ({ page }) => {
+    await openE2eHarness(page);
+    await clearHarnessEvents(page);
+
+    const slotCenter = await findSlotPoint(page, SLOT_ID, "center");
+    await dispatchCanvasMouseEvent(page, slotCenter, "click");
+
+    await expect.poll(async () => await getCanvasStateField<string | null>(page, "lastClickedSlotId")).toBe(SLOT_ID);
   });
 
   test("double-click on slot emits onDoubleClickOnSlot event", async ({ page }) => {

@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "./coverage-test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./coverage-test";
 import { findSlotPoint, getHarnessConfig, openE2eHarness } from "./helpers";
 
 async function collectTopicIds(page: Page): Promise<string[]> {
@@ -60,10 +61,19 @@ test.describe("canvas rewrite slot text and topic labels", () => {
     expect(point.y).toBeGreaterThan(0);
   });
 
-  test("slot names are listed below each topic label", async () => {
-    test.skip(
-      true,
-      "Skipping: canvas text layout is rasterized and not directly inspectable via deterministic DOM/test API selectors.",
-    );
+  test("display-named slots remain hit-testable on core fixture", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
+
+    const displayNamedSlotIds = (await getHarnessConfig(page)).slots
+      .filter((slot) => (slot.displayName ?? "").trim().length > 0)
+      .map((slot) => slot.id);
+
+    expect(displayNamedSlotIds.length).toBeGreaterThan(0);
+
+    for (const slotId of displayNamedSlotIds.slice(0, 3)) {
+      const point = await findSlotPoint(page, slotId, "center");
+      expect(point.x).toBeGreaterThan(0);
+      expect(point.y).toBeGreaterThan(0);
+    }
   });
 });

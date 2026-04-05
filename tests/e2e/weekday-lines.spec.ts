@@ -1,10 +1,11 @@
-import { expect, test, type Page } from "./coverage-test";
-import { openE2eHarness } from "./helpers";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./coverage-test";
+import { applyHarnessQuery, openE2eHarness } from "./helpers";
 
 type Pixel = { r: number; g: number; b: number; a: number };
 
 async function sampleWeekdayLinePixel(page: Page, dayYmd: string): Promise<Pixel | null> {
-  return await page.evaluate((targetDayIso) => {
+  return await page.evaluate((targetDayIso: string) => {
     const canvas = document.querySelector("canvas.chart-canvas") as HTMLCanvasElement | null;
     const api = (window as Window & {
       __ganttCanvasTestApi?: {
@@ -25,7 +26,7 @@ async function sampleWeekdayLinePixel(page: Page, dayYmd: string): Promise<Pixel
     const state = api?.getState();
     if (!canvas || !state?.layout) return null;
 
-    const parts = targetDayIso.split("-").map((v) => Number(v));
+    const parts = targetDayIso.split("-").map((v: string) => Number(v));
     const [year, month, day] = parts;
     if (!year || !month || !day) return null;
     // Weekday overlay uses local-day boundaries (d3-time's timeDay), so build
@@ -110,10 +111,32 @@ test.describe("canvas rewrite weekday lines", () => {
     expect(isGreenish(pixel as Pixel)).toBe(false);
   });
 
-  test("weekday labels display day names", async () => {
-    test.skip(
-      true,
-      "Skipping: weekday label text is rasterized on canvas and not directly introspectable via deterministic DOM/test API selectors.",
-    );
+  test("weekday line visibility updates after time-range query changes", async ({ page }) => {
+    await openE2eHarness(page, {
+      fixture: "core",
+      query: {
+        startTime: "2025-01-01T00:00:00Z",
+        endTime: "2025-01-03T00:00:00Z",
+      },
+    });
+
+    await expect
+      .poll(async () => {
+        const pixel = await sampleWeekdayLinePixel(page, "2025-01-02");
+        return pixel ? isGreenish(pixel) : null;
+      })
+      .toBe(true);
+
+    await applyHarnessQuery(page, {
+      startTime: "2025-01-01T00:00:00Z",
+      endTime: "2025-01-16T00:00:00Z",
+    });
+
+    await expect
+      .poll(async () => {
+        const pixel = await sampleWeekdayLinePixel(page, "2025-01-08");
+        return pixel ? isGreenish(pixel) : null;
+      })
+      .toBe(false);
   });
 });
