@@ -54,6 +54,14 @@ type E2eHarnessApi = {
   applyQuery: (query: Record<string, string | number | boolean | null | undefined>) => Promise<void>;
   getEvents: () => HarnessEvents;
   clearEvents: () => void;
+  callClearClipboard: () => boolean;
+  inspectExposedApi: (slotId: string) => {
+    hasApi: boolean;
+    hasLayout: boolean;
+    probeSlotId: string | null;
+    foundSlotPoint: boolean;
+  };
+  setGanttMounted: (mounted: boolean) => Promise<boolean>;
 };
 
 type HarnessWindow = Window & {
@@ -326,6 +334,48 @@ export async function clearHarnessEvents(page: Page): Promise<void> {
       | undefined;
     harness?.clearEvents();
   });
+}
+
+export async function callHarnessClearClipboard(page: Page): Promise<boolean> {
+  return await page.evaluate(() => {
+    const harness = (window as HarnessWindow).__ganttE2eHarness as
+      | Pick<E2eHarnessApi, "callClearClipboard">
+      | undefined;
+    return harness?.callClearClipboard() ?? false;
+  });
+}
+
+export async function inspectHarnessExposedApi(
+  page: Page,
+  slotId: string,
+): Promise<{
+  hasApi: boolean;
+  hasLayout: boolean;
+  probeSlotId: string | null;
+  foundSlotPoint: boolean;
+}> {
+  return await page.evaluate((currentSlotId) => {
+    const harness = (window as HarnessWindow).__ganttE2eHarness as
+      | Pick<E2eHarnessApi, "inspectExposedApi">
+      | undefined;
+    return (
+      harness?.inspectExposedApi(currentSlotId) ?? {
+        hasApi: false,
+        hasLayout: false,
+        probeSlotId: null,
+        foundSlotPoint: false,
+      }
+    );
+  }, slotId);
+}
+
+export async function setHarnessGanttMounted(page: Page, mounted: boolean): Promise<boolean> {
+  return await page.evaluate(async (nextMounted) => {
+    const harness = (window as HarnessWindow).__ganttE2eHarness as
+      | Pick<E2eHarnessApi, "setGanttMounted">
+      | undefined;
+    return (await harness?.setGanttMounted(nextMounted)) ?? false;
+  }, mounted);
 }
 
 export async function findVerticalMarkerPoint(page: Page, markerId: string): Promise<{ x: number; y: number }> {

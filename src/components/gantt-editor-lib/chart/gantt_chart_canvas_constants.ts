@@ -23,7 +23,6 @@ export const PROCESS_DATA_VIEW_PLACEHOLDER_END = new Date(86400000);
 
 export const SELECTION_STORAGE_KEY = "pointerSelection";
 export const LEGACY_CLIPBOARD_STORAGE_KEY = "pointerClipboard";
-export const HOVER_DELAY_MS = 500;
 export const BRUSH_DRAG_THRESHOLD_PX = 3;
 export const CLIPBOARD_PREVIEW_MAX_ITEMS = 5;
 

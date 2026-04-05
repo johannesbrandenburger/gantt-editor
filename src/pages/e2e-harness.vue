@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import GanttEditorComponent from "@/components/GanttEditorComponent.vue";
 import type {
@@ -53,6 +53,14 @@ type HarnessApi = {
   applyQuery: (query: QueryInput) => Promise<void>;
   getEvents: () => Record<string, unknown[]>;
   clearEvents: () => void;
+  callClearClipboard: () => boolean;
+  inspectExposedApi: (slotId: string) => {
+    hasApi: boolean;
+    hasLayout: boolean;
+    probeSlotId: string | null;
+    foundSlotPoint: boolean;
+  };
+  setGanttMounted: (mounted: boolean) => Promise<boolean>;
 };
 
 const route = useRoute();
@@ -378,6 +386,8 @@ function fromQuery(query: QueryInput): HarnessData {
 
 const harnessData = ref<HarnessData>(fromQuery(route.query as QueryInput));
 const harnessEvents = ref<Record<string, unknown[]>>({});
+const ganttMounted = ref(true);
+const ganttEditorRef = ref<InstanceType<typeof GanttEditorComponent> | null>(null);
 
 function recordEvent(name: string, payload: unknown): void {
   const current = harnessEvents.value[name] ?? [];
@@ -645,6 +655,42 @@ const testApi: HarnessApi = {
   clearEvents: () => {
     harnessEvents.value = {};
   },
+  callClearClipboard: () => {
+    const instance = ganttEditorRef.value;
+    if (!instance) return false;
+    instance.clearClipboard();
+    return true;
+  },
+  inspectExposedApi: (slotId) => {
+    const instance = ganttEditorRef.value;
+    const api = instance?.ganttCanvasTestApi;
+    if (!api) {
+      return {
+        hasApi: false,
+        hasLayout: false,
+        probeSlotId: null,
+        foundSlotPoint: false,
+      };
+    }
+
+    api.flush();
+    const state = api.getState();
+    const layout = state.layout;
+    const point = api.findSlotPoint(slotId, "center");
+    const probeSlotId = point ? api.probeCanvasPoint(point.x, point.y).slotId : null;
+
+    return {
+      hasApi: true,
+      hasLayout: !!layout,
+      probeSlotId,
+      foundSlotPoint: !!point,
+    };
+  },
+  setGanttMounted: async (mounted) => {
+    ganttMounted.value = mounted;
+    await nextTick();
+    return ganttMounted.value;
+  },
 };
 
 watch(
@@ -669,6 +715,8 @@ onBeforeUnmount(() => {
 <template>
   <div style="height: 100vh; width: 100%; margin: 0 auto">
     <GanttEditorComponent
+      v-if="ganttMounted"
+      ref="ganttEditorRef"
       :isReadOnly="harnessData.isReadOnly"
       :startTime="harnessData.startTime"
       :endTime="harnessData.endTime"

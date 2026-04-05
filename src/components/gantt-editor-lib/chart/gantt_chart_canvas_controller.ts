@@ -61,7 +61,6 @@ import {
   PROCESS_DATA_VIEW_PLACEHOLDER_END,
   SELECTION_STORAGE_KEY,
   LEGACY_CLIPBOARD_STORAGE_KEY,
-  HOVER_DELAY_MS,
   BRUSH_DRAG_THRESHOLD_PX,
   CLIPBOARD_PREVIEW_MAX_ITEMS,
   destinationGroupsSnapshot,
@@ -2194,11 +2193,7 @@ export class GanttChartCanvasController {
     }
     this.hoveredSlotId = nextSlotId;
     if (!nextSlotId || !this.callbacks.onHoverOnSlot) return;
-    this.hoverTimeout = setTimeout(() => {
-      if (this.hoveredSlotId === nextSlotId) {
-        this.callbacks.onHoverOnSlot?.(nextSlotId);
-      }
-    }, HOVER_DELAY_MS);
+    this.callbacks.onHoverOnSlot(nextSlotId);
   }
 
   private resetHoverSlot(): void {
