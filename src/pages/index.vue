@@ -18,6 +18,7 @@
             :destinations="destinations"
             :destinationGroups="destinationGroups"
             :suggestions="suggestions"
+            :verticalMarkers="verticalMarkers"
             :markedRegion="markedRegion"
             @onChangeStartAndEndTime="handleChangeStartAndEndTime"
             @onChangeDestinationId="handleChangeDestinationId"
@@ -34,6 +35,8 @@
             @onDoubleClickOnSlot="handleDoubleClickOnSlot"
             @onContextClickOnSlot="handleContextClickOnSlot"
             @onSelectionChange="handleSelectionChange"
+            @onChangeVerticalMarker="handleChangeVerticalMarker"
+            @onClickVerticalMarker="handleClickVerticalMarker"
             :topContentPortion="topContentPortion"
             @onTopContentPortionChange="(newPortion: number, newHeight: number) => topContentPortion = newPortion"
         >
@@ -143,7 +146,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
-import type { GanttEditorSlot } from '../components/gantt-editor-lib/chart/types';
+import type { GanttEditorSlot, GanttEditorVerticalMarker } from '../components/gantt-editor-lib/chart/types';
 import GanttEditorComponent from '../components/GanttEditorComponent.vue';
 import { timeHour, type TimeDomainValue } from '../components/gantt-editor-lib/chart/time_scale';
 
@@ -383,6 +386,22 @@ const suggestions = computed(() => {
         };
     });
 });
+
+// Single demo marker so the index page can test marker interactions and context-menu movement.
+const verticalMarkers = ref<GanttEditorVerticalMarker[]>([
+    {
+        id: 'demo-marker-cuttoff',
+        label: 'Cutoff',
+        date: new Date(new Date().setHours(11, 0, 0, 0)),
+        color: '#e74c3c',
+    },
+    {
+        id: 'demo-marker-test',
+        label: 'Test',
+        date: new Date(new Date().setHours(12, 0, 0, 0)),
+        color: '#3498db',
+    },
+]);
 
 // Marked region state (toggleable for testing)
 const markedRegion = ref<{ startTime: Date; endTime: Date; destinationId: string | 'multiple' } | null>(null);
@@ -625,6 +644,19 @@ const handleDoubleClickOnSlot = (slotId: string) => {
 const handleContextClickOnSlot = (slotId: string) => {
     console.log('Callback: Right clicked on slot', slotId);
     showEventMessage(`🖱️ Right clicked on ${slotId}`);
+};
+
+const handleChangeVerticalMarker = (markerId: string, date: Date) => {
+    verticalMarkers.value = verticalMarkers.value.map((marker) =>
+        marker.id === markerId
+            ? { ...marker, date }
+            : marker,
+    );
+    showEventMessage(`📍 Moved marker ${markerId} to ${date.toLocaleTimeString()}`);
+};
+
+const handleClickVerticalMarker = (markerId: string) => {
+    showEventMessage(`📌 Clicked marker ${markerId}`);
 };
 </script>
 

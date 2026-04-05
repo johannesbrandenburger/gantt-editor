@@ -76,6 +76,14 @@ type ProbeCanvasState = {
   margin: { left: number; right: number };
 };
 
+type ContextMenuState = {
+  contextMenuOpen?: boolean;
+  contextMenu?: {
+    rootItems: Array<{ id: string; label: string; center: { x: number; y: number } }>;
+    childItems: Array<{ id: string; label: string; center: { x: number; y: number } }>;
+  } | null;
+};
+
 type ProbeCanvasApi = CanvasTestApi<ProbeCanvasState> & {
   probeCanvasPoint: (x: number, y: number) => Record<ProbeField, string | null>;
 };
@@ -423,4 +431,62 @@ export async function findTopicTogglePoint(
     y: (point as { x: number; y: number }).y,
     topicId: (point as { probeId: string }).probeId,
   };
+}
+
+export async function findEmptyChartBackgroundPoint(page: Page): Promise<{ x: number; y: number }> {
+  const point = await page.evaluate(() => {
+    const api = (window as HarnessWindow).__ganttCanvasTestApi as ProbeCanvasApi | undefined;
+    api?.flush();
+    const state = api?.getState();
+    if (!api || !state?.layout) return null;
+
+    const minX = Math.max(1, state.margin.left + 12);
+    const maxX = Math.max(minX, state.layout.canvasCssWidth - state.margin.right - 1);
+    const maxY = Math.max(1, state.layout.canvasCssHeight - 1);
+
+    for (let y = 1; y <= maxY; y += 3) {
+      for (let x = minX; x <= maxX; x += 3) {
+        const probe = api.probeCanvasPoint(x, y);
+        if (probe.chartHitType !== "group") continue;
+        if (probe.slotId) continue;
+        if (probe.slotResize) continue;
+        if (probe.departureGapSlotId) continue;
+        if (probe.verticalMarkerId) continue;
+        if (probe.suggestionSlotId) continue;
+        return { x, y };
+      }
+    }
+
+    return null;
+  });
+
+  expect(point, "Expected to find an empty chart background point").not.toBeNull();
+  return point as { x: number; y: number };
+}
+
+export async function clickCanvasContextMenuItem(
+  page: Page,
+  label: string,
+  submenuLabel?: string,
+): Promise<void> {
+  const menuState = await getCanvasState<ContextMenuState>(page);
+  expect(menuState?.contextMenuOpen).toBe(true);
+
+  const rootItem = menuState?.contextMenu?.rootItems.find((item) => item.label === label);
+  expect(rootItem, `Expected context menu item '${label}'`).toBeTruthy();
+  await dispatchCanvasMouseEvent(page, rootItem!.center, "click");
+
+  if (!submenuLabel) return;
+
+  await expect
+    .poll(async () => {
+      const state = await getCanvasState<ContextMenuState>(page);
+      return !!state?.contextMenu?.childItems.length;
+    })
+    .toBe(true);
+
+  const refreshed = await getCanvasState<ContextMenuState>(page);
+  const childItem = refreshed?.contextMenu?.childItems.find((item) => item.label === submenuLabel);
+  expect(childItem, `Expected context submenu item '${submenuLabel}'`).toBeTruthy();
+  await dispatchCanvasMouseEvent(page, childItem!.center, "click");
 }

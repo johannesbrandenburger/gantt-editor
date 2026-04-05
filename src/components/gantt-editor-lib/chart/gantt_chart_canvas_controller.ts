@@ -85,9 +85,23 @@ import {
   hitSuggestionForGroup,
   hitVerticalMarkerForGroup,
 } from "./gantt_chart_interaction_and_overlay_utils";
+import {
+  buildCanvasContextMenuLayout,
+  drawCanvasContextMenu,
+  hitTestCanvasContextMenu,
+  type CanvasContextMenuItem,
+  type CanvasContextMenuLayout,
+  type CanvasContextMenuState,
+} from "./canvas_context_menu";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const COLLAPSED_SYNC_MIN_INTERVAL_MS = 250;
+
+type ContextMenuActionPayload = {
+  kind: "move-vertical-marker";
+  markerId: string;
+  targetDate: Date;
+};
 
 export class GanttChartCanvasController {
   private props: GanttEditorProps;
@@ -132,6 +146,15 @@ export class GanttChartCanvasController {
   private lastClickedSlotId: string | null = null;
   private lastDoubleClickedSlotId: string | null = null;
   private lastContextClickedSlotId: string | null = null;
+  private contextMenuState: CanvasContextMenuState<ContextMenuActionPayload> = {
+    visible: false,
+    anchorX: 0,
+    anchorY: 0,
+    items: [],
+    hoverRootIndex: null,
+    hoverChildIndex: null,
+    openChildRootIndex: null,
+  };
 
   private pointerInChart = false;
   private pointerCanvasX = 0;
@@ -513,6 +536,23 @@ export class GanttChartCanvasController {
     const layout = this.getChartLayout();
     const canvas = this.canvas;
     if (!layout || !canvas) return;
+
+    if (this.contextMenuState.visible) {
+      this.pointerInChart = true;
+      const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
+      const menuInteractionChanged = this.updateContextMenuHover(
+        pt.x,
+        pt.y,
+        layout.canvasCssWidth,
+        layout.canvasCssHeight,
+      );
+      canvas.style.cursor = this.isPointOverContextMenu(pt.x, pt.y, layout) ? "pointer" : "";
+      if (menuInteractionChanged) {
+        this.scheduleFrameRedraw(true);
+      }
+      return;
+    }
+
     const altCopyChanged = this.syncAltCopyModifier(e.altKey);
     const shiftTimeAxisChanged = this.syncShiftTimeAxisModifier(e.shiftKey);
     this.pointerInChart = true;
@@ -677,6 +717,7 @@ export class GanttChartCanvasController {
   }
 
   onChartMouseLeave(): void {
+    this.closeContextMenu(false);
     this.hoverResizeBand = null;
     this.pointerInChart = false;
     this.hoveredSuggestion = null;
@@ -695,6 +736,7 @@ export class GanttChartCanvasController {
   }
 
   onMouseLeave(): void {
+    this.closeContextMenu(false);
     this.pointerInChart = false;
     this.hoveredSuggestion = null;
     this.hoveredClipboardTopicId = null;
@@ -714,6 +756,10 @@ export class GanttChartCanvasController {
 
     if (handlePanZoomWheelEvent(event, canvas, this.panZoomCallbacks)) {
       return;
+    }
+
+    if (this.contextMenuState.visible) {
+      this.closeContextMenu(false);
     }
 
     if (event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -742,6 +788,9 @@ export class GanttChartCanvasController {
   }
 
   onCanvasMouseDown(e: MouseEvent): void {
+    if (this.contextMenuState.visible) {
+      return;
+    }
     if (e.button !== 0) return;
     const layout = this.getChartLayout();
     const canvas = this.canvas;
@@ -866,6 +915,16 @@ export class GanttChartCanvasController {
     const ctx = this.resolveGroupPointerContext(e.clientX, e.clientY);
     if (!ctx) return;
 
+    if (this.contextMenuState.visible) {
+      this.handleContextMenuClick(
+        ctx.point.x,
+        ctx.point.y,
+        ctx.layout.canvasCssWidth,
+        ctx.layout.canvasCssHeight,
+      );
+      return;
+    }
+
     const markerHit = this.hitVerticalMarkerForGroup(
       ctx.groupId,
       ctx.point.x,
@@ -951,23 +1010,118 @@ export class GanttChartCanvasController {
   }
 
   onCanvasContextMenu(e: MouseEvent): void {
-    if (!slotsAllowLabelsAndInteraction(this.rowHeight)) return;
-
     const ctx = this.resolveGroupPointerContext(e.clientX, e.clientY);
     if (!ctx) return;
-    const slotHit = hitTestSlotBar({
-      topics: ctx.groupTopics,
-      canvasX: ctx.point.x,
-      contentY: ctx.contentY,
-      margin: MARGIN,
-      width: ctx.layout.canvasCssWidth,
-      rowHeight: this.rowHeight,
-      startTime: this.internalStartTime,
-      endTime: this.internalEndTime,
-    });
-    if (!slotHit) return;
-    this.lastContextClickedSlotId = slotHit.slotId;
-    this.callbacks.onContextClickOnSlot?.(slotHit.slotId);
+
+    this.closeContextMenu(false);
+
+    const suggestionHit = this.hitSuggestionForGroup(
+      ctx.groupId,
+      ctx.point.x,
+      ctx.contentY,
+      ctx.layout.canvasCssWidth,
+      ctx.groupTopics,
+    );
+    if (suggestionHit) return;
+
+    const markerHit = this.hitVerticalMarkerForGroup(
+      ctx.groupId,
+      ctx.point.x,
+      ctx.point.y,
+      ctx.layout.canvasCssWidth,
+    );
+    if (markerHit) return;
+
+    const slotsInteractive = slotsAllowLabelsAndInteraction(this.rowHeight);
+    if (slotsInteractive) {
+      const slotHit = hitTestSlotBar({
+        topics: ctx.groupTopics,
+        canvasX: ctx.point.x,
+        contentY: ctx.contentY,
+        margin: MARGIN,
+        width: ctx.layout.canvasCssWidth,
+        rowHeight: this.rowHeight,
+        startTime: this.internalStartTime,
+        endTime: this.internalEndTime,
+      });
+      if (slotHit) {
+        this.lastContextClickedSlotId = slotHit.slotId;
+        this.callbacks.onContextClickOnSlot?.(slotHit.slotId);
+        return;
+      }
+
+      const resizeHit = hitTestSlotResizeEdge({
+        topics: ctx.groupTopics,
+        canvasX: ctx.point.x,
+        contentY: ctx.contentY,
+        margin: MARGIN,
+        width: ctx.layout.canvasCssWidth,
+        rowHeight: this.rowHeight,
+        startTime: this.internalStartTime,
+        endTime: this.internalEndTime,
+        isReadOnly: this.props.isReadOnly,
+      });
+      if (resizeHit) return;
+
+      const departureGapSlotId = departureMarkersVisible(this.rowHeight)
+        ? hitTestDepartureGap({
+            width: ctx.layout.canvasCssWidth,
+            topics: ctx.groupTopics,
+            margin: MARGIN,
+            rowHeight: this.rowHeight,
+            startTime: this.internalStartTime,
+            endTime: this.internalEndTime,
+            canvasX: ctx.point.x,
+            contentY: ctx.contentY,
+          })
+        : null;
+      if (departureGapSlotId) return;
+    }
+
+    if (ctx.point.x < MARGIN.left) return;
+
+    const draggableMarkers = this.getDraggableMarkers();
+    if (draggableMarkers.length === 0) return;
+
+    const targetX = clampVerticalMarkerCanvasX(ctx.point.x, ctx.layout.canvasCssWidth, MARGIN);
+    const targetDate = verticalMarkerDateFromCanvasX(
+      targetX,
+      ctx.layout.canvasCssWidth,
+      this.internalStartTime,
+      this.internalEndTime,
+      MARGIN,
+    );
+
+    const menuItems: CanvasContextMenuItem<ContextMenuActionPayload>[] =
+      draggableMarkers.length === 1
+        ? [
+            {
+              id: "move-marker-here",
+              label: "Move marker here",
+              payload: {
+                kind: "move-vertical-marker",
+                markerId: draggableMarkers[0]!.id,
+                targetDate,
+              },
+            },
+          ]
+        : [
+            {
+              id: "move-marker-here",
+              label: "Move marker here",
+              children: draggableMarkers.map((marker) => ({
+                id: `move-marker:${marker.id}`,
+                label: marker.label && marker.label.trim().length > 0 ? marker.label : marker.id,
+                payload: {
+                  kind: "move-vertical-marker",
+                  markerId: marker.id,
+                  targetDate,
+                },
+              })),
+            },
+          ];
+
+    this.openContextMenu(ctx.point.x, ctx.point.y, menuItems);
   }
 
   getCanvasElement(): HTMLCanvasElement | null {
@@ -998,6 +1152,11 @@ export class GanttChartCanvasController {
     lastContextClickedSlotId: string | null;
     internalStartTimeMs: number;
     internalEndTimeMs: number;
+    contextMenuOpen: boolean;
+    contextMenu: {
+      rootItems: Array<{ id: string; label: string; center: { x: number; y: number } }>;
+      childItems: Array<{ id: string; label: string; center: { x: number; y: number } }>;
+    } | null;
     margin: { left: number; right: number };
     layout: {
       canvasCssWidth: number;
@@ -1008,6 +1167,9 @@ export class GanttChartCanvasController {
   } {
     const destinationPreviewState = this.getDestinationPreviewState(performance.now());
     const layout = this.getChartLayout();
+    const contextMenuLayout = layout
+      ? this.getContextMenuLayout(layout.canvasCssWidth, layout.canvasCssHeight)
+      : null;
     return {
       rowHeight: this.rowHeight,
       selectionSlotIds: this.clipboardItems.map((slot) => slot.id),
@@ -1025,6 +1187,27 @@ export class GanttChartCanvasController {
       lastContextClickedSlotId: this.lastContextClickedSlotId,
       internalStartTimeMs: this.internalStartTime.getTime(),
       internalEndTimeMs: this.internalEndTime.getTime(),
+      contextMenuOpen: this.contextMenuState.visible,
+      contextMenu: contextMenuLayout
+        ? {
+            rootItems: contextMenuLayout.rootItems.map((item) => ({
+              id: item.id,
+              label: item.label,
+              center: {
+                x: item.rect.x + item.rect.width / 2,
+                y: item.rect.y + item.rect.height / 2,
+              },
+            })),
+            childItems: contextMenuLayout.childItems.map((item) => ({
+              id: item.id,
+              label: item.label,
+              center: {
+                x: item.rect.x + item.rect.width / 2,
+                y: item.rect.y + item.rect.height / 2,
+              },
+            })),
+          }
+        : null,
       margin: { left: MARGIN.left, right: MARGIN.right },
       layout: layout
         ? {
@@ -2756,6 +2939,13 @@ export class GanttChartCanvasController {
     }
 
     if (e.key !== "Escape" && e.keyCode !== 27) return;
+
+    if (this.contextMenuState.visible) {
+      e.preventDefault();
+      this.closeContextMenu(true);
+      return;
+    }
+
     if (this.readSelection().length === 0) return;
     e.preventDefault();
     this.clearSelection();
@@ -3157,6 +3347,7 @@ export class GanttChartCanvasController {
     this.drawClipboardPreviewOverlay(ctx, layout);
     this.drawSuggestionHoverOverlay(ctx, layout);
     this.drawSlotHoverTooltipOverlay(ctx, layout);
+    this.drawContextMenuOverlay(ctx, layout);
 
     if (slotReflowTransition || collapseLayoutTransition || destinationPreview) {
       this.scheduleFrameRedraw(false);
@@ -3393,6 +3584,15 @@ export class GanttChartCanvasController {
     ctx.restore();
   }
 
+  private drawContextMenuOverlay(
+    ctx: CanvasRenderingContext2D,
+    layout: UnifiedChartLayout,
+  ): void {
+    const menuLayout = this.getContextMenuLayout(layout.canvasCssWidth, layout.canvasCssHeight);
+    if (!menuLayout) return;
+    drawCanvasContextMenu(ctx, menuLayout, this.contextMenuState);
+  }
+
   private hoveredSlotHoverData(): string | null {
     const slotId = this.hoveredSlotId;
     if (!slotId) return null;
@@ -3469,6 +3669,176 @@ export class GanttChartCanvasController {
 
   private redraw(): void {
     this.scheduleFrameRedraw(false);
+  }
+
+  private getContextMenuMeasureTextWidth(text: string): number {
+    const canvas = this.canvas;
+    if (!canvas) return text.length * 7;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return text.length * 7;
+
+    ctx.save();
+    ctx.font = "13px sans-serif";
+    const width = ctx.measureText(text).width;
+    ctx.restore();
+    return width;
+  }
+
+  private getContextMenuLayout(
+    canvasWidth: number,
+    canvasHeight: number,
+  ): CanvasContextMenuLayout<ContextMenuActionPayload> | null {
+    return buildCanvasContextMenuLayout({
+      state: this.contextMenuState,
+      canvasWidth,
+      canvasHeight,
+      measureTextWidth: (text) => this.getContextMenuMeasureTextWidth(text),
+    });
+  }
+
+  private openContextMenu(
+    anchorX: number,
+    anchorY: number,
+    items: CanvasContextMenuItem<ContextMenuActionPayload>[],
+  ): void {
+    this.contextMenuState = {
+      visible: true,
+      anchorX,
+      anchorY,
+      items,
+      hoverRootIndex: null,
+      hoverChildIndex: null,
+      openChildRootIndex: null,
+    };
+    this.scheduleFrameRedraw(true);
+  }
+
+  private closeContextMenu(redraw: boolean): void {
+    if (!this.contextMenuState.visible) return;
+    this.contextMenuState = {
+      ...this.contextMenuState,
+      visible: false,
+      items: [],
+      hoverRootIndex: null,
+      hoverChildIndex: null,
+      openChildRootIndex: null,
+    };
+    if (redraw) {
+      this.scheduleFrameRedraw(true);
+    }
+  }
+
+  private updateContextMenuHover(
+    canvasX: number,
+    canvasY: number,
+    canvasWidth: number,
+    canvasHeight: number,
+  ): boolean {
+    const menuLayout = this.getContextMenuLayout(canvasWidth, canvasHeight);
+    if (!menuLayout) return false;
+
+    const hit = hitTestCanvasContextMenu(menuLayout, canvasX, canvasY);
+    const prevRoot = this.contextMenuState.hoverRootIndex;
+    const prevChild = this.contextMenuState.hoverChildIndex;
+    const prevOpenChildRoot = this.contextMenuState.openChildRootIndex;
+
+    if (hit.zone === "root" && hit.rootItem) {
+      const hasChildren = (this.contextMenuState.items[hit.rootItem.index]?.children?.length ?? 0) > 0;
+      this.contextMenuState.hoverRootIndex = hit.rootItem.index;
+      this.contextMenuState.hoverChildIndex = null;
+      this.contextMenuState.openChildRootIndex = hasChildren ? hit.rootItem.index : null;
+    } else if (hit.zone === "child" && hit.childItem) {
+      this.contextMenuState.hoverChildIndex = hit.childItem.index;
+    } else if (hit.zone === "bridge") {
+      // Keep submenu state stable while crossing the intentional visual gap.
+    } else {
+      this.contextMenuState.hoverRootIndex = null;
+      this.contextMenuState.hoverChildIndex = null;
+      this.contextMenuState.openChildRootIndex = null;
+    }
+
+    return (
+      prevRoot !== this.contextMenuState.hoverRootIndex ||
+      prevChild !== this.contextMenuState.hoverChildIndex ||
+      prevOpenChildRoot !== this.contextMenuState.openChildRootIndex
+    );
+  }
+
+  private handleContextMenuClick(
+    canvasX: number,
+    canvasY: number,
+    canvasWidth: number,
+    canvasHeight: number,
+  ): void {
+    const menuLayout = this.getContextMenuLayout(canvasWidth, canvasHeight);
+    if (!menuLayout) return;
+
+    const hit = hitTestCanvasContextMenu(menuLayout, canvasX, canvasY);
+    if (hit.zone === "bridge") {
+      return;
+    }
+    if (hit.zone === "outside") {
+      this.closeContextMenu(true);
+      return;
+    }
+
+    if (hit.zone === "root" && hit.rootItem) {
+      const rootItem = this.contextMenuState.items[hit.rootItem.index];
+      if (!rootItem || rootItem.enabled === false) {
+        this.closeContextMenu(true);
+        return;
+      }
+      if ((rootItem.children?.length ?? 0) > 0) {
+        this.contextMenuState.hoverRootIndex = hit.rootItem.index;
+        this.contextMenuState.openChildRootIndex = hit.rootItem.index;
+        this.contextMenuState.hoverChildIndex = null;
+        this.scheduleFrameRedraw(true);
+        return;
+      }
+      this.runContextMenuAction(rootItem.payload);
+      this.closeContextMenu(true);
+      return;
+    }
+
+    if (hit.zone === "child" && hit.childItem) {
+      const rootIndex = this.contextMenuState.openChildRootIndex;
+      const child =
+        rootIndex !== null
+          ? this.contextMenuState.items[rootIndex]?.children?.[hit.childItem.index]
+          : null;
+      if (!child || child.enabled === false) {
+        this.closeContextMenu(true);
+        return;
+      }
+      this.runContextMenuAction(child.payload);
+      this.closeContextMenu(true);
+    }
+  }
+
+  private isPointOverContextMenu(
+    canvasX: number,
+    canvasY: number,
+    layout: UnifiedChartLayout,
+  ): boolean {
+    const menuLayout = this.getContextMenuLayout(layout.canvasCssWidth, layout.canvasCssHeight);
+    if (!menuLayout) return false;
+    return hitTestCanvasContextMenu(menuLayout, canvasX, canvasY).zone !== "outside";
+  }
+
+  private runContextMenuAction(payload: ContextMenuActionPayload | undefined): void {
+    if (!payload) return;
+    if (payload.kind === "move-vertical-marker") {
+      this.callbacks.onVerticalMarkerChange?.(payload.markerId, payload.targetDate);
+    }
+  }
+
+  private getDraggableMarkers(): Array<{ id: string; label?: string }> {
+    if (this.props.isReadOnly) return [];
+    const markers = this.props.verticalMarkers ?? [];
+    return markers
+      .filter((marker) => marker.draggable !== false)
+      .map((marker) => ({ id: marker.id, label: marker.label }));
   }
 
   private scrollToMarkedRegionDestination(

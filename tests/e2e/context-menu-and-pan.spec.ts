@@ -2,6 +2,10 @@ import { expect, test, type Page } from "./coverage-test";
 import {
   canvasPointToPagePoint,
   clearHarnessEvents,
+  dispatchCanvasMouseEvent,
+  findEmptyChartBackgroundPoint,
+  findSlotPoint,
+  findVerticalMarkerPoint,
   getCanvasState,
   getCanvasStateField,
   getHarnessEvents,
@@ -85,6 +89,56 @@ test.describe("canvas rewrite context menu and pan", () => {
         timeout: 2_000,
       })
       .toBe(beforeStartMs);
+  });
+
+  test("right click on empty chart background opens canvas context menu", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "markers" });
+    await clearHarnessEvents(page);
+
+    const backgroundPoint = await findEmptyChartBackgroundPoint(page);
+    await dispatchCanvasMouseEvent(page, backgroundPoint, "contextmenu");
+
+    await expect
+      .poll(async () => await getCanvasStateField<boolean>(page, "contextMenuOpen"))
+      .toBe(true);
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        return (events.onContextClickOnSlot ?? []).length;
+      })
+      .toBe(0);
+  });
+
+  test("right click on slot keeps slot context callback and does not open background menu", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
+    await clearHarnessEvents(page);
+
+    const slotPoint = await findSlotPoint(page, "LH123-20250101-F");
+    await dispatchCanvasMouseEvent(page, slotPoint, "contextmenu");
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const contextEvents = (events.onContextClickOnSlot ?? []) as Array<{ slotId?: string }>;
+        return contextEvents.at(-1)?.slotId ?? null;
+      })
+      .toBe("LH123-20250101-F");
+
+    await expect
+      .poll(async () => await getCanvasStateField<boolean>(page, "contextMenuOpen"))
+      .toBe(false);
+  });
+
+  test("right click on a vertical marker does not open background context menu", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "markers" });
+
+    const markerPoint = await findVerticalMarkerPoint(page, "m-std");
+    await dispatchCanvasMouseEvent(page, markerPoint, "contextmenu");
+
+    await expect
+      .poll(async () => await getCanvasStateField<boolean>(page, "contextMenuOpen"))
+      .toBe(false);
   });
 
   test("right click drag commits pan callback and shifts internal time range", async ({ page }) => {

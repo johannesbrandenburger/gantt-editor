@@ -1,8 +1,10 @@
 import { expect, test } from "./coverage-test";
 import {
+  clickCanvasContextMenuItem,
   canvasPointToPagePoint,
   clearHarnessEvents,
   dispatchCanvasMouseEvent,
+  findEmptyChartBackgroundPoint,
   findVerticalMarkerPoint,
   getHarnessConfig,
   getHarnessEvents,
@@ -81,5 +83,71 @@ test.describe("canvas rewrite vertical markers", () => {
         return changes.at(-1)?.id ?? null;
       })
       .toBe(MARKER_STD);
+  });
+
+  test("single draggable marker can be moved from background context menu", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core", query: { markers: true } });
+    await clearHarnessEvents(page);
+
+    const before = (await getHarnessConfig(page)).verticalMarkers?.find((marker) => marker.id === "m-auto")?.date;
+    expect(before).toBeTruthy();
+
+    const backgroundPoint = await findEmptyChartBackgroundPoint(page);
+    await dispatchCanvasMouseEvent(page, backgroundPoint, "contextmenu");
+    await clickCanvasContextMenuItem(page, "Move marker here");
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const changes = (events.onChangeVerticalMarker ?? []) as Array<{ id?: string }>;
+        return changes.at(-1)?.id ?? null;
+      })
+      .toBe("m-auto");
+
+    await expect
+      .poll(async () => {
+        const marker = (await getHarnessConfig(page)).verticalMarkers?.find((item) => item.id === "m-auto");
+        return marker?.date ? new Date(marker.date).getTime() : null;
+      })
+      .not.toBe(before ? new Date(before).getTime() : null);
+  });
+
+  test("multiple markers require submenu and move selected marker", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "markers" });
+    await clearHarnessEvents(page);
+
+    const before = await getHarnessConfig(page);
+    const beforeStd = before.verticalMarkers?.find((marker) => marker.id === MARKER_STD)?.date;
+    const beforeEtd = before.verticalMarkers?.find((marker) => marker.id === MARKER_ETD)?.date;
+    expect(beforeStd).toBeTruthy();
+    expect(beforeEtd).toBeTruthy();
+
+    const backgroundPoint = await findEmptyChartBackgroundPoint(page);
+    await dispatchCanvasMouseEvent(page, backgroundPoint, "contextmenu");
+    await clickCanvasContextMenuItem(page, "Move marker here", "STD");
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const changes = (events.onChangeVerticalMarker ?? []) as Array<{ id?: string }>;
+        return changes.at(-1)?.id ?? null;
+      })
+      .toBe(MARKER_STD);
+
+    await expect
+      .poll(async () => {
+        const config = await getHarnessConfig(page);
+        const marker = config.verticalMarkers?.find((item) => item.id === MARKER_STD);
+        return marker?.date ? new Date(marker.date).getTime() : null;
+      })
+      .not.toBe(beforeStd ? new Date(beforeStd).getTime() : null);
+
+    await expect
+      .poll(async () => {
+        const config = await getHarnessConfig(page);
+        const marker = config.verticalMarkers?.find((item) => item.id === MARKER_ETD);
+        return marker?.date ? new Date(marker.date).getTime() : null;
+      })
+      .toBe(beforeEtd ? new Date(beforeEtd).getTime() : null);
   });
 });
