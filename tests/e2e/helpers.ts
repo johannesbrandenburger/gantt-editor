@@ -208,7 +208,7 @@ export async function mouseDrag(page: Page, from: { x: number; y: number }, to: 
 export async function dispatchCanvasMouseEvent(
   page: Page,
   canvasPoint: { x: number; y: number },
-  type: "click" | "dblclick" | "contextmenu",
+  type: "click" | "dblclick" | "contextmenu" | "mousemove",
   modifiers?: { ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean },
 ): Promise<void> {
   await page.evaluate(

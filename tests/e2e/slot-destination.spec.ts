@@ -8,6 +8,7 @@ import {
   getHarnessConfig,
   getHarnessEvents,
   openE2eHarness,
+  setHarnessConfig,
 } from "./helpers";
 
 const SLOT_A = "LH123-20250101-F";
@@ -274,6 +275,76 @@ test.describe("canvas rewrite slot destination change", () => {
       .toBe(beforeCount + 2);
   });
 
+  test("seeded mixed selection excludes read-only slots from committed move", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
+    await clearHarnessEvents(page);
+
+    const configured = await setHarnessConfig(page, {
+      slots: (await getHarnessConfig(page)).slots.map((slot) =>
+        slot.id === SLOT_B ? { ...slot, readOnly: true } : slot,
+      ),
+    });
+
+    const readOnlyBefore = configured.slots.find((slot) => slot.id === SLOT_B);
+    expect(readOnlyBefore?.destinationId).toBe("chute-2");
+
+    await seedSelection(page, [SLOT_A, SLOT_B]);
+
+    const targetPoint = await findSlotPoint(page, SLOT_C, "center");
+    await dispatchCanvasMouseEvent(page, targetPoint, "click");
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const singles = (events.onChangeDestinationId ?? []) as Array<{
+          slotId?: string;
+          destinationId?: string;
+          preview?: boolean;
+        }>;
+        return singles.find((event) => event.preview === false) ?? null;
+      })
+      .toEqual({ slotId: SLOT_A, destinationId: "UNALLOCATED", preview: false });
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        return (events.onBulkChangeDestinationId ?? []).length;
+      })
+      .toBe(0);
+
+    await expect
+      .poll(async () => {
+        const slots = (await getHarnessConfig(page)).slots;
+        const moved = slots.find((slot) => slot.id === SLOT_A)?.destinationId ?? null;
+        const readOnly = slots.find((slot) => slot.id === SLOT_B)?.destinationId ?? null;
+        return { moved, readOnly };
+      })
+      .toEqual({ moved: "UNALLOCATED", readOnly: "chute-2" });
+  });
+
+  test("repeated Alt + click copy keeps generated copy IDs unique", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
+
+    const sourcePoint = await findSlotPoint(page, SLOT_A, "center");
+    const targetPoint = await findSlotPoint(page, SLOT_B, "center");
+
+    await dispatchCanvasMouseEvent(page, sourcePoint, "click");
+    await dispatchCanvasMouseEvent(page, targetPoint, "click", { altKey: true });
+
+    await dispatchCanvasMouseEvent(page, sourcePoint, "click");
+    await dispatchCanvasMouseEvent(page, targetPoint, "click", { altKey: true });
+
+    await expect
+      .poll(async () => {
+        const copiedIds = (await getHarnessConfig(page)).slots
+          .map((slot) => slot.id)
+          .filter((id) => id.startsWith(`${SLOT_A}__copy__`))
+          .sort();
+        return copiedIds;
+      })
+      .toEqual([`${SLOT_A}__copy__1`, `${SLOT_A}__copy__2`]);
+  });
+
   test("Shift + click on same day does not trigger time-axis move/copy", async ({ page }) => {
     await openE2eHarness(page, {
       fixture: "core",
@@ -373,6 +444,53 @@ test.describe("canvas rewrite slot destination change", () => {
           ? new Date(beforeSlot!.secondaryDeadline).getTime() + DAY_IN_MS
           : null,
       });
+  });
+
+  test("Shift + Alt + click on next day copies selected slots on time axis", async ({ page }) => {
+    await openE2eHarness(page, {
+      fixture: "core",
+      query: {
+        startTime: "2025-01-01T00:00:00Z",
+        endTime: "2025-01-03T00:00:00Z",
+      },
+    });
+    await clearHarnessEvents(page);
+
+    const beforeCount = (await getHarnessConfig(page)).slots.length;
+    await seedSelection(page, [SLOT_A, SLOT_B]);
+
+    const nextDayPoint = await pointForDayOffset(page, 1);
+    await dispatchCanvasMouseEvent(page, nextDayPoint, "click", { shiftKey: true, altKey: true });
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const copies = (events.onBulkCopySlotsOnTimeAxis ?? []) as Array<{
+          slotIds?: string[];
+          timeDiffMs?: number;
+          preview?: boolean;
+        }>;
+        const committed = copies.find((item) => item.preview === false);
+        return {
+          slotIds: [...(committed?.slotIds ?? [])].sort(),
+          timeDiffMs: committed?.timeDiffMs ?? null,
+        };
+      })
+      .toEqual({
+        slotIds: [SLOT_A, SLOT_B],
+        timeDiffMs: DAY_IN_MS,
+      });
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        return (events.onBulkMoveSlotsOnTimeAxis ?? []).length;
+      })
+      .toBe(0);
+
+    await expect
+      .poll(async () => (await getHarnessConfig(page)).slots.length)
+      .toBe(beforeCount + 2);
   });
 
   test("Shift + Alt + click with multi-select emits bulk time-axis copy", async ({ page }) => {

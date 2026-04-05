@@ -396,9 +396,15 @@ export function processData(
   endDateTime: Date,
   settings: Settings,
 ): ProcessedData {
-  const collapsedTopics = JSON.parse(
-    localStorage.getItem('collapsedTopics') || '[]',
-  ) as string[];
+  let collapsedTopics: string[] = [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem('collapsedTopics') || '[]');
+    if (Array.isArray(parsed)) {
+      collapsedTopics = parsed.filter((value): value is string => typeof value === 'string');
+    }
+  } catch {
+    collapsedTopics = [];
+  }
   const collapsedSet = new Set(collapsedTopics);
 
   const enrichedDestinationData = destinationData.map((destination) => ({

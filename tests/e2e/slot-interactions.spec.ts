@@ -32,7 +32,7 @@ test.describe("canvas rewrite slot interactions", () => {
   test("hover on slot updates hovered slot state", async () => {
     test.skip(
       true,
-      "Skipping: hover callbacks are currently not deterministically observable in headless harness runs.",
+      "Skipping: hover callbacks/state are currently not deterministically observable in headless harness runs.",
     );
   });
 
