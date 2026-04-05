@@ -46,7 +46,7 @@ export function suggestionsVisible(rowHeight: number): boolean {
 /**
  * Destination/topic labels stay visible longer than slot text so users can still orient when zoomed out.
  */
-export const DESTINATION_LABEL_MIN_ROW_HEIGHT_PX = 6;
+export const DESTINATION_LABEL_MIN_ROW_HEIGHT_PX = 4;
 
 export function destinationLabelsVisible(rowHeight: number): boolean {
   return rowHeight > DESTINATION_LABEL_MIN_ROW_HEIGHT_PX;

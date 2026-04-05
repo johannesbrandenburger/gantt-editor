@@ -10,8 +10,8 @@ import {
 import {
   computeRowHeightForUnifiedZoom,
   SLOT_RENDER_RATIO,
+  DESTINATION_LABEL_MIN_ROW_HEIGHT_PX,
   departureMarkersVisible,
-  destinationLabelsVisible,
   suggestionsVisible,
   slotsAllowLabelsAndInteraction,
 } from "./canvas_slot_scale";
@@ -3071,7 +3071,7 @@ export class GanttChartCanvasController {
         viewportTop: clampedOffset,
         viewportHeight: viewportHeight,
         layouts: animatedTopicLayouts,
-        showTopicHeaderText: destinationLabelsVisible(this.rowHeight),
+        topicHeaderMinVisibleHeightPx: DESTINATION_LABEL_MIN_ROW_HEIGHT_PX,
       });
 
       drawSlots({

@@ -2,6 +2,8 @@ import type { Topic } from "./types";
 
 /** Matches default row height in GanttEditorComponent — fonts/padding scale from this baseline. */
 export const TEXT_SCALE_BASE_ROW_HEIGHT = 40;
+const TOPIC_HEADER_MAX_FONT_PX = 10;
+const TOPIC_HEADER_MIN_FONT_PX = 3;
 
 /** Band padding for topic rows (must match slot band geometry in canvas_slots). Lower = denser rows. */
 export const TOPIC_BAND_PADDING = 0.2;
@@ -20,13 +22,75 @@ export function scaledBoldSansFont(rowHeight: number): string {
  */
 export function scaledTopicHeaderFont(rowHeight: number): string {
   const px = Math.round(
-    Math.max(8, Math.min(24, 6 + (6 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT)),
+    Math.max(
+      TOPIC_HEADER_MIN_FONT_PX,
+      Math.min(TOPIC_HEADER_MAX_FONT_PX, 6 + (6 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT),
+    ),
   );
   return `bold ${px}px sans-serif`;
 }
 
+function topicHeaderFontSpec(px: number): string {
+  return `bold ${Math.round(px)}px sans-serif`;
+}
+
+function truncateTextToWidth(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+): string {
+  if (maxWidth <= 0) return "";
+  if (ctx.measureText(text).width <= maxWidth) return text;
+
+  const ellipsis = "...";
+  const ellipsisWidth = ctx.measureText(ellipsis).width;
+  if (ellipsisWidth > maxWidth) return "";
+
+  let low = 0;
+  let high = text.length;
+  let best = "";
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const candidate = `${text.slice(0, mid)}${ellipsis}`;
+    if (ctx.measureText(candidate).width <= maxWidth) {
+      best = candidate;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return best;
+}
+
+function fitTopicHeaderFontPx(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  labelScaleHeight: number,
+  maxLabelWidth: number,
+): number {
+  const unclamped = 6 + (6 * labelScaleHeight) / TEXT_SCALE_BASE_ROW_HEIGHT;
+  const basePx = Math.max(
+    TOPIC_HEADER_MIN_FONT_PX,
+    Math.min(TOPIC_HEADER_MAX_FONT_PX, unclamped),
+  );
+
+  ctx.font = topicHeaderFontSpec(basePx);
+  const textWidth = ctx.measureText(text).width;
+  if (textWidth <= 0 || textWidth <= maxLabelWidth) {
+    return basePx;
+  }
+
+  const widthFittedPx = (basePx * maxLabelWidth) / textWidth;
+  return Math.max(TOPIC_HEADER_MIN_FONT_PX, Math.min(basePx, widthFittedPx));
+}
+
 export function scaledLabelInsetX(rowHeight: number): number {
-  return Math.round((10 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT);
+  const scaled = (10 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT;
+  return Math.round(Math.max(6, Math.min(10, scaled)));
+}
+
+function scaledLabelOffsetY(rowHeight: number): number {
+  return Math.round(Math.max(4, Math.min(18, rowHeight / 2)));
 }
 
 export interface TopicLayout {
@@ -56,6 +120,8 @@ export interface DrawTopicsParams {
   layouts?: TopicLayout[];
   /** When false, topic names in the margin are omitted (dense overview). */
   showTopicHeaderText?: boolean;
+  /** Minimum rendered topic height required to draw a topic header label. */
+  topicHeaderMinVisibleHeightPx?: number;
 }
 
 /**
@@ -84,7 +150,7 @@ export function computeTopicLayout(
     const gridlineY = currentY;
 
     const labelX = scaledLabelInsetX(rowHeight);
-    const labelY = currentY + step - bandwidth / 2;
+    const labelY = currentY + scaledLabelOffsetY(step);
 
     let labelText = "";
     if (topic.isInactive) labelText += "⚠️ ";
@@ -148,6 +214,7 @@ export function drawTopicLines(params: DrawTopicsParams) {
     viewportHeight,
     layouts: layoutsIn,
     showTopicHeaderText = true,
+    topicHeaderMinVisibleHeightPx = 0,
   } = params;
 
   const hasViewport = viewportTop !== undefined && viewportHeight !== undefined;
@@ -194,13 +261,29 @@ export function drawTopicLines(params: DrawTopicsParams) {
   // Draw topic header labels (bold, in the margin area)
   if (showTopicHeaderText) {
     ctx.save();
-    ctx.font = scaledTopicHeaderFont(rowHeight);
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
+    const maxLabelWidth = Math.max(0, margin.left - scaledLabelInsetX(rowHeight) - 8);
     for (const layout of layouts) {
       if (hasViewport && (layout.topic.yEnd < viewportTop || layout.topic.yStart > viewportTop + viewportHeight)) continue;
+      const topicHeight = Math.max(0, layout.topic.yEnd - layout.topic.yStart);
+      const effectiveVisibleHeight = Math.max(rowHeight, topicHeight);
+      if (effectiveVisibleHeight <= topicHeaderMinVisibleHeightPx) continue;
+      const fontPx = fitTopicHeaderFontPx(
+        ctx,
+        layout.labelText,
+        effectiveVisibleHeight,
+        maxLabelWidth,
+      );
+      ctx.font = topicHeaderFontSpec(fontPx);
+      const displayLabel = truncateTextToWidth(ctx, layout.labelText, maxLabelWidth);
+      if (!displayLabel) continue;
+      const minLabelY = layout.topic.yStart + fontPx / 2 + 1;
+      const preferredLabelY = layout.topic.yStart + fontPx / 2 + 4;
+      const maxLabelY = Math.max(minLabelY, layout.topic.yEnd - fontPx / 2 - 1);
+      const labelY = Math.min(maxLabelY, preferredLabelY);
       ctx.fillStyle = layout.isInactive ? "red" : "black";
-      ctx.fillText(layout.labelText, layout.labelX, layout.labelY);
+      ctx.fillText(displayLabel, layout.labelX, labelY);
     }
     ctx.restore();
   }
