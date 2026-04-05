@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./coverage-test";
 import { openE2eHarness } from "./helpers";
 
 type Pixel = { r: number; g: number; b: number; a: number };

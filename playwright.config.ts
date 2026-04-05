@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const isCoverageRun = !!process.env.PW_E2E_COVERAGE;
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
@@ -25,7 +27,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run dev",
+    command: isCoverageRun
+      ? "cross-env VITE_COVERAGE=true NODE_ENV=test npm run dev"
+      : "npm run dev",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
   },

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./coverage-test";
 import { getCanvasState, getHarnessConfig, openE2eHarness } from "./helpers";
 
 type CanvasState = {

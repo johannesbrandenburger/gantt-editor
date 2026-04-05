@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./coverage-test";
 import { findSlotPoint, getHarnessConfig, openE2eHarness } from "./helpers";
 
 async function collectTopicIds(page: Page): Promise<string[]> {

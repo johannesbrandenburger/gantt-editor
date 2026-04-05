@@ -1,6 +1,7 @@
 import Vue from '@vitejs/plugin-vue'
 import VueRouter from 'unplugin-vue-router/vite'
 import { libInjectCss } from 'vite-plugin-lib-inject-css'
+import istanbul from 'vite-plugin-istanbul'
 
 // Utilities
 import { defineConfig } from 'vite'
@@ -14,6 +15,13 @@ export default defineConfig({
       dts: 'src/typed-router.d.ts',
     }),
     Vue(),
+    istanbul({
+      include: 'src/**',
+      extension: ['.js', '.ts', '.vue'],
+      requireEnv: true,
+      cypress: false,
+      forceBuildInstrument: false,
+    }),
   ],
   build: {
     lib: {

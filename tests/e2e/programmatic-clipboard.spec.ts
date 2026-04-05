@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./coverage-test";
 import { dispatchCanvasMouseEvent, getCanvasStateField, waitForCanvasApi } from "./helpers";
 
 async function openMainPage(page: Page): Promise<void> {
