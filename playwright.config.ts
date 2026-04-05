@@ -1,6 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const isCoverageRun = !!process.env.PW_E2E_COVERAGE;
+const appPort = isCoverageRun ? 3100 : 3000;
+const appUrl = `http://localhost:${appPort}`;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -16,7 +18,7 @@ export default defineConfig({
   ],
   preserveOutput: "always",
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: appUrl,
     trace: "on",
     screenshot: "on",
   },
@@ -28,9 +30,9 @@ export default defineConfig({
   ],
   webServer: {
     command: isCoverageRun
-      ? "cross-env VITE_COVERAGE=true NODE_ENV=test npm run dev"
+      ? `cross-env VITE_COVERAGE=true NODE_ENV=test npm run dev -- --port=${appPort}`
       : "npm run dev",
-    url: "http://localhost:3000",
+    url: appUrl,
     reuseExistingServer: !process.env.CI,
   },
 });
