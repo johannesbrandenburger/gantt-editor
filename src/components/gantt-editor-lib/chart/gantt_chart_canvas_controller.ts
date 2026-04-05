@@ -2371,15 +2371,15 @@ export class GanttChartCanvasController {
     }
 
     if (copiedSlotIds.length > 1) {
-      if (this.callbacks.onBulkCopyDestinationId) {
-        this.callbacks.onBulkCopyDestinationId(copiedSlotIds, topicId, false);
+      if (this.callbacks.onBulkCopyToDestinationId) {
+        this.callbacks.onBulkCopyToDestinationId(copiedSlotIds, topicId, false);
       } else {
         for (const slotId of copiedSlotIds) {
-          this.callbacks.onCopyDestinationId?.(slotId, topicId, false);
+          this.callbacks.onCopyToDestinationId?.(slotId, topicId, false);
         }
       }
     } else if (copiedSlotIds.length === 1) {
-      this.callbacks.onCopyDestinationId?.(copiedSlotIds[0], topicId, false);
+      this.callbacks.onCopyToDestinationId?.(copiedSlotIds[0], topicId, false);
     }
 
     return copiedSlotIds.length > 0;

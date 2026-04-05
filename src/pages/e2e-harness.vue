@@ -471,7 +471,7 @@ function onBulkChangeDestinationId(slotIds: string[], destinationId: string, pre
   logEvent("onBulkChangeDestinationId", { slotIds, destinationId, preview });
 }
 
-function onCopyDestinationId(slotId: string, destinationId: string, preview: boolean): void {
+function onCopyToDestinationId(slotId: string, destinationId: string, preview: boolean): void {
   if (!preview) {
     const existingIds = new Set(harnessData.value.slots.map((slot) => slot.id));
     const source = harnessData.value.slots.find((slot) => slot.id === slotId);
@@ -482,10 +482,10 @@ function onCopyDestinationId(slotId: string, destinationId: string, preview: boo
       };
     }
   }
-  logEvent("onCopyDestinationId", { slotId, destinationId, preview });
+  logEvent("onCopyToDestinationId", { slotId, destinationId, preview });
 }
 
-function onBulkCopyDestinationId(slotIds: string[], destinationId: string, preview: boolean): void {
+function onBulkCopyToDestinationId(slotIds: string[], destinationId: string, preview: boolean): void {
   if (!preview) {
     const sourceIds = new Set(slotIds);
     const existingIds = new Set(harnessData.value.slots.map((slot) => slot.id));
@@ -502,7 +502,7 @@ function onBulkCopyDestinationId(slotIds: string[], destinationId: string, previ
       };
     }
   }
-  logEvent("onBulkCopyDestinationId", { slotIds, destinationId, preview });
+  logEvent("onBulkCopyToDestinationId", { slotIds, destinationId, preview });
 }
 
 function onChangeSlotTime(slotId: string, openTime: Date, closeTime: Date): void {
@@ -682,8 +682,8 @@ onBeforeUnmount(() => {
       @onChangeStartAndEndTime="onChangeStartAndEndTime"
       @onChangeDestinationId="onChangeDestinationId"
       @onBulkChangeDestinationId="onBulkChangeDestinationId"
-      @onCopyDestinationId="onCopyDestinationId"
-      @onBulkCopyDestinationId="onBulkCopyDestinationId"
+      @onCopyToDestinationId="onCopyToDestinationId"
+      @onBulkCopyToDestinationId="onBulkCopyToDestinationId"
       @onMoveSlotOnTimeAxis="onMoveSlotOnTimeAxis"
       @onBulkMoveSlotsOnTimeAxis="onBulkMoveSlotsOnTimeAxis"
       @onCopySlotOnTimeAxis="onCopySlotOnTimeAxis"

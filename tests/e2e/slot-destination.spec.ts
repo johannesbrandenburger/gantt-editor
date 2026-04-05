@@ -205,7 +205,7 @@ test.describe("canvas rewrite slot destination change", () => {
     await expect
       .poll(async () => {
         const events = await getHarnessEvents(page);
-        const copies = (events.onCopyDestinationId ?? []) as Array<{
+        const copies = (events.onCopyToDestinationId ?? []) as Array<{
           slotId?: string;
           destinationId?: string;
           preview?: boolean;
@@ -249,7 +249,7 @@ test.describe("canvas rewrite slot destination change", () => {
     await expect
       .poll(async () => {
         const events = await getHarnessEvents(page);
-        const bulkCopies = (events.onBulkCopyDestinationId ?? []) as Array<{
+        const bulkCopies = (events.onBulkCopyToDestinationId ?? []) as Array<{
           slotIds?: string[];
           destinationId?: string;
           preview?: boolean;
