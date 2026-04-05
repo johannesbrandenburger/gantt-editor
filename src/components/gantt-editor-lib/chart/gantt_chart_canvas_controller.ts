@@ -1097,7 +1097,12 @@ export class GanttChartCanvasController {
         ? [
             {
               id: "move-marker-here",
-              label: "Move marker here",
+              label: `Move ${
+                contextMenuMovableMarkers[0]!.label &&
+                contextMenuMovableMarkers[0]!.label.trim().length > 0
+                  ? contextMenuMovableMarkers[0]!.label
+                  : contextMenuMovableMarkers[0]!.id
+              } here`,
               payload: {
                 kind: "move-vertical-marker",
                 markerId: contextMenuMovableMarkers[0]!.id,

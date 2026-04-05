@@ -95,7 +95,7 @@ test.describe("canvas rewrite vertical markers", () => {
 
     const backgroundPoint = await findEmptyChartBackgroundPoint(page);
     await dispatchCanvasMouseEvent(page, backgroundPoint, "contextmenu");
-    await clickCanvasContextMenuItem(page, "Move marker here");
+    await clickCanvasContextMenuItem(page, "Move AUTO here");
 
     await expect
       .poll(async () => {
@@ -178,7 +178,7 @@ test.describe("canvas rewrite vertical markers", () => {
 
     const backgroundPoint = await findEmptyChartBackgroundPoint(page);
     await dispatchCanvasMouseEvent(page, backgroundPoint, "contextmenu");
-    await clickCanvasContextMenuItem(page, "Move marker here");
+    await clickCanvasContextMenuItem(page, "Move Menu Only here");
 
     await expect
       .poll(async () => {
