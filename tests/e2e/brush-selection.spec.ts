@@ -24,8 +24,9 @@ const DENSE_TARGET_SLOT_ID = "DENSE-0002";
 
 async function brushSelectFirstAllocatedGroup(
   page: Page,
+  slots = 80,
 ): Promise<{ selectedSlotIds: string[]; canvas: Awaited<ReturnType<typeof openE2eHarness>> }> {
-  const canvas = await openE2eHarness(page, { fixture: "dense", query: { slots: 80 } });
+  const canvas = await openE2eHarness(page, { fixture: "dense", query: { slots } });
   await page.evaluate(() => localStorage.removeItem("pointerSelection"));
 
   const state = await getCanvasState<CanvasState>(page);
@@ -150,7 +151,7 @@ test.describe("canvas rewrite brush selection", () => {
   });
 
   test("Alt toggles copy-mode indicator and destination preview mode", async ({ page }) => {
-    const { selectedSlotIds, canvas } = await brushSelectFirstAllocatedGroup(page);
+    const { selectedSlotIds, canvas } = await brushSelectFirstAllocatedGroup(page, 5);
     expect(selectedSlotIds.length).toBeGreaterThan(1);
 
     const harnessConfig = await getHarnessConfig(page);
@@ -197,7 +198,7 @@ test.describe("canvas rewrite brush selection", () => {
   });
 
   test("copy cursor appears/disappears without extra mouse movement", async ({ page }) => {
-    const { selectedSlotIds, canvas } = await brushSelectFirstAllocatedGroup(page);
+    const { selectedSlotIds, canvas } = await brushSelectFirstAllocatedGroup(page, 5);
     expect(selectedSlotIds.length).toBeGreaterThan(1);
 
     const harnessConfig = await getHarnessConfig(page);

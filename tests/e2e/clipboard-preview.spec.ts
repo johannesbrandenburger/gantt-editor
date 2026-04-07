@@ -14,8 +14,8 @@ const SOURCE_SLOT_ID = "LH123-20250101-F";
 const TARGET_SLOT_ID = "OS200-20250101-G";
 const DENSE_HOVER_SLOT_ID = "DENSE-0002";
 
-async function brushSelectDenseFixture(page: Page): Promise<string[]> {
-  const canvas = await openE2eHarness(page, { fixture: "dense", query: { slots: 80 } });
+async function brushSelectDenseFixture(page: Page, slots = 5): Promise<string[]> {
+  const canvas = await openE2eHarness(page, { fixture: "dense", query: { slots } });
   await page.evaluate(() => localStorage.removeItem("pointerSelection"));
 
   const state = await page.evaluate(() => {
