@@ -24,11 +24,13 @@ import {
   type TopicLayout,
 } from "./canvas_topics";
 import {
-  collectSlotsFullyInsideRect,
+  collectSlotsFromIndexInRect,
+  buildSlotPositionIndex,
   drawSlots,
   hitTestSlotBar,
   hitTestSlotResizeEdge,
   slotTimesForResizeDragStep,
+  type SlotPositionEntry,
   type SlotResizeEdge,
 } from "./canvas_slots";
 import { drawDepartureMarkers, hitTestDepartureGap } from "./canvas_departure_markers";
@@ -106,6 +108,8 @@ type ContextMenuActionPayload = {
 };
 
 const RULER_SNAP_CATCHMENT_PX = 3;
+/** Clipboard items at or above this count suppress the destination-hover preview (too expensive). */
+const HOVER_PREVIEW_MAX_CLIPBOARD_SIZE = 50;
 const RESIZE_RULER_TICK_LENGTH_PX = 10;
 const RESIZE_TIME_LABEL_OFFSET_X = 14;
 const RESIZE_TIME_LABEL_OFFSET_Y = -16;
@@ -200,6 +204,14 @@ export class GanttChartCanvasController {
     currentX: number;
     currentYContent: number;
   } | null = null;
+
+  /**
+   * Per-group cache of pre-computed slot pixel bounds.
+   * Key: groupId → { cacheKey, entries }.
+   * cacheKey encodes canvasWidth + timeRange + rowHeight + processDataFingerprint so the
+   * cache auto-invalidates whenever any of those values change.
+   */
+  private slotPositionIndexCache = new Map<string, { cacheKey: string; entries: SlotPositionEntry[] }>();
 
   private resizeObserver: ResizeObserver | null = null;
   /** Recomputed only when geometry inputs change. */
@@ -2319,6 +2331,8 @@ export class GanttChartCanvasController {
 
     const topicId = this.hoveredClipboardTopicId;
     if (!topicId) return null;
+    // Skip the expensive processData call when the clipboard is very large.
+    if (this.clipboardItems.length >= HOVER_PREVIEW_MAX_CLIPBOARD_SIZE) return null;
     const sourceSlotIds = this.getPreviewEligibleClipboardItems(topicId).map((slot) => slot.id);
     if (sourceSlotIds.length === 0) return null;
     const transition = this.getActiveDestinationPreviewTransition(nowMs, topicId);
@@ -2487,6 +2501,9 @@ export class GanttChartCanvasController {
   private applyCopiedFlagsFromClipboard(clipboard: GanttEditorSlot[]): void {
     applyCopiedFlagsFromSelection(this.props.slots, clipboard);
     this.cachedProcessedTopics = null;
+    // Slot positions change whenever isCopied flags or destinationIds change, so any
+    // cached position index is now stale and must be rebuilt on the next brush selection.
+    this.slotPositionIndexCache.clear();
   }
 
   private slotSnapshotForClipboard(slot: GanttEditorSlotWithUiAttributes): GanttEditorSlot {
@@ -2605,10 +2622,12 @@ export class GanttChartCanvasController {
     if (slotIds.length === 0) return;
     const clipboard = this.readSelection();
     const idsInClipboard = new Set(clipboard.map((s) => s.id));
+    // Build a Map once so each lookup is O(1) instead of O(N) via Array.find.
+    const slotById = new Map(this.props.slots.map((s) => [s.id, s]));
     let changed = false;
     for (const slotId of slotIds) {
       if (idsInClipboard.has(slotId)) continue;
-      const slot = this.props.slots.find((s) => s.id === slotId);
+      const slot = slotById.get(slotId);
       if (!slot || slot.readOnly) continue;
       clipboard.push(this.slotSnapshotForClipboard(slot));
       idsInClipboard.add(slotId);
@@ -2620,9 +2639,10 @@ export class GanttChartCanvasController {
   }
 
   private emitCopySelectionToTopic(clipboard: GanttEditorSlot[], topicId: string): boolean {
+    const slotById = new Map(this.props.slots.map((s) => [s.id, s]));
     const copiedSlotIds: string[] = [];
     for (const copiedSlot of clipboard) {
-      const source = this.props.slots.find((s) => s.id === copiedSlot.id);
+      const source = slotById.get(copiedSlot.id);
       if (!source || source.readOnly || source.destinationId === topicId) continue;
       copiedSlotIds.push(source.id);
     }
@@ -2643,9 +2663,10 @@ export class GanttChartCanvasController {
   }
 
   private emitCopySelectionOnTimeAxis(clipboard: GanttEditorSlot[], timeDiffMs: number): boolean {
+    const slotById = new Map(this.props.slots.map((s) => [s.id, s]));
     const copiedSlotIds: string[] = [];
     for (const copiedSlot of clipboard) {
-      const source = this.props.slots.find((s) => s.id === copiedSlot.id);
+      const source = slotById.get(copiedSlot.id);
       if (!source || source.readOnly) continue;
       copiedSlotIds.push(source.id);
     }
@@ -2685,8 +2706,9 @@ export class GanttChartCanvasController {
 
     let movedSomething = false;
     const movedSlotIds: string[] = [];
+    const slotById = new Map(this.props.slots.map((s) => [s.id, s]));
     for (const copiedSlot of clipboard) {
-      const target = this.props.slots.find((s) => s.id === copiedSlot.id);
+      const target = slotById.get(copiedSlot.id);
       if (!target || target.readOnly) continue;
       target.destinationId = topicId;
       target.isCopied = false;
@@ -2737,8 +2759,9 @@ export class GanttChartCanvasController {
     }
 
     const movedSlotIds: string[] = [];
+    const slotById = new Map(this.props.slots.map((s) => [s.id, s]));
     for (const copiedSlot of clipboard) {
-      const target = this.props.slots.find((s) => s.id === copiedSlot.id);
+      const target = slotById.get(copiedSlot.id);
       if (!target || target.readOnly) continue;
       movedSlotIds.push(target.id);
     }
@@ -3133,20 +3156,34 @@ export class GanttChartCanvasController {
     const didDrag = dx > BRUSH_DRAG_THRESHOLD_PX || dy > BRUSH_DRAG_THRESHOLD_PX;
     if (didDrag) {
       const topics = this.topicsForGroup(brush.groupId);
-      const selectedSlots = collectSlotsFullyInsideRect({
-        topics,
-        selectionRect: {
-          x0: brush.startX,
-          y0: brush.startYContent,
-          x1: brush.currentX,
-          y1: brush.currentYContent,
-        },
-        margin: MARGIN,
-        width: layout.canvasCssWidth,
-        rowHeight: this.rowHeight,
-        startTime: this.internalStartTime,
-        endTime: this.internalEndTime,
-        excludeReadOnly: true,
+
+      // Build / reuse cached position index so geometry is never computed twice for
+      // the same view state.  The cache key encodes every input that affects pixel
+      // positions, so it self-invalidates on pan, zoom, resize or data changes.
+      const fingerprint = this.processDataDeepFingerprint ?? "?";
+      const cacheKey = `${layout.canvasCssWidth}:${this.internalStartTime.getTime()}:${this.internalEndTime.getTime()}:${this.rowHeight}:${fingerprint}`;
+      let indexEntry = this.slotPositionIndexCache.get(brush.groupId);
+      if (indexEntry?.cacheKey !== cacheKey) {
+        indexEntry = {
+          cacheKey,
+          entries: buildSlotPositionIndex({
+            topics,
+            margin: MARGIN,
+            width: layout.canvasCssWidth,
+            rowHeight: this.rowHeight,
+            startTime: this.internalStartTime,
+            endTime: this.internalEndTime,
+            excludeReadOnly: true,
+          }),
+        };
+        this.slotPositionIndexCache.set(brush.groupId, indexEntry);
+      }
+
+      const selectedSlots = collectSlotsFromIndexInRect(indexEntry.entries, {
+        x0: brush.startX,
+        y0: brush.startYContent,
+        x1: brush.currentX,
+        y1: brush.currentYContent,
       });
       const slotIds = Array.from(new Set(selectedSlots.map((s) => s.id)));
       this.addSlotsToSelection(slotIds);

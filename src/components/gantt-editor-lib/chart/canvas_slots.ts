@@ -520,6 +520,101 @@ export function collectSlotsFullyInsideRect(
   return selected;
 }
 
+// ---------------------------------------------------------------------------
+// Slot position index – pre-computed pixel bounds per slot for fast selection
+// ---------------------------------------------------------------------------
+
+export interface SlotPositionEntry {
+  slotId: string;
+  slot: GanttEditorSlotWithUiAttributes;
+  /** Canvas-local left edge (margin included). */
+  x: number;
+  /** Content-space top edge (scroll offset not applied). */
+  y: number;
+  /** Canvas-local right edge (margin included). */
+  x2: number;
+  /** Content-space bottom edge. */
+  y2: number;
+}
+
+export interface BuildSlotPositionIndexParams {
+  topics: Topic[];
+  margin: { left: number; right: number };
+  width: number;
+  rowHeight: number;
+  startTime: Date;
+  endTime: Date;
+  excludeReadOnly?: boolean;
+}
+
+/**
+ * Pre-computes pixel bounds for every slot in all topics/rows.
+ * Cache the result per group (keyed by width / time-range / rowHeight / data-fingerprint)
+ * and pass to {@link collectSlotsFromIndexInRect} to avoid rebuilding geometry on every
+ * brush-selection mouseup.
+ */
+export function buildSlotPositionIndex(
+  p: BuildSlotPositionIndexParams,
+): SlotPositionEntry[] {
+  const chartWidth = p.width - p.margin.left - p.margin.right;
+  if (chartWidth <= 0) return [];
+
+  const xScale = createTimeScale(p.startTime, p.endTime, 0, chartWidth, true);
+  const [domainStart, domainEnd] = xScale.domain();
+
+  const padding = TOPIC_BAND_PADDING;
+  const step = p.rowHeight;
+  const bandwidth = step * (1 - padding);
+
+  const layouts = computeTopicLayout(p.topics, p.margin.left, p.rowHeight);
+  const entries: SlotPositionEntry[] = [];
+
+  for (const layout of layouts) {
+    const topic = layout.topic;
+    topic.rows.forEach((row, rowIndex) => {
+      const rowTop = layout.rowYs[rowIndex];
+      if (rowTop === undefined) return;
+      const rowBottom = rowTop + bandwidth;
+
+      for (const slot of row.slots) {
+        if (p.excludeReadOnly && slot.readOnly) continue;
+
+        const isStartInView = slot.openTime >= domainStart && slot.openTime <= domainEnd;
+        const isEndInView = slot.closeTime >= domainStart && slot.closeTime <= domainEnd;
+        const x = p.margin.left + (isStartInView ? xScale(slot.openTime) : 0);
+        const x2 = p.margin.left + (isEndInView ? xScale(slot.closeTime) : chartWidth);
+        if (x2 - x <= 0) continue;
+
+        entries.push({ slotId: slot.id, slot, x, y: rowTop, x2, y2: rowBottom });
+      }
+    });
+  }
+
+  return entries;
+}
+
+/**
+ * Returns all slots from a pre-built position index whose pixel bounds are fully
+ * contained in the given selection rectangle (content-space Y coordinates).
+ */
+export function collectSlotsFromIndexInRect(
+  entries: SlotPositionEntry[],
+  selectionRect: { x0: number; y0: number; x1: number; y1: number },
+): GanttEditorSlotWithUiAttributes[] {
+  const x0 = Math.min(selectionRect.x0, selectionRect.x1);
+  const y0 = Math.min(selectionRect.y0, selectionRect.y1);
+  const x1 = Math.max(selectionRect.x0, selectionRect.x1);
+  const y1 = Math.max(selectionRect.y0, selectionRect.y1);
+
+  const selected: GanttEditorSlotWithUiAttributes[] = [];
+  for (const entry of entries) {
+    if (x0 <= entry.x && entry.x2 <= x1 && y0 <= entry.y && entry.y2 <= y1) {
+      selected.push(entry.slot);
+    }
+  }
+  return selected;
+}
+
 /**
  * Final open/close after a resize drag (inner-chart geometry, same as SVG `dragLeftRightEnd`).
  */
