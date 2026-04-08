@@ -13,6 +13,35 @@ type CanvasState = {
 
 type Rgba = { r: number; g: number; b: number; a: number };
 
+function parseTimeMs(value: string | Date | undefined): number | null {
+  if (!value) return null;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function pickMarkerSafeTimeMs(
+  state: CanvasState,
+  preferredMs: number,
+  blockedTimesMs: number[],
+  minimumMarkerGapPx = 8,
+): number {
+  const offsetsMinutes = [0, 5, -5, 10, -10, 15, -15, 20, -20, 30, -30, 45, -45];
+  const candidates = offsetsMinutes.map((minutes) => preferredMs + minutes * 60_000);
+
+  const start = state.internalStartTimeMs;
+  const end = state.internalEndTimeMs;
+  const blockedXs = blockedTimesMs.map((ms) => timeToCanvasX(state, ms));
+
+  for (const candidate of candidates) {
+    if (candidate <= start || candidate >= end) continue;
+    const candidateX = timeToCanvasX(state, candidate);
+    const clearOfMarkers = blockedXs.every((blockedX) => Math.abs(candidateX - blockedX) >= minimumMarkerGapPx);
+    if (clearOfMarkers) return candidate;
+  }
+
+  return preferredMs;
+}
+
 function timeToCanvasX(state: CanvasState, dateMs: number): number {
   if (!state.layout) {
     throw new Error("Expected layout in canvas state");
@@ -90,21 +119,62 @@ test.describe("canvas rewrite marked regions", () => {
     await openE2eHarness(page, { fixture: "markers" });
 
     const state = await getCanvasState<CanvasState>(page);
+    const config = await getHarnessConfig(page);
     expect(state).not.toBeNull();
     expect(state?.layout).not.toBeNull();
     if (!state?.layout || state.layout.groups.length < 2) {
       throw new Error("Expected at least two groups for marked region test");
     }
 
-    const x = timeToCanvasX(state, Date.parse("2025-01-01T11:30:00Z"));
+    const markedRegion = config.markedRegion;
+    expect(markedRegion).not.toBeNull();
+    expect(markedRegion?.destinationId).toBe("multiple");
+
+    const markedStartMs = parseTimeMs(markedRegion?.startTime);
+    const markedEndMs = parseTimeMs(markedRegion?.endTime);
+    if (markedStartMs === null || markedEndMs === null) {
+      throw new Error("Expected valid marked region bounds");
+    }
+
+    const markerTimesMs = (config.verticalMarkers ?? [])
+      .map((marker) => parseTimeMs(marker.date))
+      .filter((ms): ms is number => ms !== null);
+
+    const insidePreferredMs = Math.floor((markedStartMs + markedEndMs) / 2);
+    const outsidePreferredMs = Math.max(
+      state.internalStartTimeMs + 60_000,
+      markedStartMs - 60 * 60_000,
+    );
+
+    const insideMs = pickMarkerSafeTimeMs(state, insidePreferredMs, markerTimesMs);
+    const outsideMs = pickMarkerSafeTimeMs(state, outsidePreferredMs, markerTimesMs);
+
     const firstGroupY = state.layout.groups[0]!.y + 3;
     const secondGroupY = state.layout.groups[1]!.y + 3;
 
-    const firstPixel = await sampleCanvasPixel(page, { x, y: firstGroupY });
-    const secondPixel = await sampleCanvasPixel(page, { x, y: secondGroupY });
+    const firstInsidePixel = await sampleCanvasPixel(page, {
+      x: timeToCanvasX(state, insideMs),
+      y: firstGroupY,
+    });
+    const firstOutsidePixel = await sampleCanvasPixel(page, {
+      x: timeToCanvasX(state, outsideMs),
+      y: firstGroupY,
+    });
+    const secondInsidePixel = await sampleCanvasPixel(page, {
+      x: timeToCanvasX(state, insideMs),
+      y: secondGroupY,
+    });
+    const secondOutsidePixel = await sampleCanvasPixel(page, {
+      x: timeToCanvasX(state, outsideMs),
+      y: secondGroupY,
+    });
 
-    expect(firstPixel.g).toBeGreaterThanOrEqual(secondPixel.g);
-    expect(firstPixel.b).toBeLessThan(secondPixel.b);
+    // The marked region should measurably reduce blue channel only in the first group.
+    expect(firstInsidePixel.b + 8).toBeLessThan(firstOutsidePixel.b);
+    expect(Math.abs(secondInsidePixel.b - secondOutsidePixel.b)).toBeLessThanOrEqual(2);
+
+    // Cross-check at the same in-region x keeps first-group tint stronger than second group.
+    expect(firstInsidePixel.b).toBeLessThan(secondInsidePixel.b);
   });
 
   test("single-destination marked region affects only the target destination", async ({ page }) => {

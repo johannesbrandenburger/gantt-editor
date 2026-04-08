@@ -22,16 +22,16 @@ interface BuildVerticalMarkerModelsParams {
 
 export interface DrawVerticalMarkersParams extends BuildVerticalMarkerModelsParams {
   ctx: CanvasRenderingContext2D;
-  groupY: number;
-  groupHeight: number;
+  lineTop: number;
+  lineBottom: number;
   draggingMarker?: { id: string; x: number } | null;
 }
 
 export interface HitTestVerticalMarkerParams extends BuildVerticalMarkerModelsParams {
   canvasX: number;
   canvasY: number;
-  groupY: number;
-  groupHeight: number;
+  lineTop: number;
+  lineBottom: number;
 }
 
 function buildVisibleVerticalMarkerModels(
@@ -66,12 +66,12 @@ function buildVisibleVerticalMarkerModels(
 export function drawVerticalMarkers(params: DrawVerticalMarkersParams): void {
   const {
     ctx,
-    groupY,
-    groupHeight,
+    lineTop,
+    lineBottom,
     draggingMarker,
   } = params;
   const models = buildVisibleVerticalMarkerModels(params);
-  if (models.length === 0 || groupHeight <= 0) return;
+  if (models.length === 0 || lineBottom <= lineTop) return;
 
   for (const marker of models) {
     const x = draggingMarker?.id === marker.id ? draggingMarker.x : marker.x;
@@ -79,19 +79,9 @@ export function drawVerticalMarkers(params: DrawVerticalMarkersParams): void {
     ctx.strokeStyle = marker.color;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(x, groupY);
-    ctx.lineTo(x, groupY + groupHeight);
+    ctx.moveTo(x, lineTop);
+    ctx.lineTo(x, lineBottom);
     ctx.stroke();
-
-    if (marker.draggable) {
-      ctx.fillStyle = marker.color;
-      ctx.beginPath();
-      ctx.arc(x, groupY + 12, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
   }
 }
 
@@ -99,9 +89,9 @@ export function drawVerticalMarkers(params: DrawVerticalMarkersParams): void {
 export function hitTestVerticalMarker(
   params: HitTestVerticalMarkerParams,
 ): VerticalMarkerRenderModel | null {
-  const { canvasX, canvasY, groupY, groupHeight } = params;
-  if (groupHeight <= 0) return null;
-  if (canvasY < groupY || canvasY > groupY + groupHeight) return null;
+  const { canvasX, canvasY, lineTop, lineBottom } = params;
+  if (lineBottom <= lineTop) return null;
+  if (canvasY < lineTop || canvasY > lineBottom) return null;
 
   const models = buildVisibleVerticalMarkerModels(params);
   if (models.length === 0) return null;

@@ -3566,21 +3566,6 @@ export class GanttChartCanvasController {
         });
       }
 
-      drawVerticalMarkers({
-        ctx,
-        width: layout.canvasCssWidth,
-        margin: MARGIN,
-        startTime: this.internalStartTime,
-        endTime: this.internalEndTime,
-        markers: this.props.verticalMarkers ?? [],
-        isReadOnly: this.props.isReadOnly,
-        groupY: 0,
-        groupHeight: displayContentHeight,
-        draggingMarker: this.verticalMarkerDrag
-          ? { id: this.verticalMarkerDrag.markerId, x: this.verticalMarkerDrag.currentX }
-          : null,
-      });
-
       this.drawMarkedRegionOverlay(ctx, group.id, displayContentHeight, layout.canvasCssWidth);
 
       if (suggestionsVisible(this.rowHeight)) {
@@ -3602,6 +3587,21 @@ export class GanttChartCanvasController {
 
       ctx.restore();
     }
+
+    drawVerticalMarkers({
+      ctx,
+      width: layout.canvasCssWidth,
+      margin: MARGIN,
+      startTime: this.internalStartTime,
+      endTime: this.internalEndTime,
+      markers: this.props.verticalMarkers ?? [],
+      isReadOnly: this.props.isReadOnly,
+      lineTop: 0,
+      lineBottom: layout.canvasCssHeight,
+      draggingMarker: this.verticalMarkerDrag
+        ? { id: this.verticalMarkerDrag.markerId, x: this.verticalMarkerDrag.currentX }
+        : null,
+    });
 
     this.drawSlotResizeRulerOverlay(ctx, layout);
 

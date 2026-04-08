@@ -191,7 +191,7 @@ export function hitVerticalMarkerForGroup(args: HitVerticalMarkerForGroupArgs) {
     isReadOnly,
     canvasX,
     canvasY,
-    groupY: gr.y,
-    groupHeight: gr.h,
+    lineTop: gr.y,
+    lineBottom: gr.y + gr.h,
   });
 }
