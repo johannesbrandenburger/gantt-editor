@@ -16,7 +16,8 @@ interface DepartureMarkerDrawDefinition {
   lineColor?: string;
   markerOpacity?: number;
   layer?: number;
-  lineVisible: boolean;
+  markerVisible: boolean;
+  connectorVisible: boolean;
 }
 
 export interface DrawDepartureMarkersParams {
@@ -172,15 +173,21 @@ export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
           if (!marker.date) continue;
 
           const markerDate = new Date(marker.date);
-          if (Number.isNaN(markerDate.getTime())) continue;
-          if (markerDate < startTime || markerDate > endTime) continue;
+          const markerTimeMs = markerDate.getTime();
+          if (Number.isNaN(markerTimeMs)) continue;
+          const markerVisible = markerDate >= startTime && markerDate <= endTime;
+          const slotOpenMs = slotForGeom.openTime.getTime();
+          const slotCloseMs = slotForGeom.closeTime.getTime();
+          const markerInsideSlot = markerTimeMs >= slotOpenMs && markerTimeMs <= slotCloseMs;
 
           const departureX = margin.left + xScale(markerDate);
+          const barStartX = slotRect.x;
           const barEndX = slotRect.x + slotRect.width;
+          const connectorAnchorX = departureX < barStartX ? barStartX : barEndX;
 
           markerDefinitions.push({
             id: marker.id,
-            x1: barEndX,
+            x1: connectorAnchorX,
             x2: departureX,
             lineY,
             lineHeight,
@@ -190,7 +197,8 @@ export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
                 ? Math.max(0.25, Math.min(1, (marker.markerOpacity ?? 1) * previewPulseAlpha))
                 : marker.markerOpacity,
             layer: marker.layer,
-            lineVisible: departureX < barEndX,
+            markerVisible,
+            connectorVisible: !markerInsideSlot && Math.abs(departureX - connectorAnchorX) > 1,
           });
         }
       }
@@ -202,13 +210,14 @@ export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
   const ordered = [...markerDefinitions].sort((a, b) => (a.layer || 0) - (b.layer || 0));
 
   for (const marker of ordered) {
+    if (!marker.markerVisible) continue;
     ctx.globalAlpha = marker.markerOpacity ?? 1;
     ctx.fillStyle = marker.lineColor || "black";
     ctx.fillRect(marker.x2 - 1, marker.lineY, 2, marker.lineHeight);
   }
 
   for (const marker of ordered) {
-    if (marker.lineVisible) continue;
+    if (!marker.connectorVisible) continue;
     ctx.globalAlpha = marker.markerOpacity ?? 1;
     ctx.strokeStyle = marker.lineColor || "gray";
     ctx.lineWidth = 1;
@@ -285,20 +294,28 @@ export function hitTestDepartureGap(params: HitTestDepartureGapParams): string |
         );
         if (markerDates.length === 0) continue;
 
+        const barStartX = slotRect.x;
         const barEndX = slotRect.x + slotRect.width;
         for (const markerDate of markerDates) {
+          const markerTimeMs = markerDate.getTime();
+          const slotOpenMs = slot.openTime.getTime();
+          const slotCloseMs = slot.closeTime.getTime();
+          const markerInsideSlot = markerTimeMs >= slotOpenMs && markerTimeMs <= slotCloseMs;
           const markerX = margin.left + xScale(markerDate);
+          const connectorAnchorX = markerX < barStartX ? barStartX : barEndX;
 
           // Treat the marker line itself as hoverable.
           if (Math.abs(canvasX - markerX) <= DEPARTURE_MARKER_HOVER_HALF_WIDTH_PX) {
             return slot.id;
           }
 
-          const x0 = Math.min(barEndX, markerX) + 4;
-          const x1 = Math.max(barEndX, markerX) - 4;
-          if (x1 <= x0) continue;
-          if (canvasX >= x0 && canvasX <= x1) {
-            return slot.id;
+          if (!markerInsideSlot) {
+            const x0 = Math.min(connectorAnchorX, markerX) + 4;
+            const x1 = Math.max(connectorAnchorX, markerX) - 4;
+            if (x1 <= x0) continue;
+            if (canvasX >= x0 && canvasX <= x1) {
+              return slot.id;
+            }
           }
         }
       }
