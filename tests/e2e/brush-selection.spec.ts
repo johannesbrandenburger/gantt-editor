@@ -16,6 +16,7 @@ type CanvasState = {
   margin: { left: number; right: number };
   layout: {
     canvasCssWidth: number;
+    axisRect: { y: number; h: number };
     groups: Array<{ id: string; y: number; h: number }>;
   } | null;
 };
@@ -68,6 +69,45 @@ async function brushSelectFirstAllocatedGroup(
   return { selectedSlotIds, canvas };
 }
 
+async function brushSelectViaAxis(
+  page: Page,
+  slots = 80,
+): Promise<{ selectedSlotIds: string[]; canvas: Awaited<ReturnType<typeof openE2eHarness>> }> {
+  const canvas = await openE2eHarness(page, { fixture: "dense", query: { slots } });
+  await page.evaluate(() => localStorage.removeItem("pointerSelection"));
+
+  const state = await getCanvasState<CanvasState>(page);
+  expect(state).not.toBeNull();
+  expect(state?.layout).not.toBeNull();
+
+  if (!state?.layout) {
+    throw new Error("Expected chart layout for axis brush selection");
+  }
+
+  const startCanvas = {
+    x: state.margin.left + 4,
+    y: state.layout.axisRect.y + state.layout.axisRect.h / 2,
+  };
+  const endCanvas = {
+    x: state.layout.canvasCssWidth - state.margin.right - 4,
+    y: startCanvas.y,
+  };
+
+  const from = await canvasPointToPagePoint(canvas, startCanvas);
+  const to = await canvasPointToPagePoint(canvas, endCanvas);
+  await mouseDrag(page, from, to);
+
+  await expect
+    .poll(
+      async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).length,
+      { timeout: 2_000 },
+    )
+    .toBeGreaterThan(1);
+
+  const selectedSlotIds = (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [];
+  return { selectedSlotIds, canvas };
+}
+
 test.describe("canvas rewrite brush selection", () => {
   test("drag selects multiple slots and persists selection", async ({ page }) => {
     const { selectedSlotIds } = await brushSelectFirstAllocatedGroup(page);
@@ -99,6 +139,14 @@ test.describe("canvas rewrite brush selection", () => {
         { timeout: 1_500 },
       )
       .toEqual([]);
+  });
+
+  test("axis drag selects slots across groups for the brushed time range", async ({ page }) => {
+    const { selectedSlotIds: groupBrushSelection } = await brushSelectFirstAllocatedGroup(page, 80);
+    const { selectedSlotIds: axisBrushSelection } = await brushSelectViaAxis(page, 80);
+
+    expect(groupBrushSelection.length).toBeGreaterThan(1);
+    expect(axisBrushSelection.length).toBeGreaterThan(groupBrushSelection.length);
   });
 
   test("brush selection followed by click moves selected slots to target destination", async ({ page }) => {

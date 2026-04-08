@@ -207,13 +207,21 @@ export class GanttChartCanvasController {
     shiftsByGroupId: Map<string, TopicLayoutShiftByGroup>;
   } | null = null;
 
-  private brushSelection: {
-    groupId: string;
-    startX: number;
-    startYContent: number;
-    currentX: number;
-    currentYContent: number;
-  } | null = null;
+  private brushSelection:
+    | {
+        mode: "group";
+        groupId: string;
+        startX: number;
+        startYContent: number;
+        currentX: number;
+        currentYContent: number;
+      }
+    | {
+        mode: "axis";
+        startX: number;
+        currentX: number;
+      }
+    | null = null;
 
   /**
    * Per-group cache of pre-computed slot pixel bounds.
@@ -858,6 +866,19 @@ export class GanttChartCanvasController {
       this.startResize(e, hit.groupIdAbove);
       return;
     }
+    if (hit.type === "axis") {
+      if (this.props.isReadOnly) return;
+      e.preventDefault();
+      this.brushSelection = {
+        mode: "axis",
+        startX: Math.max(0, Math.min(layout.canvasCssWidth, pt.x)),
+        currentX: Math.max(0, Math.min(layout.canvasCssWidth, pt.x)),
+      };
+      document.addEventListener("mousemove", this.boundBrushMouseMove);
+      document.addEventListener("mouseup", this.boundBrushMouseUp);
+      this.scheduleFrameRedraw(true);
+      return;
+    }
     if (hit.type !== "group") return;
 
     const gr = layout.groupRects.get(hit.groupId);
@@ -958,6 +979,7 @@ export class GanttChartCanvasController {
     if (!this.props.isReadOnly) {
       e.preventDefault();
       this.brushSelection = {
+        mode: "group",
         groupId: hit.groupId,
         startX: Math.max(0, Math.min(layout.canvasCssWidth, pt.x)),
         startYContent: contentY,
@@ -3121,21 +3143,24 @@ export class GanttChartCanvasController {
     const canvas = this.canvas;
     const layout = this.getChartLayout();
     if (!brush || !canvas || !layout) return;
-
-    const gr = layout.groupRects.get(brush.groupId);
-    if (!gr) return;
-
     const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
-    const scroll = this.verticalScrollOffsets.get(brush.groupId) || 0;
-
     const clampedX = Math.max(0, Math.min(layout.canvasCssWidth, pt.x));
-    const clampedYInGroup = Math.max(0, Math.min(gr.h, pt.y - gr.y));
-
     brush.currentX = clampedX;
-    brush.currentYContent = clampedYInGroup + scroll;
+
+    if (brush.mode === "group") {
+      const gr = layout.groupRects.get(brush.groupId);
+      if (!gr) return;
+      const scroll = this.verticalScrollOffsets.get(brush.groupId) || 0;
+      const clampedYInGroup = Math.max(0, Math.min(gr.h, pt.y - gr.y));
+      brush.currentYContent = clampedYInGroup + scroll;
+    }
+
     if (!this.suppressNextCanvasClick) {
       const dx = Math.abs(brush.currentX - brush.startX);
-      const dy = Math.abs(brush.currentYContent - brush.startYContent);
+      const dy =
+        brush.mode === "group"
+          ? Math.abs(brush.currentYContent - brush.startYContent)
+          : 0;
       if (dx > BRUSH_DRAG_THRESHOLD_PX || dy > BRUSH_DRAG_THRESHOLD_PX) {
         this.suppressNextCanvasClick = true;
       }
@@ -3155,63 +3180,100 @@ export class GanttChartCanvasController {
       return;
     }
 
-    const gr = layout.groupRects.get(brush.groupId);
-    if (!gr) {
-      this.brushSelection = null;
-      this.redraw();
-      return;
+    const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
+    const clampedX = Math.max(0, Math.min(layout.canvasCssWidth, pt.x));
+    brush.currentX = clampedX;
+
+    if (brush.mode === "group") {
+      const gr = layout.groupRects.get(brush.groupId);
+      if (!gr) {
+        this.brushSelection = null;
+        this.redraw();
+        return;
+      }
+      const scroll = this.verticalScrollOffsets.get(brush.groupId) || 0;
+      const clampedYInGroup = Math.max(0, Math.min(gr.h, pt.y - gr.y));
+      brush.currentYContent = clampedYInGroup + scroll;
     }
 
-    const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
-    const scroll = this.verticalScrollOffsets.get(brush.groupId) || 0;
-    const clampedX = Math.max(0, Math.min(layout.canvasCssWidth, pt.x));
-    const clampedYInGroup = Math.max(0, Math.min(gr.h, pt.y - gr.y));
-    brush.currentX = clampedX;
-    brush.currentYContent = clampedYInGroup + scroll;
-
     const dx = Math.abs(brush.currentX - brush.startX);
-    const dy = Math.abs(brush.currentYContent - brush.startYContent);
+    const dy =
+      brush.mode === "group"
+        ? Math.abs(brush.currentYContent - brush.startYContent)
+        : 0;
 
     const didDrag = dx > BRUSH_DRAG_THRESHOLD_PX || dy > BRUSH_DRAG_THRESHOLD_PX;
     if (didDrag) {
-      const topics = this.topicsForGroup(brush.groupId);
-
-      // Build / reuse cached position index so geometry is never computed twice for
-      // the same view state.  The cache key encodes every input that affects pixel
-      // positions, so it self-invalidates on pan, zoom, resize or data changes.
-      const fingerprint = this.processDataDeepFingerprint ?? "?";
-      const cacheKey = `${layout.canvasCssWidth}:${this.internalStartTime.getTime()}:${this.internalEndTime.getTime()}:${this.rowHeight}:${fingerprint}`;
-      let indexEntry = this.slotPositionIndexCache.get(brush.groupId);
-      if (indexEntry?.cacheKey !== cacheKey) {
-        indexEntry = {
-          cacheKey,
-          entries: buildSlotPositionIndex({
-            topics,
-            margin: MARGIN,
-            width: layout.canvasCssWidth,
-            rowHeight: this.rowHeight,
-            startTime: this.internalStartTime,
-            endTime: this.internalEndTime,
-            excludeReadOnly: true,
-          }),
-        };
-        this.slotPositionIndexCache.set(brush.groupId, indexEntry);
+      if (brush.mode === "group") {
+        const indexEntry = this.getOrBuildSlotPositionIndexForGroup(brush.groupId, layout);
+        const selectedSlots = collectSlotsFromIndexInRect(indexEntry.entries, {
+          x0: brush.startX,
+          y0: brush.startYContent,
+          x1: brush.currentX,
+          y1: brush.currentYContent,
+        });
+        const slotIds = Array.from(new Set(selectedSlots.map((s) => s.id)));
+        this.addSlotsToSelection(slotIds);
+      } else {
+        this.addSlotsInTimeRangeToSelection(brush.startX, brush.currentX, layout);
       }
-
-      const selectedSlots = collectSlotsFromIndexInRect(indexEntry.entries, {
-        x0: brush.startX,
-        y0: brush.startYContent,
-        x1: brush.currentX,
-        y1: brush.currentYContent,
-      });
-      const slotIds = Array.from(new Set(selectedSlots.map((s) => s.id)));
-      this.addSlotsToSelection(slotIds);
     } else {
       this.suppressNextCanvasClick = false;
     }
 
     this.brushSelection = null;
     this.redraw();
+  }
+
+  private getOrBuildSlotPositionIndexForGroup(
+    groupId: string,
+    layout: UnifiedChartLayout,
+  ): { cacheKey: string; entries: SlotPositionEntry[] } {
+    const topics = this.topicsForGroup(groupId);
+
+    // Build / reuse cached position index so geometry is never computed twice for
+    // the same view state. The cache key encodes every input that affects pixel
+    // positions, so it self-invalidates on pan, zoom, resize or data changes.
+    const fingerprint = this.processDataDeepFingerprint ?? "?";
+    const cacheKey = `${layout.canvasCssWidth}:${this.internalStartTime.getTime()}:${this.internalEndTime.getTime()}:${this.rowHeight}:${fingerprint}`;
+    let indexEntry = this.slotPositionIndexCache.get(groupId);
+    if (indexEntry?.cacheKey !== cacheKey) {
+      indexEntry = {
+        cacheKey,
+        entries: buildSlotPositionIndex({
+          topics,
+          margin: MARGIN,
+          width: layout.canvasCssWidth,
+          rowHeight: this.rowHeight,
+          startTime: this.internalStartTime,
+          endTime: this.internalEndTime,
+          excludeReadOnly: true,
+        }),
+      };
+      this.slotPositionIndexCache.set(groupId, indexEntry);
+    }
+    return indexEntry;
+  }
+
+  private addSlotsInTimeRangeToSelection(
+    startCanvasX: number,
+    endCanvasX: number,
+    layout: UnifiedChartLayout,
+  ): void {
+    const selectedIds = new Set<string>();
+    for (const groupId of layout.groupRects.keys()) {
+      const indexEntry = this.getOrBuildSlotPositionIndexForGroup(groupId, layout);
+      const selectedSlots = collectSlotsFromIndexInRect(indexEntry.entries, {
+        x0: startCanvasX,
+        y0: Number.NEGATIVE_INFINITY,
+        x1: endCanvasX,
+        y1: Number.POSITIVE_INFINITY,
+      });
+      for (const slot of selectedSlots) {
+        selectedIds.add(slot.id);
+      }
+    }
+    this.addSlotsToSelection(Array.from(selectedIds));
   }
 
   private onDocumentKeyDown(e: KeyboardEvent): void {
@@ -3812,17 +3874,31 @@ export class GanttChartCanvasController {
   ): void {
     const brush = this.brushSelection;
     if (!brush) return;
-    const gr = layout.groupRects.get(brush.groupId);
-    if (!gr) return;
-
-    const scroll = this.verticalScrollOffsets.get(brush.groupId) || 0;
-    const startY = gr.y - scroll + brush.startYContent;
-    const currentY = gr.y - scroll + brush.currentYContent;
-
     const x = Math.min(brush.startX, brush.currentX);
-    const y = Math.min(startY, currentY);
     const w = Math.abs(brush.currentX - brush.startX);
-    const h = Math.abs(currentY - startY);
+
+    const y =
+      brush.mode === "axis"
+        ? layout.axisRect.y
+        : (() => {
+            const gr = layout.groupRects.get(brush.groupId);
+            if (!gr) return 0;
+            const scroll = this.verticalScrollOffsets.get(brush.groupId) || 0;
+            const startY = gr.y - scroll + brush.startYContent;
+            const currentY = gr.y - scroll + brush.currentYContent;
+            return Math.min(startY, currentY);
+          })();
+    const h =
+      brush.mode === "axis"
+        ? layout.canvasCssHeight - layout.axisRect.y
+        : (() => {
+            const gr = layout.groupRects.get(brush.groupId);
+            if (!gr) return 0;
+            const scroll = this.verticalScrollOffsets.get(brush.groupId) || 0;
+            const startY = gr.y - scroll + brush.startYContent;
+            const currentY = gr.y - scroll + brush.currentYContent;
+            return Math.abs(currentY - startY);
+          })();
     if (w <= 0 || h <= 0) return;
 
     ctx.save();

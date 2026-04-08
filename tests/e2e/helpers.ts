@@ -20,6 +20,8 @@ type OpenHarnessOptions = {
 };
 
 type HarnessConfig = {
+  startTime: Date | string;
+  endTime: Date | string;
   slots: Array<{
     id: string;
     displayName?: string;
@@ -293,7 +295,13 @@ export async function getHarnessConfig(page: Page): Promise<HarnessConfig> {
     const harness = (window as HarnessWindow).__ganttE2eHarness as
       | Pick<E2eHarnessApi, "getConfig">
       | undefined;
-    return harness?.getConfig() ?? { slots: [] };
+    return (
+      harness?.getConfig() ?? {
+        startTime: new Date(0),
+        endTime: new Date(0),
+        slots: [],
+      }
+    );
   });
 }
 
@@ -305,7 +313,13 @@ export async function setHarnessConfig(
     const harness = (window as HarnessWindow).__ganttE2eHarness as
       | Pick<E2eHarnessApi, "setConfig">
       | undefined;
-    return harness?.setConfig(nextPartial) ?? { slots: [] };
+    return (
+      harness?.setConfig(nextPartial) ?? {
+        startTime: new Date(0),
+        endTime: new Date(0),
+        slots: [],
+      }
+    );
   }, partial);
 }
 
