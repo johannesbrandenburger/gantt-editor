@@ -53,6 +53,12 @@ export type GanttEditorVerticalMarker = {
     movableByContextMenu?: boolean,
 };
 
+export type GanttEditorCanvasContextMenuAction = {
+    id: string,
+    label: string,
+    enabled?: boolean,
+};
+
 export type GanttEditorSlotWithUiAttributes = GanttEditorSlot & {
     isConflict?: boolean;
     isCopied?: boolean;

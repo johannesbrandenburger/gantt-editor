@@ -40,6 +40,7 @@ src/components/
 <script setup lang="ts">
 import { ref } from "vue";
 import GanttEditorComponent, {
+  type GanttEditorCanvasContextMenuAction,
   type GanttEditorVerticalMarker,
   type GanttEditorRulerMode,
   type GanttEditorSlot,
@@ -92,9 +93,17 @@ const verticalMarkers = ref<GanttEditorVerticalMarker[]>([
   },
 ]);
 
+const canvasContextMenuActions = ref<GanttEditorCanvasContextMenuAction[]>([
+  { id: "create-flight", label: "Create a flight here" },
+]);
+
 function onChangeVerticalMarker(id: string, date: Date) {
   const marker = verticalMarkers.value.find((m) => m.id === id);
   if (marker) marker.date = date;
+}
+
+function onCanvasContextMenuAction(actionId: string, timestamp: Date, destinationId: string) {
+  console.log("context action", actionId, timestamp, destinationId);
 }
 </script>
 
@@ -110,6 +119,7 @@ function onChangeVerticalMarker(id: string, date: Date) {
       :suggestions="[]"
       :markedRegion="null"
       :verticalMarkers="verticalMarkers"
+      :canvasContextMenuActions="canvasContextMenuActions"
       :xAxisOptions="{}"
       :activateRulers="activateRulers"
       @onChangeStartAndEndTime="(newStart, newEnd) => console.log('range', newStart, newEnd)"
@@ -130,6 +140,7 @@ function onChangeVerticalMarker(id: string, date: Date) {
       @onContextClickOnSlot="(slotId) => console.log('context', slotId)"
       @onChangeVerticalMarker="onChangeVerticalMarker"
       @onClickVerticalMarker="(id) => console.log('marker-click', id)"
+      @onCanvasContextMenuAction="onCanvasContextMenuAction"
     >
       <template #top-content>
         <div style="padding: 8px 12px;">Optional controls above canvas</div>
@@ -153,6 +164,7 @@ function onChangeVerticalMarker(id: string, date: Date) {
 | `suggestions` | `GanttEditorSuggestion[]` | yes | - | Suggestion overlays |
 | `activateRulers` | `"ROW" \| "GLOBAL" \| null` | no | `undefined` | Enables resize snap rulers while dragging slot start/end |
 | `verticalMarkers` | `GanttEditorVerticalMarker[]` | no | `undefined` | Full-height vertical timeline markers |
+| `canvasContextMenuActions` | `GanttEditorCanvasContextMenuAction[]` | no | `undefined` | Extra actions shown on right-click background menu; callback includes clicked timestamp + destination id |
 | `markedRegion` | `GanttEditorMarkedRegion \| null` | yes | - | Highlighted time region |
 | `isReadOnly` | `boolean` | yes | - | Disables interactive editing |
 | `topContentPortion` | `number` | no | `0` | Relative height reserved for the `top-content` slot |
@@ -192,6 +204,7 @@ Notes:
 | `onContextClickOnSlot` | `(slotId: string)` |
 | `onChangeVerticalMarker` | `(id: string, date: Date)` |
 | `onClickVerticalMarker` | `(id: string)` |
+| `onCanvasContextMenuAction` | `(actionId: string, timestamp: Date, destinationId: string)` |
 
 ### Slots
 

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "./coverage-test";
 import {
+  clickCanvasContextMenuItem,
   canvasPointToPagePoint,
   clearHarnessEvents,
   dispatchCanvasMouseEvent,
@@ -139,6 +140,44 @@ test.describe("canvas rewrite context menu and pan", () => {
     await expect
       .poll(async () => await getCanvasStateField<boolean>(page, "contextMenuOpen"))
       .toBe(false);
+  });
+
+  test("custom context-menu action notifies parent with timestamp and destination id", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "markers" });
+    await clearHarnessEvents(page);
+
+    const backgroundPoint = await findEmptyChartBackgroundPoint(page);
+    const destinationIdAtClick = await page.evaluate(({ x, y }) => {
+      const api = (window as Window & {
+        __ganttCanvasTestApi?: { probeCanvasPoint: (px: number, py: number) => { topicId: string | null } };
+      }).__ganttCanvasTestApi;
+      return api?.probeCanvasPoint(x, y).topicId ?? null;
+    }, backgroundPoint);
+    expect(destinationIdAtClick).toBeTruthy();
+
+    await dispatchCanvasMouseEvent(page, backgroundPoint, "contextmenu");
+    await clickCanvasContextMenuItem(page, "Create a flight here");
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const actionEvents = (events.onCanvasContextMenuAction ?? []) as Array<{
+          actionId?: string;
+          destinationId?: string;
+          timestamp?: string;
+        }>;
+        const last = actionEvents.at(-1);
+        return {
+          actionId: last?.actionId ?? null,
+          destinationId: last?.destinationId ?? null,
+          hasTimestamp: !!last?.timestamp,
+        };
+      })
+      .toEqual({
+        actionId: "create-flight",
+        destinationId: destinationIdAtClick,
+        hasTimestamp: true,
+      });
   });
 
   test("right click drag commits pan callback and shifts internal time range", async ({ page }) => {

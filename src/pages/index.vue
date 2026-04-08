@@ -19,6 +19,7 @@
             :destinationGroups="destinationGroups"
             :suggestions="suggestions"
             :verticalMarkers="verticalMarkers"
+            :canvasContextMenuActions="canvasContextMenuActions"
             :markedRegion="markedRegion"
             :activate-rulers="'GLOBAL'"
             @onChangeStartAndEndTime="handleChangeStartAndEndTime"
@@ -38,6 +39,7 @@
             @onSelectionChange="handleSelectionChange"
             @onChangeVerticalMarker="handleChangeVerticalMarker"
             @onClickVerticalMarker="handleClickVerticalMarker"
+            @onCanvasContextMenuAction="handleCanvasContextMenuAction"
             :topContentPortion="topContentPortion"
             @onTopContentPortionChange="(newPortion: number, newHeight: number) => topContentPortion = newPortion"
         >
@@ -147,7 +149,11 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
-import type { GanttEditorSlot, GanttEditorVerticalMarker } from '../components/gantt-editor-lib/chart/types';
+import type {
+    GanttEditorCanvasContextMenuAction,
+    GanttEditorSlot,
+    GanttEditorVerticalMarker,
+} from '../components/gantt-editor-lib/chart/types';
 import GanttEditorComponent from '../components/GanttEditorComponent.vue';
 import { timeHour, type TimeDomainValue } from '../components/gantt-editor-lib/chart/time_scale';
 
@@ -408,6 +414,10 @@ const verticalMarkers = ref<GanttEditorVerticalMarker[]>([
     },
 ]);
 
+const canvasContextMenuActions = ref<GanttEditorCanvasContextMenuAction[]>([
+    { id: 'create-flight', label: 'Create a flight here' },
+]);
+
 // Marked region state (toggleable for testing)
 const markedRegion = ref<{ startTime: Date; endTime: Date; destinationId: string | 'multiple' } | null>(null);
 
@@ -662,6 +672,32 @@ const handleChangeVerticalMarker = (markerId: string, date: Date) => {
 
 const handleClickVerticalMarker = (markerId: string) => {
     showEventMessage(`📌 Clicked marker ${markerId}`);
+};
+
+const handleCanvasContextMenuAction = (actionId: string, timestamp: Date, destinationId: string) => {
+    if (actionId !== 'create-flight') return;
+
+    const destinationExists = destinations.some((destination) => destination.id === destinationId);
+    if (!destinationExists) return;
+
+    const serial = String(slots.value.length + 1).padStart(4, '0');
+    const slotId = `NEW-${serial}`;
+    const openTime = new Date(timestamp);
+    const closeTime = new Date(openTime.getTime() + 60 * 60 * 1000);
+
+    slots.value = [
+        ...slots.value,
+        {
+            id: slotId,
+            displayName: slotId,
+            group: slotId,
+            openTime,
+            closeTime,
+            destinationId,
+        },
+    ];
+
+    showEventMessage(`➕ Created ${slotId} at ${destinationId}`);
 };
 </script>
 

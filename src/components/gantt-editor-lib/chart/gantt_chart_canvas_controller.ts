@@ -45,7 +45,12 @@ import {
   drawResizeBands,
   type UnifiedChartLayout,
 } from "./unified_chart_layout";
-import type { GanttEditorSlot, GanttEditorSlotWithUiAttributes, Topic } from "./types";
+import type {
+  GanttEditorCanvasContextMenuAction,
+  GanttEditorSlot,
+  GanttEditorSlotWithUiAttributes,
+  Topic,
+} from "./types";
 import type {
   GanttEditorHost,
   GanttEditorCallbacks,
@@ -105,6 +110,11 @@ type ContextMenuActionPayload = {
   kind: "move-vertical-marker";
   markerId: string;
   targetDate: Date;
+} | {
+  kind: "custom-action";
+  actionId: string;
+  targetDate: Date;
+  destinationId: string;
 };
 
 const RULER_SNAP_CATCHMENT_PX = 3;
@@ -1135,7 +1145,7 @@ export class GanttChartCanvasController {
     if (ctx.point.x < MARGIN.left) return;
 
     const contextMenuMovableMarkers = this.getContextMenuMovableMarkers();
-    if (contextMenuMovableMarkers.length === 0) return;
+    const destinationId = this.topicIdAtContentY(ctx.groupId, ctx.contentY);
 
     const targetX = clampVerticalMarkerCanvasX(ctx.point.x, ctx.layout.canvasCssWidth, MARGIN);
     const targetDate = verticalMarkerDateFromCanvasX(
@@ -1145,8 +1155,12 @@ export class GanttChartCanvasController {
       this.internalEndTime,
       MARGIN,
     );
+    const customContextMenuActions = destinationId
+      ? this.getCanvasContextMenuActions(destinationId, targetDate)
+      : [];
+    if (contextMenuMovableMarkers.length === 0 && customContextMenuActions.length === 0) return;
 
-    const menuItems: CanvasContextMenuItem<ContextMenuActionPayload>[] =
+    const markerMenuItems: CanvasContextMenuItem<ContextMenuActionPayload>[] =
       contextMenuMovableMarkers.length === 1
         ? [
             {
@@ -1179,6 +1193,11 @@ export class GanttChartCanvasController {
               })),
             },
           ];
+
+    const menuItems: CanvasContextMenuItem<ContextMenuActionPayload>[] = [
+      ...markerMenuItems,
+      ...customContextMenuActions,
+    ];
 
     this.openContextMenu(ctx.point.x, ctx.point.y, menuItems);
   }
@@ -4263,6 +4282,14 @@ export class GanttChartCanvasController {
     if (!payload) return;
     if (payload.kind === "move-vertical-marker") {
       this.callbacks.onVerticalMarkerChange?.(payload.markerId, payload.targetDate);
+      return;
+    }
+    if (payload.kind === "custom-action") {
+      this.callbacks.onCanvasContextMenuAction?.(
+        payload.actionId,
+        payload.targetDate,
+        payload.destinationId,
+      );
     }
   }
 
@@ -4272,6 +4299,26 @@ export class GanttChartCanvasController {
     return markers
       .filter((marker) => marker.movableByContextMenu !== false)
       .map((marker) => ({ id: marker.id, label: marker.label }));
+  }
+
+  private getCanvasContextMenuActions(
+    destinationId: string,
+    targetDate: Date,
+  ): Array<CanvasContextMenuItem<ContextMenuActionPayload>> {
+    const actions = this.props.canvasContextMenuActions ?? [];
+    if (actions.length === 0) return [];
+
+    return actions.map((action: GanttEditorCanvasContextMenuAction) => ({
+      id: `custom-action:${action.id}`,
+      label: action.label,
+      enabled: action.enabled,
+      payload: {
+        kind: "custom-action",
+        actionId: action.id,
+        targetDate,
+        destinationId,
+      },
+    }));
   }
 
   private scrollToMarkedRegionDestination(

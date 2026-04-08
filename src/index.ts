@@ -5,6 +5,7 @@ export type {
     GanttEditorDestinationGroup,
     GanttEditorMarkedRegion,
     GanttEditorSuggestion,
+    GanttEditorCanvasContextMenuAction,
     GanttEditorVerticalMarker,
     GanttEditorSlotWithUiAttributes,
     GanttEditorXAxisOptions,

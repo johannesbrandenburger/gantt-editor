@@ -56,6 +56,7 @@ interface GanttEditorEmits {
   onTopContentPortionChange: [number, number],
   onChangeVerticalMarker: [string, Date],
   onClickVerticalMarker: [string],
+  onCanvasContextMenuAction: [string, Date, string],
 }
 
 const props = defineProps<GanttEditorProps>();
@@ -117,6 +118,7 @@ function propsSnapshot(): GanttEditorProps {
     suggestions: props.suggestions,
     activateRulers: props.activateRulers,
     verticalMarkers: props.verticalMarkers,
+    canvasContextMenuActions: props.canvasContextMenuActions,
     markedRegion: props.markedRegion,
     isReadOnly: props.isReadOnly,
     topContentPortion: props.topContentPortion,
@@ -178,6 +180,9 @@ const controller = new GanttChartCanvasController(
     onVerticalMarkerClick: (id) => {
       emit("onClickVerticalMarker", id);
     },
+    onCanvasContextMenuAction: (actionId, timestamp, destinationId) => {
+      emit("onCanvasContextMenuAction", actionId, timestamp, destinationId);
+    },
   },
   {
     onSelectionSlotIds: (slotIds) => {
@@ -211,6 +216,7 @@ watch(
     props.suggestions,
     props.activateRulers,
     props.verticalMarkers,
+    props.canvasContextMenuActions,
     props.isReadOnly,
     props.topContentPortion,
     props.xAxisOptions,
