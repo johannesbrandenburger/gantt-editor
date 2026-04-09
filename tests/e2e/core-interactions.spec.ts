@@ -139,7 +139,7 @@ test.describe("canvas rewrite core interactions", () => {
     const center = await findSlotPoint(page, SLOT_ID, "center");
     const startCanvas = {
       x: Math.max(canvasState.margin.left + 12, center.x - 320),
-      y: Math.max(40, center.y - Math.max(18, canvasState.rowHeight * 0.35)),
+      y: Math.max(0, center.y - Math.max(18, canvasState.rowHeight * 0.35)),
     };
     const endCanvas = { x: center.x + 45, y: center.y + 14 };
 
