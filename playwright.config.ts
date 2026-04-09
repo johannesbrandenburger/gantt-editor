@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const isCoverageRun = !!process.env.PW_E2E_COVERAGE;
-const appPort = isCoverageRun ? 3100 : 3000;
+const appPort = isCoverageRun ? 4100 : 4000;
 const appUrl = `http://localhost:${appPort}`;
 
 export default defineConfig({
