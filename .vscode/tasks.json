@@ -25,6 +25,32 @@
         "reveal": "always",
         "panel": "dedicated"
       }
+    },
+    {
+      "label": "Bump version and push tag",
+      "type": "shell",
+      "command": "set -euo pipefail; bump=\"${input:versionBumpType}\"; branch=$(git branch --show-current); if [[ -z \"$branch\" ]]; then echo 'Detached HEAD detected. Checkout a branch before running this task.'; exit 1; fi; if [[ -n \"$(git status --porcelain)\" ]]; then echo 'Working tree is not clean. Commit, stash, or discard changes before bumping the version.'; git status --short; exit 1; fi; case \"$bump\" in major|minor|patch) ;; *) echo 'Invalid bump type. Use major, minor, or patch.'; exit 1 ;; esac; current_version=$(node -p \"require('./package.json').version\"); next_version=$(node -e \"const [maj,min,pat]=process.argv[1].split('.').map(Number); const bump=process.argv[2]; let v=[maj,min,pat]; if (bump==='major') v=[maj+1,0,0]; else if (bump==='minor') v=[maj,min+1,0]; else v=[maj,min,pat+1]; process.stdout.write(v.join('.'));\" \"$current_version\" \"$bump\"); node -e \"const fs=require('fs'); const p='package.json'; const data=JSON.parse(fs.readFileSync(p,'utf8')); data.version=process.argv[1]; fs.writeFileSync(p, JSON.stringify(data, null, 2) + '\\n');\" \"$next_version\"; npm i; git add package.json package-lock.json; git commit -m \"bump version to $next_version\"; git tag \"v$next_version\"; git push origin \"HEAD:$branch\" \"refs/tags/v$next_version\"",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "versionBumpType",
+      "type": "pickString",
+      "description": "Select semantic version bump type",
+      "options": [
+        "patch",
+        "minor",
+        "major"
+      ],
+      "default": "patch"
     }
   ]
 }
