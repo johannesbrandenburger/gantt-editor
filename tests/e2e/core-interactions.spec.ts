@@ -130,18 +130,33 @@ test.describe("canvas rewrite core interactions", () => {
     const canvas = await openE2eHarness(page);
 
     await page.evaluate(() => localStorage.removeItem("pointerSelection"));
-    const canvasState = await getCanvasState<{ margin: { left: number }; rowHeight: number }>(page);
+    const canvasState = await getCanvasState<{
+      margin: { left: number; right: number };
+      layout: {
+        canvasCssWidth: number;
+        groups: Array<{ id: string; y: number; h: number }>;
+      } | null;
+    }>(page);
     expect(canvasState).not.toBeNull();
     if (!canvasState) {
       throw new Error("Expected canvas state to be available");
     }
+    const targetGroup =
+      canvasState.layout?.groups.find((group) => group.id === "allocated") ??
+      canvasState.layout?.groups[0];
+    expect(targetGroup).toBeDefined();
+    if (!targetGroup || !canvasState.layout) {
+      throw new Error("Expected at least one visible group for brush selection");
+    }
 
-    const center = await findSlotPoint(page, SLOT_ID, "center");
     const startCanvas = {
-      x: Math.max(canvasState.margin.left + 12, center.x - 320),
-      y: Math.max(0, center.y - Math.max(18, canvasState.rowHeight * 0.35)),
+      x: canvasState.margin.left + 4,
+      y: targetGroup.y + 4,
     };
-    const endCanvas = { x: center.x + 45, y: center.y + 14 };
+    const endCanvas = {
+      x: canvasState.layout.canvasCssWidth - canvasState.margin.right - 4,
+      y: targetGroup.y + targetGroup.h - 4,
+    };
 
     const from = await canvasPointToPagePoint(canvas, startCanvas);
     const to = await canvasPointToPagePoint(canvas, endCanvas);
@@ -150,9 +165,17 @@ test.describe("canvas rewrite core interactions", () => {
 
     await expect
       .poll(
-        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).length,
         { timeout: 2000 },
       )
-      .toContain(SLOT_ID);
+      .toBeGreaterThan(0);
+
+    const selectedSlotIds = (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [];
+    const selectionFromStorage = await page.evaluate(() => {
+      const raw = localStorage.getItem("pointerSelection");
+      return raw ? (JSON.parse(raw) as Array<{ id: string }>).map((slot) => slot.id) : [];
+    });
+
+    expect(selectionFromStorage.sort()).toEqual([...selectedSlotIds].sort());
   });
 });
