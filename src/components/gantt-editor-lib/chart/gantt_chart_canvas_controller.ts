@@ -102,6 +102,13 @@ import {
   type CanvasContextMenuLayout,
   type CanvasContextMenuState,
 } from "./canvas_context_menu";
+import { drawHelpOverlay, buildHelpOverlayLayout, hitTestHelpOverlay } from "./help_overlay/help_overlay";
+import { DEFAULT_HELP_OVERLAY_TILES } from "./help_overlay/help_overlay_tiles";
+import type {
+  HelpOverlayHitTarget,
+  HelpOverlayHoverTarget,
+  HelpOverlayTileDefinition,
+} from "./help_overlay/help_overlay_tile";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const COLLAPSED_SYNC_MIN_INTERVAL_MS = 250;
@@ -123,6 +130,7 @@ const HOVER_PREVIEW_MAX_CLIPBOARD_SIZE = 50;
 const RESIZE_RULER_TICK_LENGTH_PX = 10;
 const RESIZE_TIME_LABEL_OFFSET_X = 14;
 const RESIZE_TIME_LABEL_OFFSET_Y = -16;
+const HELP_OVERLAY_TRANSITION_MS = 180;
 
 type ResizeRulerSnapPointKind = "openTime" | "closeTime" | "deadline" | "secondaryDeadline";
 
@@ -193,6 +201,14 @@ export class GanttChartCanvasController {
   private clipboardItems: GanttEditorSlot[] = [];
   private hoveredClipboardTopicId: string | null = null;
   private hoveredTimeAxisDiffMs: number | null = null;
+  private helpOverlayOpen = false;
+  private helpOverlayHoverTarget: HelpOverlayHoverTarget = null;
+  private helpOverlayTransition: {
+    from: number;
+    to: number;
+    startedAtMs: number;
+  } | null = null;
+  private readonly helpOverlayTiles: HelpOverlayTileDefinition[] = DEFAULT_HELP_OVERLAY_TILES;
 
   private destinationPreviewTopicsCache: {
     key: string;
@@ -597,10 +613,15 @@ export class GanttChartCanvasController {
     const layout = this.getChartLayout();
     const canvas = this.canvas;
     if (!layout || !canvas) return;
+    const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
+    const helpHit = this.resolveHelpOverlayHit(layout, pt.x, pt.y);
+    const nextHelpHover: HelpOverlayHoverTarget =
+      helpHit === "button" || helpHit === "close" ? helpHit : null;
+    const helpHoverChanged = nextHelpHover !== this.helpOverlayHoverTarget;
+    this.helpOverlayHoverTarget = nextHelpHover;
 
     if (this.contextMenuState.visible) {
       this.pointerInChart = true;
-      const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
       const menuInteractionChanged = this.updateContextMenuHover(
         pt.x,
         pt.y,
@@ -614,14 +635,22 @@ export class GanttChartCanvasController {
       return;
     }
 
+    if (this.helpOverlayOpen || helpHit !== null) {
+      this.pointerInChart = true;
+      this.clearHoverStateForHelpOverlay();
+      canvas.style.cursor = nextHelpHover ? "pointer" : this.helpOverlayOpen ? "default" : "";
+      if (helpHoverChanged) {
+        this.scheduleFrameRedraw(true);
+      }
+      return;
+    }
+
     const altCopyChanged = this.syncAltCopyModifier(e.altKey);
     const shiftTimeAxisChanged = this.syncShiftTimeAxisModifier(e.shiftKey);
     this.pointerInChart = true;
     const nextHover = this.resizeHoverKey(layout, e.clientX, e.clientY);
     const hoverChanged = nextHover !== this.hoverResizeBand;
     this.hoverResizeBand = nextHover;
-
-    const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
     const hit = hitTestChart(layout, pt.x, pt.y);
 
     const slotsInteractive = slotsAllowLabelsAndInteraction(this.rowHeight);
@@ -781,6 +810,7 @@ export class GanttChartCanvasController {
     this.closeContextMenu(false);
     this.hoverResizeBand = null;
     this.pointerInChart = false;
+    this.helpOverlayHoverTarget = null;
     this.hoveredSuggestion = null;
     this.hoveredClipboardTopicId = null;
     this.hoveredTimeAxisDiffMs = null;
@@ -799,6 +829,7 @@ export class GanttChartCanvasController {
   onMouseLeave(): void {
     this.closeContextMenu(false);
     this.pointerInChart = false;
+    this.helpOverlayHoverTarget = null;
     this.hoveredSuggestion = null;
     this.hoveredClipboardTopicId = null;
     this.hoveredTimeAxisDiffMs = null;
@@ -812,6 +843,10 @@ export class GanttChartCanvasController {
   onCanvasWheel(event: WheelEvent): void {
     const canvas = this.canvas;
     if (!canvas) return;
+    if (this.helpOverlayOpen) {
+      event.preventDefault();
+      return;
+    }
 
     this.cancelSlotReflowAnimation();
 
@@ -857,6 +892,11 @@ export class GanttChartCanvasController {
     const canvas = this.canvas;
     if (!layout || !canvas) return;
     const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
+    const helpHit = this.resolveHelpOverlayHit(layout, pt.x, pt.y);
+    if (this.helpOverlayOpen || helpHit !== null) {
+      e.preventDefault();
+      return;
+    }
     const hit = hitTestChart(layout, pt.x, pt.y);
     if (hit.type === "topResize") {
       this.startTopContentResize(e);
@@ -998,6 +1038,9 @@ export class GanttChartCanvasController {
       return;
     }
     if (e.button !== 0) return;
+    if (this.handleHelpOverlayClick(e.clientX, e.clientY)) {
+      return;
+    }
     const ctx = this.resolveGroupPointerContext(e.clientX, e.clientY);
     if (!ctx) return;
 
@@ -1077,6 +1120,9 @@ export class GanttChartCanvasController {
 
   onCanvasDoubleClick(e: MouseEvent): void {
     if (!slotsAllowLabelsAndInteraction(this.rowHeight)) return;
+    if (this.helpOverlayOpen || this.resolveHelpOverlayHitFromClientPoint(e.clientX, e.clientY) !== null) {
+      return;
+    }
 
     const ctx = this.resolveGroupPointerContext(e.clientX, e.clientY);
     if (!ctx) return;
@@ -1096,6 +1142,9 @@ export class GanttChartCanvasController {
   }
 
   onCanvasContextMenu(e: MouseEvent): void {
+    if (this.helpOverlayOpen || this.resolveHelpOverlayHitFromClientPoint(e.clientX, e.clientY) !== null) {
+      return;
+    }
     const ctx = this.resolveGroupPointerContext(e.clientX, e.clientY);
     if (!ctx) return;
 
@@ -3293,6 +3342,12 @@ export class GanttChartCanvasController {
 
     if (e.key !== "Escape" && e.keyCode !== 27) return;
 
+    if (this.helpOverlayOpen) {
+      e.preventDefault();
+      this.setHelpOverlayOpen(false);
+      return;
+    }
+
     if (this.contextMenuState.visible) {
       e.preventDefault();
       this.closeContextMenu(true);
@@ -3705,8 +3760,15 @@ export class GanttChartCanvasController {
     this.drawSlotHoverTooltipOverlay(ctx, layout);
     this.drawSlotResizeCursorTimeOverlay(ctx, layout);
     this.drawContextMenuOverlay(ctx, layout);
+    const helpOverlayProgress = this.drawHelpOverlay(ctx, layout, nowMs);
 
-    if (slotReflowTransition || collapseLayoutTransition || destinationPreview) {
+    if (
+      slotReflowTransition ||
+      collapseLayoutTransition ||
+      destinationPreview ||
+      helpOverlayProgress > 0 ||
+      this.helpOverlayTransition
+    ) {
       this.scheduleFrameRedraw(false);
     }
   }
@@ -4197,6 +4259,113 @@ export class GanttChartCanvasController {
 
   private redraw(): void {
     this.scheduleFrameRedraw(false);
+  }
+
+  private drawHelpOverlay(
+    ctx: CanvasRenderingContext2D,
+    layout: UnifiedChartLayout,
+    nowMs: number,
+  ): number {
+    const progress = this.getHelpOverlayProgress(nowMs);
+    drawHelpOverlay({
+      ctx,
+      width: layout.canvasCssWidth,
+      height: layout.canvasCssHeight,
+      nowMs,
+      progress,
+      tiles: this.helpOverlayTiles,
+      hoverTarget: this.helpOverlayHoverTarget,
+    });
+    return progress;
+  }
+
+  private getHelpOverlayProgress(nowMs = performance.now()): number {
+    if (!this.helpOverlayTransition) {
+      return this.helpOverlayOpen ? 1 : 0;
+    }
+
+    const elapsed = Math.max(0, nowMs - this.helpOverlayTransition.startedAtMs);
+    const rawProgress = Math.min(1, elapsed / HELP_OVERLAY_TRANSITION_MS);
+    const eased = 1 - Math.pow(1 - rawProgress, 3);
+    const value =
+      this.helpOverlayTransition.from +
+      (this.helpOverlayTransition.to - this.helpOverlayTransition.from) * eased;
+
+    if (rawProgress >= 1) {
+      const settledValue = this.helpOverlayTransition.to;
+      this.helpOverlayTransition = null;
+      return settledValue;
+    }
+
+    return value;
+  }
+
+  private resolveHelpOverlayHit(
+    layout: UnifiedChartLayout,
+    canvasX: number,
+    canvasY: number,
+  ): HelpOverlayHitTarget {
+    const progress = this.getHelpOverlayProgress();
+    const helpLayout = buildHelpOverlayLayout(
+      layout.canvasCssWidth,
+      layout.canvasCssHeight,
+      this.helpOverlayTiles,
+    );
+    return hitTestHelpOverlay(helpLayout, progress, canvasX, canvasY);
+  }
+
+  private resolveHelpOverlayHitFromClientPoint(clientX: number, clientY: number): HelpOverlayHitTarget {
+    const layout = this.getChartLayout();
+    const canvas = this.canvas;
+    if (!layout || !canvas) return null;
+    const point = canvasLocalPoint(canvas, clientX, clientY);
+    return this.resolveHelpOverlayHit(layout, point.x, point.y);
+  }
+
+  private handleHelpOverlayClick(clientX: number, clientY: number): boolean {
+    const helpHit = this.resolveHelpOverlayHitFromClientPoint(clientX, clientY);
+    if (helpHit === "button") {
+      this.setHelpOverlayOpen(!this.helpOverlayOpen);
+      return true;
+    }
+    if (helpHit === "close") {
+      this.setHelpOverlayOpen(false);
+      return true;
+    }
+    if (this.helpOverlayOpen) {
+      if (helpHit === null) {
+        this.setHelpOverlayOpen(false);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  private setHelpOverlayOpen(open: boolean): void {
+    const from = this.getHelpOverlayProgress();
+    const to = open ? 1 : 0;
+    this.helpOverlayOpen = open;
+    this.helpOverlayTransition =
+      Math.abs(from - to) < 0.001
+        ? null
+        : {
+            from,
+            to,
+            startedAtMs: performance.now(),
+          };
+    this.helpOverlayHoverTarget = null;
+    this.closeContextMenu(false);
+    this.clearHoverStateForHelpOverlay();
+    this.redraw();
+  }
+
+  private clearHoverStateForHelpOverlay(): void {
+    this.hoverResizeBand = null;
+    this.hoveredSuggestion = null;
+    this.hoveredClipboardTopicId = null;
+    this.hoveredTimeAxisDiffMs = null;
+    this.destinationPreviewTransition = null;
+    this.resetHoverSlot();
   }
 
   private getContextMenuMeasureTextWidth(text: string): number {

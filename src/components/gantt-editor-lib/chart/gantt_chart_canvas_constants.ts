@@ -13,7 +13,7 @@ export const SLOT_REFLOW_ANIMATION_MS = 180 * TEMP_ANIMATION_SLOWDOWN_MULTIPLIER
 export const SLOT_REFLOW_PENDING_TTL_MS = 2_000;
 export const DESTINATION_PREVIEW_TRANSITION_MS = 180 * TEMP_ANIMATION_SLOWDOWN_MULTIPLIER;
 
-export const MARGIN = { left: 200, right: 12 };
+export const MARGIN = { left: 200, right: 0 };
 
 // processData only uses slots, destinations, and settings.compactView; it does not use the view
 // time range or row height. Omitting those reactive deps keeps pan/zoom from re-running O(n) work

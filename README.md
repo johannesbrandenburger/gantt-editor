@@ -309,6 +309,8 @@ export type GanttEditorXAxisOptions = {
 
 ## Selection and Interaction Shortcuts
 
+- Click the top-right `?` inside the chart to open the in-canvas help overlay.
+- The first help tile currently demonstrates background brush selection.
 - Drag on canvas background to brush-select multiple slots.
 - Cmd/Ctrl + click toggles slot selection.
 - Hold Alt while moving selection to copy instead of move.
