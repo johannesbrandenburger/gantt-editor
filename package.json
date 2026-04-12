@@ -30,6 +30,7 @@
     "test:e2e:coverage": "node -e \"require('fs').rmSync('.nyc_output',{recursive:true,force:true})\" && cross-env PW_E2E_COVERAGE=1 playwright test && node -e \"require('fs').mkdirSync('.nyc_output',{recursive:true})\" && nyc report --temp-dir .nyc_output --reporter=text-summary --reporter=html --report-dir test-results/e2e-coverage && http-server test-results/e2e-coverage -p 4173 -c-1"
   },
   "dependencies": {
+    "@chenglou/pretext": "^0.0.5",
     "vue": "^3.5.13"
   },
   "devDependencies": {

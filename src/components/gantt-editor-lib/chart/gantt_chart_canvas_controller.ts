@@ -4310,6 +4310,7 @@ export class GanttChartCanvasController {
       layout.canvasCssWidth,
       layout.canvasCssHeight,
       this.helpOverlayTiles,
+      this.cachedCtx,
     );
     return hitTestHelpOverlay(helpLayout, progress, canvasX, canvasY);
   }

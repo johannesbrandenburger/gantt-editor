@@ -31,6 +31,13 @@ export type HelpOverlayTileLayout = {
   previewRect: CanvasRect;
   textX: number;
   textWidth: number;
+  titleLines: string[];
+  titleY: number;
+  descriptionLines: string[];
+  descriptionY: number;
+  detailLines: string[];
+  detailY: number | null;
+  shortcutRect: CanvasRect | null;
 };
 
 export type HelpOverlayLayout = {

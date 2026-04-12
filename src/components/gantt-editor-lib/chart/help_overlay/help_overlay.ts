@@ -1,3 +1,9 @@
+import {
+  layoutWithLines,
+  measureNaturalWidth,
+  prepareWithSegments,
+  type PreparedTextWithSegments,
+} from "@chenglou/pretext";
 import type {
   CanvasRect,
   HelpOverlayHitTarget,
@@ -7,15 +13,55 @@ import type {
   HelpOverlayTileLayout,
 } from "./help_overlay_tile";
 
-const OUTER_PAD = 16;
-const BUTTON_SIZE = 28;
-const BUTTON_PANEL_GAP = 12;
-const PANEL_PAD_X = 18;
-const PANEL_PAD_Y = 18;
-const TILE_GAP = 12;
-const HEADER_HEIGHT = 56;
-const CLOSE_SIZE = 22;
-const PREVIEW_WIDTH = 188;
+const OUTER_PAD = 8;
+const BUTTON_SIZE = 24;
+const BUTTON_PANEL_GAP = 6;
+const PANEL_PAD_X = 10;
+const PANEL_PAD_Y = 10;
+const TILE_GAP = 6;
+const HEADER_HEIGHT = 28;
+const CLOSE_SIZE = 18;
+const TILE_INNER_PAD = 8;
+const PREVIEW_TEXT_GAP = 6;
+const PREVIEW_FIXED_WIDTH = 168;
+const PREVIEW_FIXED_HEIGHT = 100;
+const TILE_TEXT_MIN_WIDTH = 132;
+const TITLE_FONT = "600 14px sans-serif";
+const DESCRIPTION_FONT = "12px sans-serif";
+const DETAIL_FONT = "11px sans-serif";
+const SHORTCUT_FONT = "600 11px sans-serif";
+const TITLE_LINE_HEIGHT = 17;
+const TITLE_BASELINE_OFFSET = 13;
+const TITLE_TO_DESCRIPTION_GAP = 3;
+const DESCRIPTION_LINE_HEIGHT = 15;
+const DESCRIPTION_BASELINE_OFFSET = 11;
+const DETAIL_TOP_GAP = 4;
+const DETAIL_LINE_HEIGHT = 14;
+const DETAIL_BASELINE_OFFSET = 10;
+const SHORTCUT_TOP_GAP = 5;
+const SHORTCUT_HEIGHT = 18;
+const SHORTCUT_TEXT_PAD_X = 6;
+const TEXT_BOTTOM_PAD = 6;
+const TEXT_TOP_PAD = 8;
+
+const preparedTextCache = new Map<string, PreparedTextWithSegments>();
+
+type TextBlockLayout = {
+  lines: string[];
+  height: number;
+};
+
+type TileCandidateLayout = {
+  textWidth: number;
+  height: number;
+  titleLines: string[];
+  descriptionLines: string[];
+  detailLines: string[];
+  titleY: number;
+  descriptionY: number;
+  detailY: number | null;
+  shortcutRect: CanvasRect | null;
+};
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -32,40 +78,161 @@ function rectContainsPoint(rect: CanvasRect | null, x: number, y: number): boole
   return x >= rect.x && y >= rect.y && x <= rect.x + rect.w && y <= rect.y + rect.h;
 }
 
+function drawWrappedTextLines(
+  ctx: CanvasRenderingContext2D,
+  lines: string[],
+  x: number,
+  baselineY: number,
+  lineHeight: number,
+): void {
+  for (let i = 0; i < lines.length; i += 1) {
+    ctx.fillText(lines[i]!, x, baselineY + i * lineHeight);
+  }
+}
+
+function getPreparedText(text: string, font: string): PreparedTextWithSegments {
+  const cacheKey = `${font}\n${text}`;
+  const cached = preparedTextCache.get(cacheKey);
+  if (cached) return cached;
+
+  const prepared = prepareWithSegments(text, font);
+  preparedTextCache.set(cacheKey, prepared);
+  return prepared;
+}
+
+function layoutTextBlock(text: string, font: string, maxWidth: number, lineHeight: number): TextBlockLayout {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return { lines: [], height: 0 };
+  }
+
+  const result = layoutWithLines(getPreparedText(trimmed, font), Math.max(1, maxWidth), lineHeight);
+  return {
+    lines: result.lines.map((line) => line.text),
+    height: result.lineCount * lineHeight,
+  };
+}
+
+function measureTextNaturalWidth(text: string, font: string): number {
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+  return measureNaturalWidth(getPreparedText(trimmed, font));
+}
+
+function buildTileCandidateLayout(tile: HelpOverlayTileDefinition, tileWidth: number): TileCandidateLayout | null {
+  const textWidth = tileWidth - TILE_INNER_PAD * 2 - PREVIEW_FIXED_WIDTH - PREVIEW_TEXT_GAP;
+  if (textWidth < TILE_TEXT_MIN_WIDTH) {
+    return null;
+  }
+
+  const titleBlock = layoutTextBlock(tile.title, TITLE_FONT, textWidth, TITLE_LINE_HEIGHT);
+  const descriptionBlock = layoutTextBlock(
+    tile.description,
+    DESCRIPTION_FONT,
+    textWidth,
+    DESCRIPTION_LINE_HEIGHT,
+  );
+  const detailBlock = layoutTextBlock(tile.detail, DETAIL_FONT, textWidth, DETAIL_LINE_HEIGHT);
+
+  let cursorTop = TEXT_TOP_PAD;
+  const titleY = cursorTop + TITLE_BASELINE_OFFSET;
+  cursorTop += titleBlock.height;
+
+  const descriptionY = cursorTop + TITLE_TO_DESCRIPTION_GAP + DESCRIPTION_BASELINE_OFFSET;
+  cursorTop += TITLE_TO_DESCRIPTION_GAP + descriptionBlock.height;
+
+  let detailY: number | null = null;
+  if (detailBlock.height > 0) {
+    detailY = cursorTop + DETAIL_TOP_GAP + DETAIL_BASELINE_OFFSET;
+    cursorTop += DETAIL_TOP_GAP + detailBlock.height;
+  }
+
+  let shortcutRect: CanvasRect | null = null;
+  if (tile.shortcutLabel) {
+    const shortcutWidth = Math.min(
+      textWidth,
+      Math.ceil(measureTextNaturalWidth(tile.shortcutLabel, SHORTCUT_FONT)) + SHORTCUT_TEXT_PAD_X * 2,
+    );
+    shortcutRect = {
+      x: 0,
+      y: cursorTop + SHORTCUT_TOP_GAP,
+      w: shortcutWidth,
+      h: SHORTCUT_HEIGHT,
+    };
+    cursorTop = shortcutRect.y + shortcutRect.h;
+  }
+
+  const height = Math.max(
+    tile.minHeight,
+    cursorTop + TEXT_BOTTOM_PAD,
+    PREVIEW_FIXED_HEIGHT + TILE_INNER_PAD * 2,
+  );
+  return {
+    textWidth,
+    height,
+    titleLines: titleBlock.lines,
+    descriptionLines: descriptionBlock.lines,
+    detailLines: detailBlock.lines,
+    titleY,
+    descriptionY,
+    detailY,
+    shortcutRect,
+  };
+}
+
 function layoutTiles(
   tiles: HelpOverlayTileDefinition[],
   panelX: number,
   panelY: number,
   panelWidth: number,
+  _ctx?: CanvasRenderingContext2D | null,
 ): HelpOverlayTileLayout[] {
   const tileWidth = panelWidth - PANEL_PAD_X * 2;
-  const previewWidth = Math.min(PREVIEW_WIDTH, Math.max(140, tileWidth * 0.52));
-  const textWidth = tileWidth - previewWidth - 18;
   const tileLayouts: HelpOverlayTileLayout[] = [];
 
   let y = panelY + PANEL_PAD_Y + HEADER_HEIGHT;
   for (const tile of tiles) {
+    const resolvedCandidate = buildTileCandidateLayout(tile, tileWidth);
+    if (!resolvedCandidate) {
+      continue;
+    }
+
     const rect: CanvasRect = {
       x: panelX + PANEL_PAD_X,
       y,
       w: tileWidth,
-      h: tile.minHeight,
+      h: resolvedCandidate.height,
     };
     const previewRect: CanvasRect = {
-      x: rect.x + 14,
-      y: rect.y + 14,
-      w: previewWidth,
-      h: rect.h - 28,
+      x: rect.x + TILE_INNER_PAD,
+      y: rect.y + TILE_INNER_PAD,
+      w: PREVIEW_FIXED_WIDTH,
+      h: PREVIEW_FIXED_HEIGHT,
     };
-    const textX = previewRect.x + previewRect.w + 18;
+    const textX = previewRect.x + previewRect.w + PREVIEW_TEXT_GAP;
+    const shortcutRect = resolvedCandidate.shortcutRect
+      ? {
+          x: textX,
+          y: rect.y + resolvedCandidate.shortcutRect.y,
+          w: resolvedCandidate.shortcutRect.w,
+          h: resolvedCandidate.shortcutRect.h,
+        }
+      : null;
     tileLayouts.push({
       tile,
       rect,
       previewRect,
       textX,
-      textWidth,
+      textWidth: resolvedCandidate.textWidth,
+      titleLines: resolvedCandidate.titleLines,
+      titleY: rect.y + resolvedCandidate.titleY,
+      descriptionLines: resolvedCandidate.descriptionLines,
+      descriptionY: rect.y + resolvedCandidate.descriptionY,
+      detailLines: resolvedCandidate.detailLines,
+      detailY: resolvedCandidate.detailY === null ? null : rect.y + resolvedCandidate.detailY,
+      shortcutRect,
     });
-    y += tile.minHeight + TILE_GAP;
+    y += resolvedCandidate.height + TILE_GAP;
   }
 
   return tileLayouts;
@@ -75,6 +242,7 @@ export function buildHelpOverlayLayout(
   width: number,
   height: number,
   tiles: HelpOverlayTileDefinition[],
+  ctx?: CanvasRenderingContext2D | null,
 ): HelpOverlayLayout {
   const buttonRect: CanvasRect = {
     x: Math.max(OUTER_PAD, width - OUTER_PAD - BUTTON_SIZE),
@@ -93,10 +261,10 @@ export function buildHelpOverlayLayout(
   }
 
   const panelMaxWidth = Math.max(300, width - OUTER_PAD * 2);
-  const panelWidth = clamp(panelMaxWidth * 0.48, 340, 480);
+  const panelWidth = clamp(panelMaxWidth * 0.56, 380, 520);
   const provisionalPanelX = Math.max(OUTER_PAD, width - OUTER_PAD - panelWidth);
   const provisionalPanelY = buttonRect.y + buttonRect.h + BUTTON_PANEL_GAP;
-  const tileLayouts = layoutTiles(tiles, provisionalPanelX, provisionalPanelY, panelWidth);
+  const tileLayouts = layoutTiles(tiles, provisionalPanelX, provisionalPanelY, panelWidth, ctx);
   const tileAreaHeight =
     tileLayouts.reduce((sum, tile) => sum + tile.rect.h, 0) +
     Math.max(0, tileLayouts.length - 1) * TILE_GAP;
@@ -108,7 +276,7 @@ export function buildHelpOverlayLayout(
     w: panelWidth,
     h: panelHeight,
   };
-  const adjustedTileLayouts = layoutTiles(tiles, panelRect.x, panelRect.y, panelRect.w);
+  const adjustedTileLayouts = layoutTiles(tiles, panelRect.x, panelRect.y, panelRect.w, ctx);
   const closeRect: CanvasRect = {
     x: panelRect.x + panelRect.w - PANEL_PAD_X - CLOSE_SIZE,
     y: panelRect.y + PANEL_PAD_Y,
@@ -136,7 +304,7 @@ type DrawHelpOverlayArgs = {
 
 export function drawHelpOverlay(args: DrawHelpOverlayArgs): HelpOverlayLayout {
   const { ctx, width, height, nowMs, progress, tiles, hoverTarget } = args;
-  const layout = buildHelpOverlayLayout(width, height, tiles);
+  const layout = buildHelpOverlayLayout(width, height, tiles, ctx);
   const buttonHovered = hoverTarget === "button";
   const closeHovered = hoverTarget === "close";
 
@@ -217,14 +385,10 @@ function drawHelpHeader(
 ): void {
   ctx.save();
   ctx.fillStyle = "#111827";
-  ctx.font = "600 16px sans-serif";
+  ctx.font = "600 15px sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText("How to use the chart", panelRect.x + PANEL_PAD_X, panelRect.y + 24);
-
-  ctx.fillStyle = "#5b6472";
-  ctx.font = "12px sans-serif";
-  ctx.fillText("Quick help", panelRect.x + PANEL_PAD_X, panelRect.y + 44);
+  ctx.fillText("Quick help", panelRect.x + PANEL_PAD_X, panelRect.y + 22);
 
   ctx.beginPath();
   ctx.arc(closeRect.x + closeRect.w / 2, closeRect.y + closeRect.h / 2, closeRect.w / 2, 0, Math.PI * 2);
@@ -237,10 +401,10 @@ function drawHelpHeader(
   ctx.strokeStyle = "#5b6472";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(closeRect.x + 7, closeRect.y + 7);
-  ctx.lineTo(closeRect.x + closeRect.w - 7, closeRect.y + closeRect.h - 7);
-  ctx.moveTo(closeRect.x + closeRect.w - 7, closeRect.y + 7);
-  ctx.lineTo(closeRect.x + 7, closeRect.y + closeRect.h - 7);
+  ctx.moveTo(closeRect.x + 6.5, closeRect.y + 6.5);
+  ctx.lineTo(closeRect.x + closeRect.w - 6.5, closeRect.y + closeRect.h - 6.5);
+  ctx.moveTo(closeRect.x + closeRect.w - 6.5, closeRect.y + 6.5);
+  ctx.lineTo(closeRect.x + 6.5, closeRect.y + closeRect.h - 6.5);
   ctx.stroke();
 
   ctx.restore();
@@ -252,7 +416,20 @@ function drawHelpTile(
   nowMs: number,
   alpha: number,
 ): void {
-  const { tile, rect, previewRect, textX, textWidth } = tileLayout;
+  const {
+    tile,
+    rect,
+    previewRect,
+    textX,
+    textWidth,
+    titleLines,
+    titleY,
+    descriptionLines,
+    descriptionY,
+    detailLines,
+    detailY,
+    shortcutRect,
+  } = tileLayout;
 
   ctx.save();
   ctx.fillStyle = "#ffffff";
@@ -262,81 +439,50 @@ function drawHelpTile(
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
   ctx.restore();
 
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(previewRect.x, previewRect.y, previewRect.w, previewRect.h);
+  ctx.clip();
   tile.drawPreview({
     ctx,
     rect: previewRect,
     nowMs,
     alpha,
   });
-
-  const titleY = rect.y + 32;
-  const descriptionY = titleY + 24;
-  const detailY = descriptionY + 32;
-  const descriptionMaxLines = tile.detail ? 2 : 3;
+  ctx.restore();
 
   ctx.save();
   ctx.fillStyle = "#111827";
-  ctx.font = "600 15px sans-serif";
+  ctx.font = TITLE_FONT;
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText(tile.title, textX, titleY);
+  drawWrappedTextLines(ctx, titleLines, textX, titleY, TITLE_LINE_HEIGHT);
 
   ctx.fillStyle = "#4b5563";
-  ctx.font = "13px sans-serif";
-  wrapCanvasText(ctx, tile.description, textX, descriptionY, textWidth, 18, descriptionMaxLines);
+  ctx.font = DESCRIPTION_FONT;
+  drawWrappedTextLines(ctx, descriptionLines, textX, descriptionY, DESCRIPTION_LINE_HEIGHT);
 
-  if (tile.detail) {
+  if (detailLines.length > 0 && detailY !== null) {
     ctx.fillStyle = "#6b7280";
-    ctx.font = "12px sans-serif";
-    wrapCanvasText(ctx, tile.detail, textX, detailY, textWidth, 17, 2);
+    ctx.font = DETAIL_FONT;
+    drawWrappedTextLines(ctx, detailLines, textX, detailY, DETAIL_LINE_HEIGHT);
   }
 
-  if (tile.shortcutLabel) {
-    const shortcutY = rect.y + rect.h - 28;
-    const labelWidth = Math.min(textWidth, ctx.measureText(tile.shortcutLabel).width + 18);
+  if (tile.shortcutLabel && shortcutRect) {
+    ctx.font = SHORTCUT_FONT;
+    const labelWidth = Math.min(
+      textWidth,
+      shortcutRect.w,
+    );
     ctx.fillStyle = "#f8fafc";
-    ctx.fillRect(textX, shortcutY - 12, labelWidth, 22);
+    ctx.fillRect(shortcutRect.x, shortcutRect.y, labelWidth, SHORTCUT_HEIGHT);
     ctx.strokeStyle = "#d9dfe8";
     ctx.lineWidth = 1;
-    ctx.strokeRect(textX + 0.5, shortcutY - 11.5, labelWidth - 1, 21);
+    ctx.strokeRect(shortcutRect.x + 0.5, shortcutRect.y + 0.5, labelWidth - 1, SHORTCUT_HEIGHT - 1);
     ctx.fillStyle = "#374151";
-    ctx.font = "600 11px sans-serif";
-    ctx.fillText(tile.shortcutLabel, textX + 9, shortcutY + 3);
+    ctx.fillText(tile.shortcutLabel, shortcutRect.x + SHORTCUT_TEXT_PAD_X, shortcutRect.y + 13.5);
   }
   ctx.restore();
-}
-
-function wrapCanvasText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  maxWidth: number,
-  lineHeight: number,
-  maxLines: number,
-): void {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let current = "";
-
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (ctx.measureText(next).width <= maxWidth || current.length === 0) {
-      current = next;
-      continue;
-    }
-    lines.push(current);
-    current = word;
-    if (lines.length === maxLines - 1) break;
-  }
-
-  if (lines.length < maxLines && current) {
-    lines.push(current);
-  }
-
-  for (let i = 0; i < lines.length; i += 1) {
-    ctx.fillText(lines[i]!, x, y + i * lineHeight);
-  }
 }
 
 export function hitTestHelpOverlay(

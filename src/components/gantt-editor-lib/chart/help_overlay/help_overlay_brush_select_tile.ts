@@ -29,14 +29,14 @@ export const brushSelectHelpOverlayTile: HelpOverlayTileDefinition = {
   id: "brush-select",
   title: "Brush select",
   description: "Drag on empty chart background to select multiple slots.",
-  shortcutLabel: "Mouse drag",
-  detail: "Start on free space. Slots fully inside the box are selected.",
-  minHeight: 172,
+  shortcutLabel: "",
+  detail: "",
+  minHeight: 108,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {
     const cycle = (nowMs % ANIMATION_CYCLE_MS) / ANIMATION_CYCLE_MS;
     const dragProgress = cycle < 0.14 ? 0 : cycle < 0.72 ? easeInOut((cycle - 0.14) / 0.58) : 1;
     const showBrush = cycle >= 0.12 && cycle <= 0.82;
-    const previewPad = 10;
+    const previewPad = 8;
     const inner: CanvasRect = {
       x: rect.x + previewPad,
       y: rect.y + previewPad,
@@ -83,7 +83,7 @@ export const brushSelectHelpOverlayTile: HelpOverlayTileDefinition = {
 
     ctx.strokeStyle = "rgba(133, 146, 166, 0.22)";
     ctx.lineWidth = 1;
-    for (let row = 0; row < 4; row += 1) {
+    for (let row = 0; row < 3; row += 1) {
       const y = inner.y + 12 + row * 28;
       ctx.beginPath();
       ctx.moveTo(inner.x + 2, y + 0.5);
@@ -127,7 +127,7 @@ export const brushSelectHelpOverlayTile: HelpOverlayTileDefinition = {
         ctx,
         x: cursorX,
         y: cursorY,
-        pressed: showBrush,
+        pressed: showBrush && dragProgress > 0,
       });
     }
 
