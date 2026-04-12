@@ -8,7 +8,7 @@
         - slots (e.g. flights) are rendered as bars
         - slots can be resized at its ends and moved by pin and paste
     -->
-    <div style="height: 100vh; width: 100%;">
+    <div style="height: 100vh; width: 100%; margin: 0 auto;">
         <GanttEditorComponent
             ref="ganttEditorRef"
             :isReadOnly="isReadOnly"

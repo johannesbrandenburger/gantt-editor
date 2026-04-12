@@ -1,6 +1,10 @@
 import type { CanvasRect, HelpOverlayTileDefinition } from "./help_overlay_tile";
 import { drawHelpOverlayCursor } from "./help_overlay_cursor";
 import { easeInOut } from "./help_overlay_easing";
+import {
+  helpOverlayIsApplePlatform,
+  helpOverlayPrimaryModifierShortLabel,
+} from "./help_overlay_platform";
 
 /** Longer cycle so hover → first click → travel → second click reads clearly. */
 const ANIMATION_CYCLE_MS = 5200;
@@ -12,23 +16,29 @@ function segmentT(cycle: number, start: number, end: number): number {
   return (cycle - start) / (end - start);
 }
 
+const multiSelectDescription = helpOverlayIsApplePlatform()
+  ? "Click on a slot to select it. Hold the Command key to select multiple slots."
+  : "Click on a slot to select it. Hold Ctrl to select multiple slots.";
+
+const multiSelectShortcutLabel = `Click + ${helpOverlayPrimaryModifierShortLabel()}`;
+
 export const multiSelectHelpOverlayTile: HelpOverlayTileDefinition = {
   id: "multi-select",
-  title: "Add or remove from selection",
-  description:
-    "With the pointer over a slot bar, Ctrl+click (Cmd+click on macOS) toggles that slot in the selection without clearing the rest.",
-  shortcutLabel: "Ctrl/Cmd + click",
-  detail: "When nothing is selected, a normal click still selects a single slot.",
+  title: "Select slots",
+  description: multiSelectDescription,
+  shortcutLabel: multiSelectShortcutLabel,
+  detail: "",
   minHeight: 118,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {
     const cycle = (nowMs % ANIMATION_CYCLE_MS) / ANIMATION_CYCLE_MS;
 
-    const tFirstPressStart = 0.24;
-    const tFirstPressEnd = 0.35;
-    const tMoveStart = 0.38;
-    const tMoveEnd = 0.66;
-    const tSecondPressStart = 0.7;
-    const tSecondPressEnd = 0.82;
+    // Shorter press + hot dwell so the gesture reads snappier (same story, less screen time).
+    const tFirstPressStart = 0.26;
+    const tFirstPressEnd = 0.3;
+    const tMoveStart = 0.315;
+    const tMoveEnd = 0.64;
+    const tSecondPressStart = 0.67;
+    const tSecondPressEnd = 0.71;
     /** Same dwell after release as on slot A (`tMoveStart - tFirstPressEnd`) before “leaving” the gesture. */
     const tSecondHotEnd =
       tSecondPressEnd + (tMoveStart - tFirstPressEnd);
@@ -99,7 +109,7 @@ export const multiSelectHelpOverlayTile: HelpOverlayTileDefinition = {
       ctx.font = "600 9px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
-      ctx.fillText("Ctrl", cx, slotB.y - 4);
+      ctx.fillText(helpOverlayPrimaryModifierShortLabel(), cx, slotB.y - 4);
     }
 
     ctx.restore();

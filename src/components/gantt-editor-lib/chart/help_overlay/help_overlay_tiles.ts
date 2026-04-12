@@ -7,8 +7,8 @@ import { canvasContextMenuHelpOverlayTile } from "./help_overlay_context_menu_ti
 import { escapeKeyHelpOverlayTile } from "./help_overlay_escape_tile";
 
 export const DEFAULT_HELP_OVERLAY_TILES: HelpOverlayTileDefinition[] = [
-  brushSelectHelpOverlayTile,
   multiSelectHelpOverlayTile,
+  brushSelectHelpOverlayTile,
   resizeSlotEdgesHelpOverlayTile,
   unifiedZoomHelpOverlayTile,
   canvasContextMenuHelpOverlayTile,
