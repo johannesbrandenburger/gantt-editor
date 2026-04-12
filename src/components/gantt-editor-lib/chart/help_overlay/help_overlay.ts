@@ -300,10 +300,12 @@ type DrawHelpOverlayArgs = {
   progress: number;
   tiles: HelpOverlayTileDefinition[];
   hoverTarget: HelpOverlayHoverTarget;
+  /** Hovered tile preview time is `nowMs - hoveredTileAnimationStartMs`. */
+  hoveredTileAnimationStartMs: number | null;
 };
 
 export function drawHelpOverlay(args: DrawHelpOverlayArgs): HelpOverlayLayout {
-  const { ctx, width, height, nowMs, progress, tiles, hoverTarget } = args;
+  const { ctx, width, height, nowMs, progress, tiles, hoverTarget, hoveredTileAnimationStartMs } = args;
   const layout = buildHelpOverlayLayout(width, height, tiles, ctx);
   const buttonHovered = hoverTarget === "button";
   const closeHovered = hoverTarget === "close";
@@ -332,8 +334,16 @@ export function drawHelpOverlay(args: DrawHelpOverlayArgs): HelpOverlayLayout {
   drawHelpPanel(ctx, layout.panelRect);
   drawHelpHeader(ctx, layout.panelRect, layout.closeRect, closeHovered);
 
+  const hoveredTileId =
+    hoverTarget !== null && typeof hoverTarget === "object" && hoverTarget.kind === "tile"
+      ? hoverTarget.id
+      : null;
   for (const tileLayout of layout.tileLayouts) {
-    drawHelpTile(ctx, tileLayout, nowMs, panelAlpha);
+    const previewNowMs =
+      hoveredTileId === tileLayout.tile.id && hoveredTileAnimationStartMs !== null
+        ? nowMs - hoveredTileAnimationStartMs
+        : 0;
+    drawHelpTile(ctx, tileLayout, previewNowMs, panelAlpha);
   }
 
   ctx.restore();
@@ -501,6 +511,11 @@ export function hitTestHelpOverlay(
     return "close";
   }
   if (rectContainsPoint(layout.panelRect, x, y)) {
+    for (const tileLayout of layout.tileLayouts) {
+      if (rectContainsPoint(tileLayout.rect, x, y)) {
+        return { kind: "tile", id: tileLayout.tile.id };
+      }
+    }
     return "panel";
   }
   return null;

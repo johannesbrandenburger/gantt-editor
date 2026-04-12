@@ -203,6 +203,7 @@ export class GanttChartCanvasController {
   private hoveredTimeAxisDiffMs: number | null = null;
   private helpOverlayOpen = false;
   private helpOverlayHoverTarget: HelpOverlayHoverTarget = null;
+  private helpOverlayHoveredTileAnimationStartMs: number | null = null;
   private helpOverlayTransition: {
     from: number;
     to: number;
@@ -616,8 +617,21 @@ export class GanttChartCanvasController {
     const pt = canvasLocalPoint(canvas, e.clientX, e.clientY);
     const helpHit = this.resolveHelpOverlayHit(layout, pt.x, pt.y);
     const nextHelpHover: HelpOverlayHoverTarget =
-      helpHit === "button" || helpHit === "close" ? helpHit : null;
-    const helpHoverChanged = nextHelpHover !== this.helpOverlayHoverTarget;
+      helpHit === "button" || helpHit === "close"
+        ? helpHit
+        : helpHit !== null && typeof helpHit === "object" && helpHit.kind === "tile"
+          ? helpHit
+          : null;
+    const prevTileId = this.helpOverlayTileHoverId(this.helpOverlayHoverTarget);
+    const nextTileId = this.helpOverlayTileHoverId(nextHelpHover);
+    if (nextTileId === null) {
+      this.helpOverlayHoveredTileAnimationStartMs = null;
+    } else if (nextTileId !== prevTileId) {
+      this.helpOverlayHoveredTileAnimationStartMs = performance.now();
+    }
+    const helpHoverChanged =
+      this.helpOverlayHoverTargetKey(nextHelpHover) !==
+      this.helpOverlayHoverTargetKey(this.helpOverlayHoverTarget);
     this.helpOverlayHoverTarget = nextHelpHover;
 
     if (this.contextMenuState.visible) {
@@ -638,7 +652,12 @@ export class GanttChartCanvasController {
     if (this.helpOverlayOpen || helpHit !== null) {
       this.pointerInChart = true;
       this.clearHoverStateForHelpOverlay();
-      canvas.style.cursor = nextHelpHover ? "pointer" : this.helpOverlayOpen ? "default" : "";
+      canvas.style.cursor =
+        helpHit === "button" || helpHit === "close"
+          ? "pointer"
+          : this.helpOverlayOpen
+            ? "default"
+            : "";
       if (helpHoverChanged) {
         this.scheduleFrameRedraw(true);
       }
@@ -811,6 +830,7 @@ export class GanttChartCanvasController {
     this.hoverResizeBand = null;
     this.pointerInChart = false;
     this.helpOverlayHoverTarget = null;
+    this.helpOverlayHoveredTileAnimationStartMs = null;
     this.hoveredSuggestion = null;
     this.hoveredClipboardTopicId = null;
     this.hoveredTimeAxisDiffMs = null;
@@ -830,6 +850,7 @@ export class GanttChartCanvasController {
     this.closeContextMenu(false);
     this.pointerInChart = false;
     this.helpOverlayHoverTarget = null;
+    this.helpOverlayHoveredTileAnimationStartMs = null;
     this.hoveredSuggestion = null;
     this.hoveredClipboardTopicId = null;
     this.hoveredTimeAxisDiffMs = null;
@@ -3766,8 +3787,8 @@ export class GanttChartCanvasController {
       slotReflowTransition ||
       collapseLayoutTransition ||
       destinationPreview ||
-      helpOverlayProgress > 0 ||
-      this.helpOverlayTransition
+      this.helpOverlayTransition ||
+      (helpOverlayProgress > 0 && this.isHelpOverlayTileHovered())
     ) {
       this.scheduleFrameRedraw(false);
     }
@@ -4261,6 +4282,25 @@ export class GanttChartCanvasController {
     this.scheduleFrameRedraw(false);
   }
 
+  private helpOverlayHoverTargetKey(target: HelpOverlayHoverTarget): string {
+    if (target === null) return "";
+    if (target === "button") return "button";
+    if (target === "close") return "close";
+    return `tile:${target.id}`;
+  }
+
+  private isHelpOverlayTileHovered(): boolean {
+    const t = this.helpOverlayHoverTarget;
+    return t !== null && typeof t === "object" && t.kind === "tile";
+  }
+
+  private helpOverlayTileHoverId(target: HelpOverlayHoverTarget): string | null {
+    if (target !== null && typeof target === "object" && target.kind === "tile") {
+      return target.id;
+    }
+    return null;
+  }
+
   private drawHelpOverlay(
     ctx: CanvasRenderingContext2D,
     layout: UnifiedChartLayout,
@@ -4275,6 +4315,7 @@ export class GanttChartCanvasController {
       progress,
       tiles: this.helpOverlayTiles,
       hoverTarget: this.helpOverlayHoverTarget,
+      hoveredTileAnimationStartMs: this.helpOverlayHoveredTileAnimationStartMs,
     });
     return progress;
   }
@@ -4355,6 +4396,7 @@ export class GanttChartCanvasController {
             startedAtMs: performance.now(),
           };
     this.helpOverlayHoverTarget = null;
+    this.helpOverlayHoveredTileAnimationStartMs = null;
     this.closeContextMenu(false);
     this.clearHoverStateForHelpOverlay();
     this.redraw();

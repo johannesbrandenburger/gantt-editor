@@ -5,8 +5,10 @@ export type CanvasRect = {
   h: number;
 };
 
-export type HelpOverlayHoverTarget = "button" | "close" | null;
-export type HelpOverlayHitTarget = "button" | "close" | "panel" | null;
+export type HelpOverlayTileHit = { kind: "tile"; id: string };
+
+export type HelpOverlayHoverTarget = "button" | "close" | HelpOverlayTileHit | null;
+export type HelpOverlayHitTarget = "button" | "close" | "panel" | HelpOverlayTileHit | null;
 
 export type DrawHelpOverlayTilePreviewArgs = {
   ctx: CanvasRenderingContext2D;
