@@ -2,7 +2,15 @@ import type { CanvasRect, HelpOverlayTileDefinition } from "./help_overlay_tile"
 import { drawHelpOverlayCursor } from "./help_overlay_cursor";
 import { easeInOut } from "./help_overlay_easing";
 
-const ANIMATION_CYCLE_MS = 3000;
+/** Longer cycle so hover → first click → travel → second click reads clearly. */
+const ANIMATION_CYCLE_MS = 5200;
+
+/** Normalized time [0,1] within [start, end). */
+function segmentT(cycle: number, start: number, end: number): number {
+  if (cycle <= start) return 0;
+  if (cycle >= end) return 1;
+  return (cycle - start) / (end - start);
+}
 
 export const multiSelectHelpOverlayTile: HelpOverlayTileDefinition = {
   id: "multi-select",
@@ -14,8 +22,24 @@ export const multiSelectHelpOverlayTile: HelpOverlayTileDefinition = {
   minHeight: 118,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {
     const cycle = (nowMs % ANIMATION_CYCLE_MS) / ANIMATION_CYCLE_MS;
-    const pulse = cycle < 0.45 ? easeInOut(cycle / 0.45) : cycle < 0.55 ? 1 : easeInOut((1 - cycle) / 0.45);
-    const secondClick = cycle >= 0.52;
+
+    const tFirstPressStart = 0.24;
+    const tFirstPressEnd = 0.35;
+    const tMoveStart = 0.38;
+    const tMoveEnd = 0.66;
+    const tSecondPressStart = 0.7;
+    const tSecondPressEnd = 0.82;
+    /** Same dwell after release as on slot A (`tMoveStart - tFirstPressEnd`) before “leaving” the gesture. */
+    const tSecondHotEnd =
+      tSecondPressEnd + (tMoveStart - tFirstPressEnd);
+
+    const pressedFirst =
+      cycle >= tFirstPressStart && cycle < tFirstPressEnd;
+    const pressedSecond =
+      cycle >= tSecondPressStart && cycle < tSecondPressEnd;
+
+    const moveT = easeInOut(segmentT(cycle, tMoveStart, tMoveEnd));
+
     const previewPad = 8;
     const inner: CanvasRect = {
       x: rect.x + previewPad,
@@ -26,8 +50,18 @@ export const multiSelectHelpOverlayTile: HelpOverlayTileDefinition = {
 
     const slotA = { x: inner.x + 14, y: inner.y + 28, w: 46, h: 14 };
     const slotB = { x: inner.x + 72, y: inner.y + 28, w: 52, h: 14 };
-    const selectedA = secondClick || pulse > 0.35;
-    const selectedB = secondClick;
+    const cxA = slotA.x + slotA.w * 0.55;
+    const cxB = slotB.x + slotB.w * 0.55;
+    const cySlots = slotA.y + slotA.h / 2;
+
+    // Selection applies when the click releases, in lockstep with the cursor un-pressing.
+    const selectedA = cycle >= tFirstPressEnd;
+    const selectedB = cycle >= tSecondPressEnd;
+
+    // Hot fill: starts with mousedown on that slot (not when the cursor is still traveling). Same dwell-after-release as slot A.
+    const hotA = cycle >= tFirstPressStart && cycle < tMoveStart;
+    const hotB =
+      cycle >= tSecondPressStart && cycle < tSecondHotEnd;
 
     ctx.save();
     ctx.globalAlpha *= alpha;
@@ -38,8 +72,8 @@ export const multiSelectHelpOverlayTile: HelpOverlayTileDefinition = {
     ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
 
     const drawSlot = (s: typeof slotA, selected: boolean, hot: boolean) => {
-      ctx.fillStyle = selected ? "#5f6f88" : "#cfd8e5";
-      ctx.strokeStyle = hot ? "#2563eb" : selected ? "#495b74" : "#aab7c8";
+      ctx.fillStyle = hot ? "#5f6f88" : "#cfd8e5";
+      ctx.strokeStyle = selected ? "#2563eb" : "#aab7c8";
       ctx.lineWidth = hot ? 2 : 1;
       ctx.beginPath();
       ctx.rect(s.x, s.y, s.w, s.h);
@@ -47,24 +81,25 @@ export const multiSelectHelpOverlayTile: HelpOverlayTileDefinition = {
       ctx.stroke();
     };
 
-    drawSlot(slotA, selectedA, pulse > 0.2 && pulse < 0.95 && !secondClick);
-    drawSlot(slotB, selectedB, secondClick);
+    drawSlot(slotA, selectedA, hotA);
+    drawSlot(slotB, selectedB, hotB);
 
-    const cx = secondClick ? slotB.x + slotB.w * 0.55 : slotA.x + slotA.w * 0.55;
-    const cy = slotA.y + slotA.h / 2;
+    const cx = cxA + (cxB - cxA) * moveT;
+    const cy = cySlots;
+
     drawHelpOverlayCursor({
       ctx,
       x: cx,
       y: cy,
-      pressed: pulse > 0.15 && pulse < 0.42,
+      pressed: pressedFirst || pressedSecond,
     });
 
-    if (pulse > 0.08 && pulse < 0.5 && !secondClick) {
+    if (cycle >= tMoveEnd && cycle < 0.96) {
       ctx.fillStyle = "rgba(37, 99, 235, 0.92)";
       ctx.font = "600 9px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
-      ctx.fillText("Ctrl", cx, slotA.y - 4);
+      ctx.fillText("Ctrl", cx, slotB.y - 4);
     }
 
     ctx.restore();
