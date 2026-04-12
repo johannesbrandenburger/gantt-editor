@@ -27,9 +27,9 @@ function easeInOut(t: number): number {
 
 export const brushSelectHelpOverlayTile: HelpOverlayTileDefinition = {
   id: "brush-select",
-  title: "Brush select",
+  title: "Select multiple slots",
   description: "Drag on empty chart background to select multiple slots.",
-  shortcutLabel: "",
+  shortcutLabel: "Cursor drag",
   detail: "",
   minHeight: 108,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {
@@ -103,7 +103,7 @@ export const brushSelectHelpOverlayTile: HelpOverlayTileDefinition = {
       ctx.strokeStyle = selected ? "#495b74" : "#aab7c8";
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.roundRect(slot.x, slot.y, slot.w, slot.h, 4);
+      ctx.rect(slot.x, slot.y, slot.w, slot.h);
       ctx.fill();
       ctx.stroke();
     }
