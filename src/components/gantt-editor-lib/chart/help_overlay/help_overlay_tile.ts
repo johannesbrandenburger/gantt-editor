@@ -46,5 +46,13 @@ export type HelpOverlayLayout = {
   buttonRect: CanvasRect;
   panelRect: CanvasRect | null;
   closeRect: CanvasRect | null;
+  /** Canvas Y of the first pixel of scrollable tile content when scroll is 0. */
+  tilesContentTopY: number;
+  /** Clip rect for the scrollable tile list (inside the panel, below the header). */
+  tilesClipRect: CanvasRect | null;
+  /** Total height of tile content (sum of tile heights and gaps). */
+  tilesContentHeight: number;
+  /** Max scroll offset;0 when everything fits. */
+  tilesMaxScrollY: number;
   tileLayouts: HelpOverlayTileLayout[];
 };

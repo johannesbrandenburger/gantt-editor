@@ -37,8 +37,9 @@ function zoomAmountFromCycle(cycle: number): number {
 export const unifiedZoomHelpOverlayTile: HelpOverlayTileDefinition = {
   id: "unified-zoom",
   title: "Zoom",
-  description: "Hold Shift and scroll with the mouse wheel.",
-  shortcutLabel: "Shift + wheel",
+  description:
+    "Hold Ctrl, Shift, or Alt and scroll with the mouse wheel to zoom in or out.",
+  shortcutLabel: "Modifier + wheel",
   detail: "",
   minHeight: 108,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {

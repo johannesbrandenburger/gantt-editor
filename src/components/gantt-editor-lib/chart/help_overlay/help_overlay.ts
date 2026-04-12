@@ -183,14 +183,13 @@ function buildTileCandidateLayout(tile: HelpOverlayTileDefinition, tileWidth: nu
 function layoutTiles(
   tiles: HelpOverlayTileDefinition[],
   panelX: number,
-  panelY: number,
   panelWidth: number,
   _ctx?: CanvasRenderingContext2D | null,
 ): HelpOverlayTileLayout[] {
   const tileWidth = panelWidth - PANEL_PAD_X * 2;
   const tileLayouts: HelpOverlayTileLayout[] = [];
 
-  let y = panelY + PANEL_PAD_Y + HEADER_HEIGHT;
+  let contentY = 0;
   for (const tile of tiles) {
     const resolvedCandidate = buildTileCandidateLayout(tile, tileWidth);
     if (!resolvedCandidate) {
@@ -199,7 +198,7 @@ function layoutTiles(
 
     const rect: CanvasRect = {
       x: panelX + PANEL_PAD_X,
-      y,
+      y: contentY,
       w: tileWidth,
       h: resolvedCandidate.height,
     };
@@ -232,10 +231,16 @@ function layoutTiles(
       detailY: resolvedCandidate.detailY === null ? null : rect.y + resolvedCandidate.detailY,
       shortcutRect,
     });
-    y += resolvedCandidate.height + TILE_GAP;
+    contentY += resolvedCandidate.height + TILE_GAP;
   }
 
   return tileLayouts;
+}
+
+function tilesContentHeightFromLayouts(layouts: HelpOverlayTileLayout[]): number {
+  if (layouts.length === 0) return 0;
+  const last = layouts[layouts.length - 1]!;
+  return last.rect.y + last.rect.h;
 }
 
 export function buildHelpOverlayLayout(
@@ -256,6 +261,10 @@ export function buildHelpOverlayLayout(
       buttonRect,
       panelRect: null,
       closeRect: null,
+      tilesContentTopY: 0,
+      tilesClipRect: null,
+      tilesContentHeight: 0,
+      tilesMaxScrollY: 0,
       tileLayouts: [],
     };
   }
@@ -264,19 +273,32 @@ export function buildHelpOverlayLayout(
   const panelWidth = clamp(panelMaxWidth * 0.56, 380, 520);
   const provisionalPanelX = Math.max(OUTER_PAD, width - OUTER_PAD - panelWidth);
   const provisionalPanelY = buttonRect.y + buttonRect.h + BUTTON_PANEL_GAP;
-  const tileLayouts = layoutTiles(tiles, provisionalPanelX, provisionalPanelY, panelWidth, ctx);
-  const tileAreaHeight =
-    tileLayouts.reduce((sum, tile) => sum + tile.rect.h, 0) +
-    Math.max(0, tileLayouts.length - 1) * TILE_GAP;
-  const panelHeight = HEADER_HEIGHT + PANEL_PAD_Y * 2 + tileAreaHeight;
-  const panelY = Math.min(provisionalPanelY, Math.max(OUTER_PAD, height - OUTER_PAD - panelHeight));
+  const provisionalTileLayouts = layoutTiles(tiles, provisionalPanelX, panelWidth, ctx);
+  const tileContentHeight = tilesContentHeightFromLayouts(provisionalTileLayouts);
+  const uncappedPanelHeight = HEADER_HEIGHT + PANEL_PAD_Y * 2 + tileContentHeight;
+  const maxPanelBottom = height - OUTER_PAD;
+  const panelY = Math.min(
+    provisionalPanelY,
+    Math.max(OUTER_PAD, maxPanelBottom - uncappedPanelHeight),
+  );
+  const maxPanelHeight = Math.max(HEADER_HEIGHT + PANEL_PAD_Y * 2 + 40, maxPanelBottom - panelY);
+  const panelHeight = Math.min(uncappedPanelHeight, maxPanelHeight);
+  const tilesViewportHeight = panelHeight - HEADER_HEIGHT - PANEL_PAD_Y * 2;
+  const tilesMaxScrollY = Math.max(0, tileContentHeight - tilesViewportHeight);
   const panelRect: CanvasRect = {
     x: provisionalPanelX,
     y: panelY,
     w: panelWidth,
     h: panelHeight,
   };
-  const adjustedTileLayouts = layoutTiles(tiles, panelRect.x, panelRect.y, panelRect.w, ctx);
+  const tilesContentTopY = panelRect.y + PANEL_PAD_Y + HEADER_HEIGHT;
+  const tilesClipRect: CanvasRect = {
+    x: panelRect.x,
+    y: tilesContentTopY,
+    w: panelRect.w,
+    h: tilesViewportHeight,
+  };
+  const adjustedTileLayouts = layoutTiles(tiles, panelRect.x, panelRect.w, ctx);
   const closeRect: CanvasRect = {
     x: panelRect.x + panelRect.w - PANEL_PAD_X - CLOSE_SIZE,
     y: panelRect.y + PANEL_PAD_Y,
@@ -288,6 +310,10 @@ export function buildHelpOverlayLayout(
     buttonRect,
     panelRect,
     closeRect,
+    tilesContentTopY,
+    tilesClipRect,
+    tilesContentHeight: tileContentHeight,
+    tilesMaxScrollY,
     tileLayouts: adjustedTileLayouts,
   };
 }
@@ -302,10 +328,22 @@ type DrawHelpOverlayArgs = {
   hoverTarget: HelpOverlayHoverTarget;
   /** Hovered tile preview time is `nowMs - hoveredTileAnimationStartMs`. */
   hoveredTileAnimationStartMs: number | null;
+  /** Vertical scroll offset for the tile list (pixels). */
+  tilesScrollY: number;
 };
 
 export function drawHelpOverlay(args: DrawHelpOverlayArgs): HelpOverlayLayout {
-  const { ctx, width, height, nowMs, progress, tiles, hoverTarget, hoveredTileAnimationStartMs } = args;
+  const {
+    ctx,
+    width,
+    height,
+    nowMs,
+    progress,
+    tiles,
+    hoverTarget,
+    hoveredTileAnimationStartMs,
+    tilesScrollY,
+  } = args;
   const layout = buildHelpOverlayLayout(width, height, tiles, ctx);
   const buttonHovered = hoverTarget === "button";
   const closeHovered = hoverTarget === "close";
@@ -338,12 +376,27 @@ export function drawHelpOverlay(args: DrawHelpOverlayArgs): HelpOverlayLayout {
     hoverTarget !== null && typeof hoverTarget === "object" && hoverTarget.kind === "tile"
       ? hoverTarget.id
       : null;
-  for (const tileLayout of layout.tileLayouts) {
-    const previewNowMs =
-      hoveredTileId === tileLayout.tile.id && hoveredTileAnimationStartMs !== null
-        ? nowMs - hoveredTileAnimationStartMs
-        : 0;
-    drawHelpTile(ctx, tileLayout, previewNowMs, panelAlpha);
+
+  if (layout.tilesClipRect && layout.tileLayouts.length > 0) {
+    const scrollY = clamp(tilesScrollY, 0, layout.tilesMaxScrollY);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(
+      layout.tilesClipRect.x,
+      layout.tilesClipRect.y,
+      layout.tilesClipRect.w,
+      layout.tilesClipRect.h,
+    );
+    ctx.clip();
+    ctx.translate(0, layout.tilesContentTopY - scrollY);
+    for (const tileLayout of layout.tileLayouts) {
+      const previewNowMs =
+        hoveredTileId === tileLayout.tile.id && hoveredTileAnimationStartMs !== null
+          ? nowMs - hoveredTileAnimationStartMs
+          : 0;
+      drawHelpTile(ctx, tileLayout, previewNowMs, panelAlpha);
+    }
+    ctx.restore();
   }
 
   ctx.restore();
@@ -500,6 +553,7 @@ export function hitTestHelpOverlay(
   progress: number,
   x: number,
   y: number,
+  tilesScrollY: number,
 ): HelpOverlayHitTarget {
   if (rectContainsPoint(layout.buttonRect, x, y)) {
     return "button";
@@ -507,16 +561,29 @@ export function hitTestHelpOverlay(
   if (progress <= 0.001 || !layout.panelRect) {
     return null;
   }
-  if (rectContainsPoint(layout.closeRect, x, y)) {
+  if (layout.closeRect && rectContainsPoint(layout.closeRect, x, y)) {
     return "close";
   }
   if (rectContainsPoint(layout.panelRect, x, y)) {
+    const scrollY = clamp(tilesScrollY, 0, layout.tilesMaxScrollY);
+    const contentY = y - layout.tilesContentTopY + scrollY;
     for (const tileLayout of layout.tileLayouts) {
-      if (rectContainsPoint(tileLayout.rect, x, y)) {
+      const tr = tileLayout.rect;
+      if (
+        x >= tr.x &&
+        x <= tr.x + tr.w &&
+        contentY >= tr.y &&
+        contentY <= tr.y + tr.h
+      ) {
         return { kind: "tile", id: tileLayout.tile.id };
       }
     }
     return "panel";
   }
   return null;
+}
+
+/** Clamp scroll offset to the range allowed by the built layout. */
+export function clampHelpOverlayTilesScrollY(layout: HelpOverlayLayout, scrollY: number): number {
+  return clamp(scrollY, 0, layout.tilesMaxScrollY);
 }

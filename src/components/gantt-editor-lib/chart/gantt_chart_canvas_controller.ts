@@ -102,7 +102,12 @@ import {
   type CanvasContextMenuLayout,
   type CanvasContextMenuState,
 } from "./canvas_context_menu";
-import { drawHelpOverlay, buildHelpOverlayLayout, hitTestHelpOverlay } from "./help_overlay/help_overlay";
+import {
+  drawHelpOverlay,
+  buildHelpOverlayLayout,
+  hitTestHelpOverlay,
+  clampHelpOverlayTilesScrollY,
+} from "./help_overlay/help_overlay";
 import { DEFAULT_HELP_OVERLAY_TILES } from "./help_overlay/help_overlay_tiles";
 import type {
   HelpOverlayHitTarget,
@@ -112,6 +117,18 @@ import type {
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const COLLAPSED_SYNC_MIN_INTERVAL_MS = 250;
+
+function rectContainsCanvasRect(
+  rect: { x: number; y: number; w: number; h: number },
+  point: { x: number; y: number },
+): boolean {
+  return (
+    point.x >= rect.x &&
+    point.y >= rect.y &&
+    point.x <= rect.x + rect.w &&
+    point.y <= rect.y + rect.h
+  );
+}
 
 type ContextMenuActionPayload = {
   kind: "move-vertical-marker";
@@ -204,6 +221,7 @@ export class GanttChartCanvasController {
   private helpOverlayOpen = false;
   private helpOverlayHoverTarget: HelpOverlayHoverTarget = null;
   private helpOverlayHoveredTileAnimationStartMs: number | null = null;
+  private helpOverlayTilesScrollY = 0;
   private helpOverlayTransition: {
     from: number;
     to: number;
@@ -866,6 +884,29 @@ export class GanttChartCanvasController {
     if (!canvas) return;
     if (this.helpOverlayOpen) {
       event.preventDefault();
+      const layout = this.getChartLayout();
+      if (layout) {
+        const helpLayout = buildHelpOverlayLayout(
+          layout.canvasCssWidth,
+          layout.canvasCssHeight,
+          this.helpOverlayTiles,
+          this.cachedCtx,
+        );
+        if (
+          helpLayout.tilesMaxScrollY > 0 &&
+          helpLayout.tilesClipRect &&
+          rectContainsCanvasRect(helpLayout.tilesClipRect, canvasLocalPoint(canvas, event.clientX, event.clientY))
+        ) {
+          const next = clampHelpOverlayTilesScrollY(
+            helpLayout,
+            this.helpOverlayTilesScrollY + event.deltaY,
+          );
+          if (next !== this.helpOverlayTilesScrollY) {
+            this.helpOverlayTilesScrollY = next;
+            this.scheduleFrameRedraw(true);
+          }
+        }
+      }
       return;
     }
 
@@ -4316,6 +4357,7 @@ export class GanttChartCanvasController {
       tiles: this.helpOverlayTiles,
       hoverTarget: this.helpOverlayHoverTarget,
       hoveredTileAnimationStartMs: this.helpOverlayHoveredTileAnimationStartMs,
+      tilesScrollY: this.helpOverlayTilesScrollY,
     });
     return progress;
   }
@@ -4353,7 +4395,7 @@ export class GanttChartCanvasController {
       this.helpOverlayTiles,
       this.cachedCtx,
     );
-    return hitTestHelpOverlay(helpLayout, progress, canvasX, canvasY);
+    return hitTestHelpOverlay(helpLayout, progress, canvasX, canvasY, this.helpOverlayTilesScrollY);
   }
 
   private resolveHelpOverlayHitFromClientPoint(clientX: number, clientY: number): HelpOverlayHitTarget {
@@ -4397,6 +4439,7 @@ export class GanttChartCanvasController {
           };
     this.helpOverlayHoverTarget = null;
     this.helpOverlayHoveredTileAnimationStartMs = null;
+    this.helpOverlayTilesScrollY = 0;
     this.closeContextMenu(false);
     this.clearHoverStateForHelpOverlay();
     this.redraw();
