@@ -251,18 +251,53 @@ export async function dispatchCanvasMouseEvent(
       const canvas = document.querySelector("canvas.chart-canvas") as HTMLCanvasElement | null;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
-      const button = eventType === "contextmenu" ? 2 : 0;
+      const clientX = rect.left + x;
+      const clientY = rect.top + y;
+      const mod = eventModifiers ?? {};
+
+      // The chart opens the canvas context menu on pointerup after a secondary-button
+      // mousedown (see GanttChartCanvasController). A lone `contextmenu` event is not wired.
+      // Emit a full pointer/mouse press cycle so document listeners from mousedown(2) are
+      // cleared and later drags (e.g. marker move) are not affected.
+      if (eventType === "contextmenu") {
+        const base = {
+          bubbles: true,
+          cancelable: true,
+          clientX,
+          clientY,
+          button: 2,
+          buttons: 2,
+          ctrlKey: !!mod.ctrlKey,
+          metaKey: !!mod.metaKey,
+          altKey: !!mod.altKey,
+          shiftKey: !!mod.shiftKey,
+        };
+        const pointerInit = {
+          ...base,
+          pointerId: 1,
+          pointerType: "mouse" as const,
+        };
+        canvas.dispatchEvent(new PointerEvent("pointerdown", pointerInit));
+        canvas.dispatchEvent(new MouseEvent("mousedown", base));
+        canvas.dispatchEvent(
+          new PointerEvent("pointerup", { ...pointerInit, buttons: 0 }),
+        );
+        canvas.dispatchEvent(new MouseEvent("mouseup", { ...base, buttons: 0 }));
+        return;
+      }
+
+      const button = 0;
       canvas.dispatchEvent(
         new MouseEvent(eventType, {
           bubbles: true,
           cancelable: true,
-          clientX: rect.left + x,
-          clientY: rect.top + y,
+          clientX,
+          clientY,
           button,
-          ctrlKey: !!eventModifiers?.ctrlKey,
-          metaKey: !!eventModifiers?.metaKey,
-          altKey: !!eventModifiers?.altKey,
-          shiftKey: !!eventModifiers?.shiftKey,
+          ctrlKey: !!mod.ctrlKey,
+          metaKey: !!mod.metaKey,
+          altKey: !!mod.altKey,
+          shiftKey: !!mod.shiftKey,
         }),
       );
     },
