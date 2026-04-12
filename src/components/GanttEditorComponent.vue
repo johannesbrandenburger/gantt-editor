@@ -20,9 +20,10 @@
         :ref="setChartCanvasRef"
         class="chart-canvas"
         @mousedown="onCanvasMouseDown"
+        @pointerup="onCanvasPointerUp"
         @click="onCanvasClick"
         @dblclick="onCanvasDoubleClick"
-        @contextmenu.prevent="onCanvasContextMenu"
+        @contextmenu.prevent
         @mousemove="onChartMouseMove"
         @mouseleave="onChartMouseLeave"
       ></canvas>
@@ -256,14 +257,14 @@ const onChartMouseLeave = () => {
 const onCanvasMouseDown = (e: MouseEvent) => {
   controller.onCanvasMouseDown(e);
 };
+const onCanvasPointerUp = (e: PointerEvent) => {
+  controller.onCanvasPointerUp(e);
+};
 const onCanvasClick = (e: MouseEvent) => {
   controller.onCanvasClick(e);
 };
 const onCanvasDoubleClick = (e: MouseEvent) => {
   controller.onCanvasDoubleClick(e);
-};
-const onCanvasContextMenu = (e: MouseEvent) => {
-  controller.onCanvasContextMenu(e);
 };
 const onMouseEnter = () => {
   controller.onMouseEnter();

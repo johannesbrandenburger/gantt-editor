@@ -56,6 +56,10 @@ test.describe("canvas rewrite time navigation", () => {
         return (events.onChangeStartAndEndTime ?? []).length;
       })
       .toBeGreaterThan(0);
+
+    await expect
+      .poll(async () => await getCanvasStateField<boolean>(page, "contextMenuOpen"))
+      .toBe(false);
   });
 
   test("pan timeline with Shift+drag", async ({ page }) => {
@@ -63,6 +67,7 @@ test.describe("canvas rewrite time navigation", () => {
     await clearHarnessEvents(page);
 
     const beforeStartMs = await getCanvasStateField<number>(page, "internalStartTimeMs");
+    const beforeSelection = await getCanvasStateField<string[]>(page, "selectionSlotIds");
     const panCanvasPoint = await getPanStartPoint(page);
     const panPagePoint = await canvasPointToPagePoint(canvas, panCanvasPoint);
 
@@ -85,6 +90,10 @@ test.describe("canvas rewrite time navigation", () => {
         return (events.onChangeStartAndEndTime ?? []).length;
       })
       .toBeGreaterThan(0);
+
+    await expect
+      .poll(async () => await getCanvasStateField<string[]>(page, "selectionSlotIds"))
+      .toEqual(beforeSelection ?? []);
   });
 
   test("horizontal scroll changes time window", async ({ page }) => {

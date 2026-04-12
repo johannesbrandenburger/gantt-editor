@@ -215,6 +215,11 @@ export class GanttChartCanvasController {
   private pointerCanvasY = 0;
   private altCopyModifierActive = false;
   private shiftTimeAxisModifierActive = false;
+  private secondaryPointerContextMenuCandidate: {
+    startX: number;
+    startY: number;
+    dragged: boolean;
+  } | null = null;
   private clipboardItems: GanttEditorSlot[] = [];
   private hoveredClipboardTopicId: string | null = null;
   private hoveredTimeAxisDiffMs: number | null = null;
@@ -271,6 +276,9 @@ export class GanttChartCanvasController {
   private chartLayoutCache: UnifiedChartLayout | null = null;
   private chartLayoutDirty = true;
   private readonly panZoomCallbacks: PanZoomCallbacks;
+  private readonly boundSecondaryPointerTrackMouseMove = (event: MouseEvent) =>
+    this.trackSecondaryPointerDrag(event);
+  private readonly boundSecondaryPointerTrackMouseUp = () => this.clearSecondaryPointerContextMenuCandidate();
 
   /** Active left/right slot edge drag (canvas CSS pixels / inner chart width). */
   private slotResizeDrag: {
@@ -555,6 +563,7 @@ export class GanttChartCanvasController {
     document.removeEventListener("mouseup", this.boundStopResize);
     document.removeEventListener("mousemove", this.boundBrushMouseMove);
     document.removeEventListener("mouseup", this.boundBrushMouseUp);
+    this.clearSecondaryPointerContextMenuCandidate();
     if (this.hoverTimeout) {
       clearTimeout(this.hoverTimeout);
       this.hoverTimeout = null;
@@ -949,7 +958,22 @@ export class GanttChartCanvasController {
     if (this.contextMenuState.visible) {
       return;
     }
+    if (e.button === 2) {
+      this.secondaryPointerContextMenuCandidate = {
+        startX: e.clientX,
+        startY: e.clientY,
+        dragged: false,
+      };
+      document.addEventListener("mousemove", this.boundSecondaryPointerTrackMouseMove);
+      document.addEventListener("mouseup", this.boundSecondaryPointerTrackMouseUp);
+      return;
+    }
     if (e.button !== 0) return;
+    if (e.shiftKey) {
+      // Shift+drag is reserved for time panning; do not start brush/select drags.
+      e.preventDefault();
+      return;
+    }
     const layout = this.getChartLayout();
     const canvas = this.canvas;
     if (!layout || !canvas) return;
@@ -1204,10 +1228,22 @@ export class GanttChartCanvasController {
   }
 
   onCanvasContextMenu(e: MouseEvent): void {
-    if (this.helpOverlayOpen || this.resolveHelpOverlayHitFromClientPoint(e.clientX, e.clientY) !== null) {
+    this.openCanvasContextMenuFromClientPoint(e.clientX, e.clientY);
+  }
+
+  onCanvasPointerUp(e: PointerEvent): void {
+    if (e.button !== 2) return;
+    const candidate = this.secondaryPointerContextMenuCandidate;
+    this.clearSecondaryPointerContextMenuCandidate();
+    if (!candidate || candidate.dragged) return;
+    this.openCanvasContextMenuFromClientPoint(e.clientX, e.clientY);
+  }
+
+  private openCanvasContextMenuFromClientPoint(clientX: number, clientY: number): void {
+    if (this.helpOverlayOpen || this.resolveHelpOverlayHitFromClientPoint(clientX, clientY) !== null) {
       return;
     }
-    const ctx = this.resolveGroupPointerContext(e.clientX, e.clientY);
+    const ctx = this.resolveGroupPointerContext(clientX, clientY);
     if (!ctx) return;
 
     this.closeContextMenu(false);
@@ -1333,6 +1369,22 @@ export class GanttChartCanvasController {
     ];
 
     this.openContextMenu(ctx.point.x, ctx.point.y, menuItems);
+  }
+
+  private trackSecondaryPointerDrag(event: MouseEvent): void {
+    const candidate = this.secondaryPointerContextMenuCandidate;
+    if (!candidate || candidate.dragged) return;
+    const movedX = Math.abs(event.clientX - candidate.startX);
+    const movedY = Math.abs(event.clientY - candidate.startY);
+    if (movedX >= 3 || movedY >= 3) {
+      candidate.dragged = true;
+    }
+  }
+
+  private clearSecondaryPointerContextMenuCandidate(): void {
+    this.secondaryPointerContextMenuCandidate = null;
+    document.removeEventListener("mousemove", this.boundSecondaryPointerTrackMouseMove);
+    document.removeEventListener("mouseup", this.boundSecondaryPointerTrackMouseUp);
   }
 
   getCanvasElement(): HTMLCanvasElement | null {
