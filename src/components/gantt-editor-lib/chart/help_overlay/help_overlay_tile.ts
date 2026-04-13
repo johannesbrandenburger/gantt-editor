@@ -43,7 +43,7 @@ export type HelpOverlayTileLayout = {
 };
 
 export type HelpOverlayLayout = {
-  buttonRect: CanvasRect;
+  buttonRect: CanvasRect | null;
   panelRect: CanvasRect | null;
   closeRect: CanvasRect | null;
   /** Canvas Y of the first pixel of scrollable tile content when scroll is 0. */

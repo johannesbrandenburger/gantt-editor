@@ -306,16 +306,9 @@ export function buildHelpOverlayLayout(
   tiles: HelpOverlayTileDefinition[],
   ctx?: CanvasRenderingContext2D | null,
 ): HelpOverlayLayout {
-  const buttonRect: CanvasRect = {
-    x: Math.max(OUTER_PAD, width - OUTER_PAD - BUTTON_SIZE),
-    y: OUTER_PAD,
-    w: BUTTON_SIZE,
-    h: BUTTON_SIZE,
-  };
-
   if (tiles.length === 0) {
     return {
-      buttonRect,
+      buttonRect: null,
       panelRect: null,
       closeRect: null,
       tilesContentTopY: 0,
@@ -325,6 +318,13 @@ export function buildHelpOverlayLayout(
       tileLayouts: [],
     };
   }
+
+  const buttonRect: CanvasRect = {
+    x: Math.max(OUTER_PAD, width - OUTER_PAD - BUTTON_SIZE),
+    y: OUTER_PAD,
+    w: BUTTON_SIZE,
+    h: BUTTON_SIZE,
+  };
 
   const panelMaxWidth = Math.max(300, width - OUTER_PAD * 2);
   const panelWidth = clamp(panelMaxWidth * 0.56, 380, 520);
@@ -408,10 +408,12 @@ export function drawHelpOverlay(args: DrawHelpOverlayArgs): HelpOverlayLayout {
   const buttonHovered = hoverTarget === "button";
   const closeHovered = hoverTarget === "close";
 
-  drawHelpButton(ctx, layout.buttonRect, {
-    active: progress > 0.02,
-    hovered: buttonHovered,
-  });
+  if (layout.buttonRect) {
+    drawHelpButton(ctx, layout.buttonRect, {
+      active: progress > 0.02,
+      hovered: buttonHovered,
+    });
+  }
 
   if (progress <= 0.001 || !layout.panelRect || !layout.closeRect) {
     return layout;
@@ -638,7 +640,7 @@ export function hitTestHelpOverlay(
   y: number,
   tilesScrollY: number,
 ): HelpOverlayHitTarget {
-  if (rectContainsPoint(layout.buttonRect, x, y)) {
+  if (layout.buttonRect && rectContainsPoint(layout.buttonRect, x, y)) {
     return "button";
   }
   if (progress <= 0.001 || !layout.panelRect) {

@@ -232,7 +232,7 @@ export class GanttChartCanvasController {
     to: number;
     startedAtMs: number;
   } | null = null;
-  private readonly helpOverlayTiles: HelpOverlayTileDefinition[] = DEFAULT_HELP_OVERLAY_TILES;
+  private helpOverlayTiles: HelpOverlayTileDefinition[] = DEFAULT_HELP_OVERLAY_TILES;
 
   private destinationPreviewTopicsCache: {
     key: string;
@@ -381,6 +381,7 @@ export class GanttChartCanvasController {
     this.props = initialProps;
     this.callbacks = callbacks;
     this.host = host;
+    this.helpOverlayTiles = this.resolveHelpOverlayTiles(initialProps);
     this.internalStartTime = new Date(initialProps.startTime);
     this.internalEndTime = new Date(initialProps.endTime);
     this.currentTopContentPortion = initialProps.topContentPortion ?? 0;
@@ -414,6 +415,7 @@ export class GanttChartCanvasController {
       previousProps.destinationGroups === next.destinationGroups &&
       previousProps.suggestions === next.suggestions &&
       previousProps.activateRulers === next.activateRulers &&
+      previousProps.helpOverlayTileIds === next.helpOverlayTileIds &&
       previousProps.verticalMarkers === next.verticalMarkers &&
       previousProps.markedRegion === next.markedRegion &&
       previousProps.isReadOnly === next.isReadOnly &&
@@ -426,6 +428,27 @@ export class GanttChartCanvasController {
     let shouldRedraw = false;
     let nextFingerprint: number | null = null;
     let processDataChanged = false;
+
+    if (previousProps.helpOverlayTileIds !== next.helpOverlayTileIds) {
+      this.helpOverlayTiles = this.resolveHelpOverlayTiles(next);
+      if (this.helpOverlayTiles.length === 0) {
+        this.helpOverlayOpen = false;
+        this.helpOverlayTransition = null;
+        this.helpOverlayHoverTarget = null;
+        this.helpOverlayActiveTileId = null;
+        this.helpOverlayActiveTileAnimationStartMs = null;
+        this.helpOverlayTilesScrollY = 0;
+      } else if (
+        this.helpOverlayOpen &&
+        !this.helpOverlayTiles.some((tile) => tile.id === this.helpOverlayActiveTileId)
+      ) {
+        this.helpOverlayActiveTileId = this.helpOverlayTiles[0]?.id ?? null;
+        this.helpOverlayActiveTileAnimationStartMs = this.helpOverlayActiveTileId
+          ? performance.now()
+          : null;
+      }
+      shouldRedraw = true;
+    }
 
     if (!wasReadOnly && next.isReadOnly) {
       this.clearSelection();
@@ -4482,6 +4505,9 @@ export class GanttChartCanvasController {
   }
 
   private setHelpOverlayOpen(open: boolean): void {
+    if (open && this.helpOverlayTiles.length === 0) {
+      return;
+    }
     const from = this.getHelpOverlayProgress();
     const to = open ? 1 : 0;
     this.helpOverlayOpen = open;
@@ -4507,6 +4533,19 @@ export class GanttChartCanvasController {
     this.closeContextMenu(false);
     this.clearHoverStateForHelpOverlay();
     this.redraw();
+  }
+
+  private resolveHelpOverlayTiles(props: GanttEditorProps): HelpOverlayTileDefinition[] {
+    const ids = props.helpOverlayTileIds;
+    if (ids === undefined) {
+      return DEFAULT_HELP_OVERLAY_TILES;
+    }
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const idSet = new Set(ids);
+    return DEFAULT_HELP_OVERLAY_TILES.filter((tile) => idSet.has(tile.id));
   }
 
   private clearHoverStateForHelpOverlay(): void {

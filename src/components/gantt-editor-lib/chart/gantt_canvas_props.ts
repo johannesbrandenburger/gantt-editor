@@ -33,6 +33,8 @@ export interface GanttEditorProps {
   topContentPortion?: number;
   xAxisOptions?: GanttEditorXAxisOptions;
   hoverPreviewMaxClipboardSize?: number;
+  /** Help tile ids to include; omit to include all, pass [] to disable help UI entirely. */
+  helpOverlayTileIds?: string[];
 }
 
 /**
