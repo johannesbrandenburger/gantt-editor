@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./coverage-test";
-import { findSlotPoint, getCanvasState, waitForCanvasApi } from "./helpers";
+import { getCanvasState, waitForCanvasApi, waitForSlotPoint } from "./helpers";
 
 type CanvasState = {
   margin: { left: number; right: number };
@@ -110,16 +110,24 @@ test.describe("canvas rewrite deadline marker coloring", () => {
       throw new Error("Expected test state with layout");
     }
 
-    const slotCenter = await findSlotPoint(page, SLOT_ID, "center");
+    const slotCenter = await waitForSlotPoint(page, SLOT_ID, "center");
     const stdX = markerCanvasX(state, Date.parse("2025-01-01T13:00:00Z"));
     const etdX = markerCanvasX(state, Date.parse("2025-01-01T13:25:00Z"));
 
     const expectedStdBlended = blendOnWhite(STD_COLOR, 0.6);
-    const stdPixel = await sampleCanvasPixelNearestTo(page, { x: stdX, y: slotCenter.y }, expectedStdBlended);
-    const etdPixel = await sampleCanvasPixelNearestTo(page, { x: etdX, y: slotCenter.y }, ETD_COLOR);
+    await expect
+      .poll(async () => {
+        const stdPixel = await sampleCanvasPixelNearestTo(page, { x: stdX, y: slotCenter.y }, expectedStdBlended);
+        return colorDistance(stdPixel, expectedStdBlended);
+      }, { timeout: 2000 })
+      .toBeLessThan(45);
 
-    expect(colorDistance(stdPixel, expectedStdBlended)).toBeLessThan(45);
-    expect(colorDistance(etdPixel, ETD_COLOR)).toBeLessThan(35);
+    await expect
+      .poll(async () => {
+        const etdPixel = await sampleCanvasPixelNearestTo(page, { x: etdX, y: slotCenter.y }, ETD_COLOR);
+        return colorDistance(etdPixel, ETD_COLOR);
+      }, { timeout: 2000 })
+      .toBeLessThan(35);
   });
 
   test("STD marker is visibly lighter than ETD marker due reduced opacity", async ({ page }) => {
@@ -132,7 +140,7 @@ test.describe("canvas rewrite deadline marker coloring", () => {
       throw new Error("Expected test state with layout");
     }
 
-    const slotCenter = await findSlotPoint(page, SLOT_ID, "center");
+    const slotCenter = await waitForSlotPoint(page, SLOT_ID, "center");
     const stdX = markerCanvasX(state, Date.parse("2025-01-01T13:00:00Z"));
     const etdX = markerCanvasX(state, Date.parse("2025-01-01T13:25:00Z"));
 

@@ -201,6 +201,17 @@ export async function findSlotPoint(
   slotId: string,
   mode: "center" | "left-edge" | "right-edge" = "center",
 ): Promise<{ x: number; y: number }> {
+  const point = await findSlotPointNullable(page, slotId, mode);
+
+  expect(point, `Expected to find slot point for ${slotId} (${mode})`).not.toBeNull();
+  return point as { x: number; y: number };
+}
+
+export async function findSlotPointNullable(
+  page: Page,
+  slotId: string,
+  mode: "center" | "left-edge" | "right-edge" = "center",
+): Promise<{ x: number; y: number } | null> {
   const point = await page.evaluate(
     ({ currentSlotId, currentMode }) => {
       const api = (window as HarnessWindow).__ganttCanvasTestApi as
@@ -217,6 +228,33 @@ export async function findSlotPoint(
     { currentSlotId: slotId, currentMode: mode },
   );
 
+  return point as { x: number; y: number } | null;
+}
+
+export async function waitForSlotPoint(
+  page: Page,
+  slotId: string,
+  mode: "center" | "left-edge" | "right-edge" = "center",
+  timeout = 7000,
+): Promise<{ x: number; y: number }> {
+  const pointHandle = await page.waitForFunction(
+    ({ currentSlotId, currentMode }) => {
+      const api = (window as HarnessWindow).__ganttCanvasTestApi as
+        | (CanvasTestApi & {
+            findSlotPoint: (
+              slotId: string,
+              mode?: "center" | "left-edge" | "right-edge",
+            ) => { x: number; y: number } | null;
+          })
+        | undefined;
+      api?.flush();
+      return api?.findSlotPoint(currentSlotId, currentMode) ?? null;
+    },
+    { currentSlotId: slotId, currentMode: mode },
+    { timeout },
+  );
+
+  const point = await pointHandle.jsonValue();
   expect(point, `Expected to find slot point for ${slotId} (${mode})`).not.toBeNull();
   return point as { x: number; y: number };
 }
