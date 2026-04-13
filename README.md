@@ -1,6 +1,10 @@
-# Gantt Editor Vue Component
+# Gantt Editor Component Library
 
-Canvas-based Vue 3 Gantt editor component for interactive slot assignment, time editing, selection, and bulk operations.
+Canvas-based Gantt editor library with framework wrappers for Vue 3, React, and Angular.
+
+- Vue entry: `@pf/gantt-editor-vue-component` (or `@pf/gantt-editor-vue-component/vue`)
+- React entry: `@pf/gantt-editor-vue-component/react`
+- Angular entry: `@pf/gantt-editor-vue-component/angular`
 
 ## Install via GitLab Package Registry
 
@@ -29,12 +33,13 @@ Run the same command later to update.
 If you do not consume the package from the registry, copy these files into your project:
 
 ```text
-src/components/
+src/vue/
   GanttEditorComponent.vue
+src/components/
   gantt-editor-lib/*
 ```
 
-## Usage Example
+## Vue Usage Example
 
 ```vue
 <script setup lang="ts">
@@ -149,6 +154,89 @@ function onContextMenuAction(actionId: string, timestamp: Date, destinationId: s
   </div>
 </template>
 ```
+
+## React Usage Example
+
+```tsx
+import { useMemo, useState } from "react";
+import { GanttEditorReact, type GanttEditorSlot } from "@pf/gantt-editor-vue-component/react";
+
+export function ReactGanttPage() {
+  const [startTime] = useState(new Date("2025-01-01T00:00:00Z"));
+  const [endTime] = useState(new Date("2025-01-02T00:00:00Z"));
+
+  const slots = useMemo<GanttEditorSlot[]>(
+    () => [
+      {
+        id: "LH123-20250101-F",
+        displayName: "LH123 | F",
+        group: "LH123",
+        openTime: new Date("2025-01-01T10:00:00Z"),
+        closeTime: new Date("2025-01-01T12:00:00Z"),
+        destinationId: "chute-1",
+      },
+    ],
+    [],
+  );
+
+  return (
+    <div style={{ height: "100vh", width: "100%" }}>
+      <GanttEditorReact
+        startTime={startTime}
+        endTime={endTime}
+        slots={slots}
+        destinations={[]}
+        destinationGroups={[]}
+        suggestions={[]}
+        markedRegion={null}
+        isReadOnly={false}
+        onSelectionChange={(slotIds) => console.log("selection", slotIds)}
+      />
+    </div>
+  );
+}
+```
+
+## Angular Usage Example
+
+```ts
+import { Component } from "@angular/core";
+import { GanttEditorAngularComponent } from "@pf/gantt-editor-vue-component/angular";
+
+@Component({
+  selector: "app-root",
+  standalone: true,
+  imports: [GanttEditorAngularComponent],
+  template: `
+    <div style="height: 100vh; width: 100%;">
+      <gantt-editor-angular
+        [startTime]="startTime"
+        [endTime]="endTime"
+        [slots]="slots"
+        [destinations]="destinations"
+        [destinationGroups]="destinationGroups"
+        [suggestions]="[]"
+        [markedRegion]="null"
+        [isReadOnly]="false"
+        (onSelectionChange)="onSelectionChange($event)"
+      />
+    </div>
+  `,
+})
+export class AppComponent {
+  startTime = new Date("2025-01-01T00:00:00Z");
+  endTime = new Date("2025-01-02T00:00:00Z");
+  slots = [];
+  destinations = [];
+  destinationGroups = [];
+
+  onSelectionChange(slotIds: string[]) {
+    console.log("selection", slotIds);
+  }
+}
+```
+
+For Angular outputs that carry multiple values in Vue/React, the output emits a tuple to preserve payload order.
 
 ## Public API
 

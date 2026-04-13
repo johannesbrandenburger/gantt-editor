@@ -25,12 +25,13 @@ export default defineConfig({
   ],
   build: {
     lib: {
-      entry: 'src/index.ts',
+      entry: 'src/vue/index.ts',
       name: 'GanttEditorVueComponent',
-      fileName: (format) => `gantt-editor-vue-component.${format}.js`,
-      formats: ['es', 'umd']
+      fileName: (format) => (format === 'es' ? 'index.js' : 'index.cjs'),
+      formats: ['es', 'cjs']
     },
     cssCodeSplit: false, 
+    outDir: 'dist/vue',
     assetsDir: '',
     rollupOptions: {
       external: ['vue'],

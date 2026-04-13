@@ -5,6 +5,9 @@
       "path": "./tsconfig.node.json"
     },
     {
+      "path": "./tsconfig.wrappers.json"
+    },
+    {
       "path": "./tests/e2e/tsconfig.json"
     },
     {
