@@ -124,6 +124,7 @@ function propsSnapshot(): GanttEditorProps {
     isReadOnly: props.isReadOnly,
     topContentPortion: props.topContentPortion,
     xAxisOptions: props.xAxisOptions,
+    hoverPreviewMaxClipboardSize: props.hoverPreviewMaxClipboardSize,
   };
 }
 

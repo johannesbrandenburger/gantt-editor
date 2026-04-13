@@ -142,8 +142,7 @@ type ContextMenuActionPayload = {
 };
 
 const RULER_SNAP_CATCHMENT_PX = 3;
-/** Clipboard items at or above this count suppress the destination-hover preview (too expensive). */
-const HOVER_PREVIEW_MAX_CLIPBOARD_SIZE = 50;
+const HOVER_PREVIEW_MAX_CLIPBOARD_SIZE = Infinity;
 const RESIZE_RULER_TICK_LENGTH_PX = 10;
 const RESIZE_TIME_LABEL_OFFSET_X = 14;
 const RESIZE_TIME_LABEL_OFFSET_Y = -16;
@@ -2536,7 +2535,7 @@ export class GanttChartCanvasController {
     const topicId = this.hoveredClipboardTopicId;
     if (!topicId) return null;
     // Skip the expensive processData call when the clipboard is very large.
-    if (this.clipboardItems.length >= HOVER_PREVIEW_MAX_CLIPBOARD_SIZE) return null;
+    if (this.clipboardItems.length >= (this.props.hoverPreviewMaxClipboardSize ?? HOVER_PREVIEW_MAX_CLIPBOARD_SIZE)) return null;
     const sourceSlotIds = this.getPreviewEligibleClipboardItems(topicId).map((slot) => slot.id);
     if (sourceSlotIds.length === 0) return null;
     const transition = this.getActiveDestinationPreviewTransition(nowMs, topicId);

@@ -32,6 +32,7 @@ export interface GanttEditorProps {
   isReadOnly: boolean;
   topContentPortion?: number;
   xAxisOptions?: GanttEditorXAxisOptions;
+  hoverPreviewMaxClipboardSize?: number;
 }
 
 /**
