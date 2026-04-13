@@ -21,7 +21,7 @@ export type HelpOverlayTileDefinition = {
   id: string;
   title: string;
   description: string;
-  shortcutLabel: string;
+  shortcutLabel: string[];
   detail: string;
   minHeight: number;
   drawPreview: (args: DrawHelpOverlayTilePreviewArgs) => void;
@@ -39,7 +39,7 @@ export type HelpOverlayTileLayout = {
   descriptionY: number;
   detailLines: string[];
   detailY: number | null;
-  shortcutRect: CanvasRect | null;
+  shortcutRects: CanvasRect[];
 };
 
 export type HelpOverlayLayout = {

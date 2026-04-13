@@ -8,7 +8,7 @@ export const canvasContextMenuHelpOverlayTile: HelpOverlayTileDefinition = {
   id: "canvas-context-menu",
   title: "Context menu",
   description: "Click on a free area to open the context menu",
-  shortcutLabel: "Right-click",
+  shortcutLabel: ["Right-click"],
   detail: "",
   minHeight: 124,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {

@@ -20,13 +20,13 @@ const multiSelectDescription = helpOverlayIsApplePlatform()
   ? "Click on a slot to select it. Hold the Command key to select multiple slots."
   : "Click on a slot to select it. Hold Ctrl to select multiple slots.";
 
-const multiSelectShortcutLabel = `Click + ${helpOverlayPrimaryModifierShortLabel()}`;
+const multiSelectShortcutLabel = `${helpOverlayPrimaryModifierShortLabel()} + Click`;
 
 export const multiSelectHelpOverlayTile: HelpOverlayTileDefinition = {
   id: "multi-select",
   title: "Select slots",
   description: multiSelectDescription,
-  shortcutLabel: multiSelectShortcutLabel,
+  shortcutLabel: [multiSelectShortcutLabel],
   detail: "",
   minHeight: 118,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {

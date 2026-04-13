@@ -35,6 +35,10 @@ const DETAIL_BASELINE_OFFSET = 10;
 const SHORTCUT_TOP_GAP = 5;
 const SHORTCUT_HEIGHT = 20;
 const SHORTCUT_TEXT_PAD_X = 6;
+const SHORTCUT_CHIP_GAP_X = 10;
+const SHORTCUT_ROW_GAP = 4;
+const SHORTCUT_RADIUS = 5;
+const SHORTCUT_SEPARATOR_PAD_X = 3;
 const TEXT_BOTTOM_PAD = 6;
 const TEXT_TOP_PAD = 8;
 
@@ -55,7 +59,7 @@ type TileCandidateLayout = {
   titleY: number;
   descriptionY: number;
   detailY: number | null;
-  shortcutRect: CanvasRect | null;
+  shortcutRects: CanvasRect[];
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -71,6 +75,21 @@ function easeOutCubic(t: number): number {
 function rectContainsPoint(rect: CanvasRect | null, x: number, y: number): boolean {
   if (!rect) return false;
   return x >= rect.x && y >= rect.y && x <= rect.x + rect.w && y <= rect.y + rect.h;
+}
+
+function roundedRectPath(ctx: CanvasRenderingContext2D, rect: CanvasRect, radius: number): void {
+  const r = Math.max(0, Math.min(radius, rect.w / 2, rect.h / 2));
+  ctx.beginPath();
+  ctx.moveTo(rect.x + r, rect.y);
+  ctx.lineTo(rect.x + rect.w - r, rect.y);
+  ctx.arcTo(rect.x + rect.w, rect.y, rect.x + rect.w, rect.y + r, r);
+  ctx.lineTo(rect.x + rect.w, rect.y + rect.h - r);
+  ctx.arcTo(rect.x + rect.w, rect.y + rect.h, rect.x + rect.w - r, rect.y + rect.h, r);
+  ctx.lineTo(rect.x + r, rect.y + rect.h);
+  ctx.arcTo(rect.x, rect.y + rect.h, rect.x, rect.y + rect.h - r, r);
+  ctx.lineTo(rect.x, rect.y + r);
+  ctx.arcTo(rect.x, rect.y, rect.x + r, rect.y, r);
+  ctx.closePath();
 }
 
 function drawWrappedTextLines(
@@ -176,19 +195,30 @@ function buildTileCandidateLayout(tile: HelpOverlayTileDefinition, tileWidth: nu
     cursorTop += DETAIL_TOP_GAP + detailBlock.height;
   }
 
-  let shortcutRect: CanvasRect | null = null;
-  if (tile.shortcutLabel) {
-    const shortcutWidth = Math.min(
-      textWidth,
-      Math.ceil(measureTextNaturalWidth(tile.shortcutLabel, SHORTCUT_FONT)) + SHORTCUT_TEXT_PAD_X * 2,
-    );
-    shortcutRect = {
-      x: 0,
-      y: cursorTop + SHORTCUT_TOP_GAP,
-      w: shortcutWidth,
-      h: SHORTCUT_HEIGHT,
-    };
-    cursorTop = shortcutRect.y + shortcutRect.h;
+  const shortcutRects: CanvasRect[] = [];
+  const shortcutLabels = tile.shortcutLabel.map((label) => label.trim()).filter(Boolean);
+  if (shortcutLabels.length > 0) {
+    let shortcutX = 0;
+    let shortcutY = cursorTop + SHORTCUT_TOP_GAP;
+    for (const label of shortcutLabels) {
+      const shortcutWidth = Math.min(
+        textWidth,
+        Math.ceil(measureTextNaturalWidth(label, SHORTCUT_FONT)) + SHORTCUT_TEXT_PAD_X * 2,
+      );
+      if (shortcutX > 0 && shortcutX + shortcutWidth > textWidth) {
+        shortcutX = 0;
+        shortcutY += SHORTCUT_HEIGHT + SHORTCUT_ROW_GAP;
+      }
+      shortcutRects.push({
+        x: shortcutX,
+        y: shortcutY,
+        w: shortcutWidth,
+        h: SHORTCUT_HEIGHT,
+      });
+      shortcutX += shortcutWidth + SHORTCUT_CHIP_GAP_X;
+    }
+    const lastShortcutRect = shortcutRects[shortcutRects.length - 1]!;
+    cursorTop = lastShortcutRect.y + lastShortcutRect.h;
   }
 
   const height = Math.max(
@@ -205,7 +235,7 @@ function buildTileCandidateLayout(tile: HelpOverlayTileDefinition, tileWidth: nu
     titleY,
     descriptionY,
     detailY,
-    shortcutRect,
+    shortcutRects,
   };
 }
 
@@ -238,14 +268,12 @@ function layoutTiles(
       h: PREVIEW_FIXED_HEIGHT,
     };
     const textX = previewRect.x + previewRect.w + PREVIEW_TEXT_GAP;
-    const shortcutRect = resolvedCandidate.shortcutRect
-      ? {
-        x: textX,
-        y: rect.y + resolvedCandidate.shortcutRect.y,
-        w: resolvedCandidate.shortcutRect.w,
-        h: resolvedCandidate.shortcutRect.h,
-      }
-      : null;
+    const shortcutRects = resolvedCandidate.shortcutRects.map((shortcutRect) => ({
+      x: textX + shortcutRect.x,
+      y: rect.y + shortcutRect.y,
+      w: shortcutRect.w,
+      h: shortcutRect.h,
+    }));
     tileLayouts.push({
       tile,
       rect,
@@ -258,7 +286,7 @@ function layoutTiles(
       descriptionY: rect.y + resolvedCandidate.descriptionY,
       detailLines: resolvedCandidate.detailLines,
       detailY: resolvedCandidate.detailY === null ? null : rect.y + resolvedCandidate.detailY,
-      shortcutRect,
+      shortcutRects,
     });
     contentY += resolvedCandidate.height + TILE_GAP;
   }
@@ -520,7 +548,7 @@ function drawHelpTile(
     descriptionY,
     detailLines,
     detailY,
-    shortcutRect,
+    shortcutRects,
   } = tileLayout;
 
   ctx.save();
@@ -560,19 +588,46 @@ function drawHelpTile(
     drawWrappedTextLines(ctx, detailLines, textX, detailY, DETAIL_LINE_HEIGHT);
   }
 
-  if (tile.shortcutLabel && shortcutRect) {
+  if (tile.shortcutLabel.length > 0 && shortcutRects.length > 0) {
     ctx.font = SHORTCUT_FONT;
-    const labelWidth = Math.min(
-      textWidth,
-      shortcutRect.w,
-    );
-    ctx.fillStyle = "#f8fafc";
-    ctx.fillRect(shortcutRect.x, shortcutRect.y, labelWidth, SHORTCUT_HEIGHT);
-    ctx.strokeStyle = "#d9dfe8";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(shortcutRect.x + 0.5, shortcutRect.y + 0.5, labelWidth - 1, SHORTCUT_HEIGHT - 1);
-    ctx.fillStyle = "#374151";
-    ctx.fillText(tile.shortcutLabel, shortcutRect.x + SHORTCUT_TEXT_PAD_X, shortcutRect.y + 13.5);
+    const labels = tile.shortcutLabel.map((label) => label.trim()).filter(Boolean);
+    for (let i = 0; i < shortcutRects.length; i += 1) {
+      const shortcutRect = shortcutRects[i]!;
+      const label = labels[i] ?? "";
+      const labelWidth = Math.min(textWidth, shortcutRect.w);
+      ctx.fillStyle = "#f8fafc";
+      roundedRectPath(ctx, { ...shortcutRect, w: labelWidth }, SHORTCUT_RADIUS);
+      ctx.fill();
+      ctx.strokeStyle = "#d9dfe8";
+      ctx.lineWidth = 1;
+      roundedRectPath(
+        ctx,
+        {
+          x: shortcutRect.x + 0.5,
+          y: shortcutRect.y + 0.5,
+          w: Math.max(0, labelWidth - 1),
+          h: Math.max(0, SHORTCUT_HEIGHT - 1),
+        },
+        Math.max(0, SHORTCUT_RADIUS - 0.5),
+      );
+      ctx.stroke();
+      ctx.fillStyle = "#374151";
+      ctx.fillText(label, shortcutRect.x + SHORTCUT_TEXT_PAD_X, shortcutRect.y + 13.5);
+
+      const nextShortcutRect = shortcutRects[i + 1];
+      if (nextShortcutRect && nextShortcutRect.y === shortcutRect.y) {
+        ctx.fillStyle = "#6b7280";
+        const separatorX = shortcutRect.x + labelWidth + (nextShortcutRect.x - (shortcutRect.x + labelWidth)) / 2;
+        ctx.fillText("/", separatorX - 2, shortcutRect.y + 13.5);
+      } else if (nextShortcutRect) {
+        ctx.fillStyle = "#6b7280";
+        const separatorX = Math.min(
+          textX + textWidth - SHORTCUT_TEXT_PAD_X,
+          shortcutRect.x + labelWidth + SHORTCUT_SEPARATOR_PAD_X,
+        );
+        ctx.fillText("/", separatorX, shortcutRect.y + 13.5);
+      }
+    }
   }
   ctx.restore();
 }

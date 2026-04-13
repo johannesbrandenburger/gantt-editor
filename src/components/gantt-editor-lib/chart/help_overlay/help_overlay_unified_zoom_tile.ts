@@ -1,5 +1,6 @@
 import type { CanvasRect, HelpOverlayTileDefinition } from "./help_overlay_tile";
 import { drawHelpOverlayCursor } from "./help_overlay_cursor";
+import { helpOverlayPrimaryModifierShortLabel } from "./help_overlay_platform";
 
 const ANIMATION_CYCLE_MS = 3200;
 
@@ -39,7 +40,11 @@ export const unifiedZoomHelpOverlayTile: HelpOverlayTileDefinition = {
   title: "Zoom",
   description:
     "Hold Ctrl, Shift, or Alt and scroll with the mouse wheel to zoom in or out.",
-  shortcutLabel: "Modifier + wheel",
+  shortcutLabel: [
+    `${helpOverlayPrimaryModifierShortLabel()} + wheel`,
+    "Shift + wheel",
+    "Alt + wheel",
+  ],
   detail: "",
   minHeight: 108,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {

@@ -8,7 +8,7 @@ export const escapeKeyHelpOverlayTile: HelpOverlayTileDefinition = {
   title: "Clear selection",
   description:
     "Escape clears the current slot selection.",
-  shortcutLabel: "Escape",
+  shortcutLabel: ["Escape"],
   detail: "",
   minHeight: 100,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {

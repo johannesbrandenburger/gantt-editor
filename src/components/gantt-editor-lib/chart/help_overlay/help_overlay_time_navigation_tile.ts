@@ -58,7 +58,7 @@ export const timeNavigationHelpOverlayTile: HelpOverlayTileDefinition = {
   title: "Move through the timeline",
   description:
     "Use Shift + Cursor Drag or Right Click Cursor Drag to move back and forth in time.",
-  shortcutLabel: "Shift + drag or right-drag",
+  shortcutLabel: ["Shift + drag", "Right-drag"],
   detail: "",
   minHeight: 118,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {

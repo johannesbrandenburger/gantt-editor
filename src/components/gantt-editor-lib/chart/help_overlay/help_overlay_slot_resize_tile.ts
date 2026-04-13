@@ -8,7 +8,7 @@ export const resizeSlotEdgesHelpOverlayTile: HelpOverlayTileDefinition = {
   id: "resize-slot-edges",
   title: "Resize a slot",
   description: "Resize a slot by dragging its edges",
-  shortcutLabel: "Drag bar edge",
+  shortcutLabel: ["Drag bar edge"],
   detail: "",
   minHeight: 118,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {

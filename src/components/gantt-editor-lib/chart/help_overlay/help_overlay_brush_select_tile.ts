@@ -30,7 +30,7 @@ export const brushSelectHelpOverlayTile: HelpOverlayTileDefinition = {
   title: "Select multiple slots",
   description:
     "Drag on empty destination background or along the time axis to select every slot whose bar intersects the brushed time span.",
-  shortcutLabel: "Cursor drag",
+  shortcutLabel: ["Cursor drag"],
   detail: "",
   minHeight: 108,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {
