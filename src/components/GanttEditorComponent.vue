@@ -125,6 +125,7 @@ function propsSnapshot(): GanttEditorProps {
     topContentPortion: props.topContentPortion,
     xAxisOptions: props.xAxisOptions,
     hoverPreviewMaxClipboardSize: props.hoverPreviewMaxClipboardSize,
+    helpOverlayTiles: props.helpOverlayTiles,
     helpOverlayTileIds: props.helpOverlayTileIds,
   };
 }
@@ -223,6 +224,7 @@ watch(
     props.isReadOnly,
     props.topContentPortion,
     props.xAxisOptions,
+    props.helpOverlayTiles,
     props.helpOverlayTileIds,
   ],
   queueRefreshModel,

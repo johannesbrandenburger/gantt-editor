@@ -169,7 +169,8 @@ function onCanvasContextMenuAction(actionId: string, timestamp: Date, destinatio
 | `isReadOnly` | `boolean` | yes | - | Disables interactive editing |
 | `topContentPortion` | `number` | no | `0` | Relative height reserved for the `top-content` slot |
 | `xAxisOptions` | `GanttEditorXAxisOptions` | no | `undefined` | Tick format / tick generation customization |
-| `helpOverlayTileIds` | `string[]` | no | `undefined` | Help tile ids to include; omit for all, pass `[]` to disable help UI entirely. See `src/components/gantt-editor-lib/chart/help_overlay/tiles` for available tiles and their ids. |
+| `helpOverlayTiles` | `HelpOverlayTileDefinition[]` | no | `undefined` | Custom help tiles appended to built-in defaults (same-id custom tiles override defaults) |
+| `helpOverlayTileIds` | `string[]` | no | `undefined` | Help tile ids to include from the active tile list (built-in + custom); omit to show all active tiles, pass `[]` to disable help UI entirely |
 
 #### Rulers (`activateRulers`)
 

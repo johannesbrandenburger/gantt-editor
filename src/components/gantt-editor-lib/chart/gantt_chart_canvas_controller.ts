@@ -415,6 +415,7 @@ export class GanttChartCanvasController {
       previousProps.destinationGroups === next.destinationGroups &&
       previousProps.suggestions === next.suggestions &&
       previousProps.activateRulers === next.activateRulers &&
+      previousProps.helpOverlayTiles === next.helpOverlayTiles &&
       previousProps.helpOverlayTileIds === next.helpOverlayTileIds &&
       previousProps.verticalMarkers === next.verticalMarkers &&
       previousProps.markedRegion === next.markedRegion &&
@@ -429,7 +430,10 @@ export class GanttChartCanvasController {
     let nextFingerprint: number | null = null;
     let processDataChanged = false;
 
-    if (previousProps.helpOverlayTileIds !== next.helpOverlayTileIds) {
+    if (
+      previousProps.helpOverlayTiles !== next.helpOverlayTiles ||
+      previousProps.helpOverlayTileIds !== next.helpOverlayTileIds
+    ) {
       this.helpOverlayTiles = this.resolveHelpOverlayTiles(next);
       if (this.helpOverlayTiles.length === 0) {
         this.helpOverlayOpen = false;
@@ -4536,16 +4540,22 @@ export class GanttChartCanvasController {
   }
 
   private resolveHelpOverlayTiles(props: GanttEditorProps): HelpOverlayTileDefinition[] {
+    const customTiles = props.helpOverlayTiles ?? [];
+    const customTileIdSet = new Set(customTiles.map((tile) => tile.id));
+    const baseTiles: HelpOverlayTileDefinition[] = [
+      ...DEFAULT_HELP_OVERLAY_TILES.filter((tile) => !customTileIdSet.has(tile.id)),
+      ...customTiles,
+    ];
     const ids = props.helpOverlayTileIds;
     if (ids === undefined) {
-      return DEFAULT_HELP_OVERLAY_TILES;
+      return baseTiles;
     }
     if (ids.length === 0) {
       return [];
     }
 
     const idSet = new Set(ids);
-    return DEFAULT_HELP_OVERLAY_TILES.filter((tile) => idSet.has(tile.id));
+    return baseTiles.filter((tile) => idSet.has(tile.id));
   }
 
   private clearHoverStateForHelpOverlay(): void {
