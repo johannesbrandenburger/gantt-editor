@@ -224,7 +224,8 @@ export class GanttChartCanvasController {
   private hoveredTimeAxisDiffMs: number | null = null;
   private helpOverlayOpen = false;
   private helpOverlayHoverTarget: HelpOverlayHoverTarget = null;
-  private helpOverlayHoveredTileAnimationStartMs: number | null = null;
+  private helpOverlayActiveTileId: string | null = null;
+  private helpOverlayActiveTileAnimationStartMs: number | null = null;
   private helpOverlayTilesScrollY = 0;
   private helpOverlayTransition: {
     from: number;
@@ -648,12 +649,10 @@ export class GanttChartCanvasController {
         : helpHit !== null && typeof helpHit === "object" && helpHit.kind === "tile"
           ? helpHit
           : null;
-    const prevTileId = this.helpOverlayTileHoverId(this.helpOverlayHoverTarget);
     const nextTileId = this.helpOverlayTileHoverId(nextHelpHover);
-    if (nextTileId === null) {
-      this.helpOverlayHoveredTileAnimationStartMs = null;
-    } else if (nextTileId !== prevTileId) {
-      this.helpOverlayHoveredTileAnimationStartMs = performance.now();
+    if (nextTileId !== null && nextTileId !== this.helpOverlayActiveTileId) {
+      this.helpOverlayActiveTileId = nextTileId;
+      this.helpOverlayActiveTileAnimationStartMs = performance.now();
     }
     const helpHoverChanged =
       this.helpOverlayHoverTargetKey(nextHelpHover) !==
@@ -856,7 +855,10 @@ export class GanttChartCanvasController {
     this.hoverResizeBand = null;
     this.pointerInChart = false;
     this.helpOverlayHoverTarget = null;
-    this.helpOverlayHoveredTileAnimationStartMs = null;
+    if (!this.helpOverlayOpen) {
+      this.helpOverlayActiveTileId = null;
+      this.helpOverlayActiveTileAnimationStartMs = null;
+    }
     this.hoveredSuggestion = null;
     this.hoveredClipboardTopicId = null;
     this.hoveredTimeAxisDiffMs = null;
@@ -876,7 +878,10 @@ export class GanttChartCanvasController {
     this.closeContextMenu(false);
     this.pointerInChart = false;
     this.helpOverlayHoverTarget = null;
-    this.helpOverlayHoveredTileAnimationStartMs = null;
+    if (!this.helpOverlayOpen) {
+      this.helpOverlayActiveTileId = null;
+      this.helpOverlayActiveTileAnimationStartMs = null;
+    }
     this.hoveredSuggestion = null;
     this.hoveredClipboardTopicId = null;
     this.hoveredTimeAxisDiffMs = null;
@@ -3880,7 +3885,7 @@ export class GanttChartCanvasController {
       collapseLayoutTransition ||
       destinationPreview ||
       this.helpOverlayTransition ||
-      (helpOverlayProgress > 0 && this.isHelpOverlayTileHovered())
+      (helpOverlayProgress > 0 && this.isHelpOverlayTileActive())
     ) {
       this.scheduleFrameRedraw(false);
     }
@@ -4381,9 +4386,8 @@ export class GanttChartCanvasController {
     return `tile:${target.id}`;
   }
 
-  private isHelpOverlayTileHovered(): boolean {
-    const t = this.helpOverlayHoverTarget;
-    return t !== null && typeof t === "object" && t.kind === "tile";
+  private isHelpOverlayTileActive(): boolean {
+    return this.helpOverlayActiveTileId !== null && this.helpOverlayActiveTileAnimationStartMs !== null;
   }
 
   private helpOverlayTileHoverId(target: HelpOverlayHoverTarget): string | null {
@@ -4407,7 +4411,8 @@ export class GanttChartCanvasController {
       progress,
       tiles: this.helpOverlayTiles,
       hoverTarget: this.helpOverlayHoverTarget,
-      hoveredTileAnimationStartMs: this.helpOverlayHoveredTileAnimationStartMs,
+      activeTileAnimationStartMs: this.helpOverlayActiveTileAnimationStartMs,
+      activeTileId: this.helpOverlayActiveTileId,
       tilesScrollY: this.helpOverlayTilesScrollY,
     });
     return progress;
@@ -4489,7 +4494,15 @@ export class GanttChartCanvasController {
             startedAtMs: performance.now(),
           };
     this.helpOverlayHoverTarget = null;
-    this.helpOverlayHoveredTileAnimationStartMs = null;
+    if (open) {
+      this.helpOverlayActiveTileId = this.helpOverlayTiles[0]?.id ?? null;
+      this.helpOverlayActiveTileAnimationStartMs = this.helpOverlayActiveTileId
+        ? performance.now()
+        : null;
+    } else {
+      this.helpOverlayActiveTileId = null;
+      this.helpOverlayActiveTileAnimationStartMs = null;
+    }
     this.helpOverlayTilesScrollY = 0;
     this.closeContextMenu(false);
     this.clearHoverStateForHelpOverlay();

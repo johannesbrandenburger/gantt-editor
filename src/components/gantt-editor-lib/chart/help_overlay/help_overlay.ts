@@ -383,8 +383,10 @@ type DrawHelpOverlayArgs = {
   progress: number;
   tiles: HelpOverlayTileDefinition[];
   hoverTarget: HelpOverlayHoverTarget;
-  /** Hovered tile preview time is `nowMs - hoveredTileAnimationStartMs`. */
-  hoveredTileAnimationStartMs: number | null;
+  /** Active tile preview time is `nowMs - activeTileAnimationStartMs`. */
+  activeTileAnimationStartMs: number | null;
+  /** Tile id whose preview animation is currently active. */
+  activeTileId: string | null;
   /** Vertical scroll offset for the tile list (pixels). */
   tilesScrollY: number;
 };
@@ -398,7 +400,8 @@ export function drawHelpOverlay(args: DrawHelpOverlayArgs): HelpOverlayLayout {
     progress,
     tiles,
     hoverTarget,
-    hoveredTileAnimationStartMs,
+    activeTileAnimationStartMs,
+    activeTileId,
     tilesScrollY,
   } = args;
   const layout = buildHelpOverlayLayout(width, height, tiles, ctx);
@@ -429,11 +432,6 @@ export function drawHelpOverlay(args: DrawHelpOverlayArgs): HelpOverlayLayout {
   drawHelpPanel(ctx, layout.panelRect);
   drawHelpHeader(ctx, layout.panelRect, layout.closeRect, closeHovered);
 
-  const hoveredTileId =
-    hoverTarget !== null && typeof hoverTarget === "object" && hoverTarget.kind === "tile"
-      ? hoverTarget.id
-      : null;
-
   if (layout.tilesClipRect && layout.tileLayouts.length > 0) {
     const scrollY = clamp(tilesScrollY, 0, layout.tilesMaxScrollY);
     ctx.save();
@@ -448,10 +446,10 @@ export function drawHelpOverlay(args: DrawHelpOverlayArgs): HelpOverlayLayout {
     ctx.translate(0, layout.tilesContentTopY - scrollY);
     for (const tileLayout of layout.tileLayouts) {
       const previewNowMs =
-        hoveredTileId === tileLayout.tile.id && hoveredTileAnimationStartMs !== null
-          ? nowMs - hoveredTileAnimationStartMs
+        activeTileId === tileLayout.tile.id && activeTileAnimationStartMs !== null
+          ? nowMs - activeTileAnimationStartMs
           : 0;
-      drawHelpTile(ctx, tileLayout, previewNowMs, panelAlpha);
+      drawHelpTile(ctx, tileLayout, previewNowMs, panelAlpha, activeTileId === tileLayout.tile.id);
     }
     ctx.restore();
   }
@@ -535,6 +533,7 @@ function drawHelpTile(
   tileLayout: HelpOverlayTileLayout,
   nowMs: number,
   alpha: number,
+  active: boolean,
 ): void {
   const {
     tile,
@@ -554,8 +553,8 @@ function drawHelpTile(
   ctx.save();
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = "#e0e5ec";
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = active ? "#0d5ccb" : "#e0e5ec";
+  ctx.lineWidth = active ? 1.5 : 1;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
   ctx.restore();
 
