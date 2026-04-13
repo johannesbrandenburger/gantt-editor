@@ -10,10 +10,7 @@ const SUGGESTION_MIN_SIZE_PX = 4;
 const SUGGESTION_MAX_SIZE_PX = 16;
 const SUGGESTION_HIT_RADIUS_MULTIPLIER = 1.15;
 const SUGGESTION_HOVER_SCALE = 1.15;
-const SUGGESTION_FILL = "#f59e0b";
-const SUGGESTION_OUTLINE = "rgba(120, 53, 15, 0.45)";
-const SUGGESTION_GLOW = "rgba(245, 158, 11, 0.22)";
-const SUGGESTION_FILAMENT = "rgba(120, 53, 15, 0.7)";
+const SUGGESTION_FILL = "#ffc720";
 
 export interface SuggestionButtonDefinition {
   x: number;
@@ -128,48 +125,50 @@ function drawSuggestionShape(
   y: number,
   size: number,
 ): void {
-  const ringRadius = size * 0.9;
-  const bulbRadius = size * 0.56;
-  const bulbCenterY = y - size * 0.18;
-  const stemWidth = size * 0.5;
-  const stemHeight = size * 0.34;
-  const stemTop = bulbCenterY + bulbRadius - size * 0.1;
-  const filamentY = bulbCenterY + size * 0.1;
+  // Pear-shaped lightbulb outline – aspect ratio 0.7541 (from PowerPoint design spec)
+  const hw = size * 0.56;
+  const W = hw * 2;
+  const H = W / 0.7541;
+  const top = y - H / 2;
+  const px = (nx: number) => x + (nx - 0.5) * W;
+  const py = (ny: number) => top + ny * H;
 
-  ctx.fillStyle = SUGGESTION_GLOW;
-  ctx.beginPath();
-  ctx.arc(x, y, ringRadius, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = SUGGESTION_FILL;
-  ctx.beginPath();
-  ctx.arc(x, bulbCenterY, bulbRadius, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = SUGGESTION_OUTLINE;
-  ctx.lineWidth = Math.max(1, size * 0.1);
-  ctx.beginPath();
-  ctx.arc(x, bulbCenterY, bulbRadius, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
-  ctx.beginPath();
-  ctx.arc(x - size * 0.2, bulbCenterY - size * 0.2, size * 0.16, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = SUGGESTION_FILL;
-  ctx.beginPath();
-  ctx.roundRect(x - stemWidth / 2, stemTop, stemWidth, stemHeight, size * 0.14);
-  ctx.fill();
-
-  ctx.strokeStyle = SUGGESTION_FILAMENT;
-  ctx.lineWidth = Math.max(1, size * 0.12);
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = SUGGESTION_FILL;
+  ctx.lineWidth = Math.max(1, size * 0.2);
+  ctx.lineJoin = "round";
   ctx.lineCap = "round";
+
+  // Main lightbulb pear outline
   ctx.beginPath();
-  ctx.moveTo(x - size * 0.14, filamentY);
-  ctx.lineTo(x, filamentY + size * 0.12);
-  ctx.lineTo(x + size * 0.14, filamentY);
+  ctx.moveTo(px(0.5), py(0));
+  ctx.bezierCurveTo(px(0.776), py(0), px(1.0), py(0.169), px(1.0), py(0.377));
+  ctx.bezierCurveTo(px(1.0), py(0.481), px(0.944), py(0.575), px(0.854), py(0.644));
+  ctx.lineTo(px(0.824), py(0.664));
+  ctx.lineTo(px(0.762), py(0.718));
+  ctx.lineTo(px(0.697), py(0.805));
+  ctx.lineTo(px(0.659), py(0.923));
+  ctx.lineTo(px(0.653), py(0.934));
+  ctx.bezierCurveTo(px(0.653), py(0.970), px(0.585), py(1.0), px(0.5), py(1.0));
+  ctx.bezierCurveTo(px(0.415), py(1.0), px(0.347), py(0.970), px(0.347), py(0.934));
+  ctx.lineTo(px(0.344), py(0.923));
+  ctx.lineTo(px(0.306), py(0.809));
+  ctx.lineTo(px(0.241), py(0.722));
+  ctx.lineTo(px(0.176), py(0.664));
+  ctx.lineTo(px(0.146), py(0.644));
+  ctx.bezierCurveTo(px(0.056), py(0.575), px(0), py(0.481), px(0), py(0.377));
+  ctx.bezierCurveTo(px(0), py(0.169), px(0.224), py(0), px(0.5), py(0));
+  ctx.closePath();
   ctx.stroke();
+
+  // Horizontal ring on the base
+  ctx.beginPath();
+  ctx.moveTo(px(0.304), py(0.897));
+  ctx.lineTo(px(0.696), py(0.897));
+  ctx.stroke();
+
+  ctx.restore();
 }
 
 export function drawSuggestionButtons(params: DrawSuggestionButtonsParams): void {
