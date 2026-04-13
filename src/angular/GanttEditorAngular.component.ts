@@ -19,6 +19,16 @@ import { CommonModule } from '@angular/common'
 import type { GanttEditorProps } from '../components/gantt-editor-lib/chart/gantt_canvas_props'
 import { GanttChartCanvasController } from '../components/gantt-editor-lib/chart/gantt_chart_canvas_controller'
 
+type SlotPointMode = 'center' | 'left-edge' | 'right-edge'
+
+type GanttCanvasTestApi = {
+  flush: () => void
+  refreshSelectionFromStorage: () => void
+  getState: () => ReturnType<GanttChartCanvasController['getTestState']>
+  probeCanvasPoint: (x: number, y: number) => ReturnType<GanttChartCanvasController['probeCanvasPoint']>
+  findSlotPoint: (slotId: string, mode?: SlotPointMode) => ReturnType<GanttChartCanvasController['findSlotPoint']>
+}
+
 @Directive({
   selector: '[ganttEditorTopContent]',
 })
@@ -140,6 +150,14 @@ export class GanttEditorAngularComponent implements GanttEditorProps, AfterViewI
   private topContentDirective: GanttEditorTopContentDirective | null = null
 
   currentTopContentHeight = 0
+  readonly ganttCanvasTestApi: GanttCanvasTestApi = {
+    flush: () => this.controller.flushForTests(),
+    refreshSelectionFromStorage: () => this.controller.updateSelection(),
+    getState: () => this.controller.getTestState(),
+    probeCanvasPoint: (x: number, y: number) => this.controller.probeCanvasPoint(x, y),
+    findSlotPoint: (slotId: string, mode: SlotPointMode = 'center') =>
+      this.controller.findSlotPoint(slotId, mode),
+  }
 
   private static readonly INITIAL_CONTROLLER_PROPS: GanttEditorProps = {
     startTime: new Date(0),
@@ -196,6 +214,8 @@ export class GanttEditorAngularComponent implements GanttEditorProps, AfterViewI
 
   private refreshQueued = false
   private isAttached = false
+  private readonly exposeTestApi = typeof window !== 'undefined'
+  private registeredTestApi: GanttCanvasTestApi | null = null
 
   constructor(
     private readonly cdr: ChangeDetectorRef,
@@ -207,6 +227,7 @@ export class GanttEditorAngularComponent implements GanttEditorProps, AfterViewI
     this.controller.refreshModel(this.propsSnapshot())
     this.controller.updateSelection()
     this.controller.attach(this.chartContainerRef.nativeElement, this.chartCanvasRef.nativeElement)
+    this.installTestApi()
     this.isAttached = true
   }
 
@@ -216,8 +237,13 @@ export class GanttEditorAngularComponent implements GanttEditorProps, AfterViewI
   }
 
   ngOnDestroy(): void {
+    this.uninstallTestApi()
     this.controller.detach()
     this.isAttached = false
+  }
+
+  get chartCanvas(): HTMLCanvasElement | null {
+    return this.chartCanvasRef?.nativeElement ?? null
   }
 
   hasTopContent(): boolean {
@@ -277,6 +303,22 @@ export class GanttEditorAngularComponent implements GanttEditorProps, AfterViewI
         this.controller.refreshModel(this.propsSnapshot())
       })
     })
+  }
+
+  private installTestApi(): void {
+    if (!this.exposeTestApi || typeof window === 'undefined') return
+    this.registeredTestApi = this.ganttCanvasTestApi
+    ;(window as Window & { __ganttCanvasTestApi?: GanttCanvasTestApi }).__ganttCanvasTestApi =
+      this.registeredTestApi
+  }
+
+  private uninstallTestApi(): void {
+    if (!this.exposeTestApi || typeof window === 'undefined') return
+    const w = window as Window & { __ganttCanvasTestApi?: GanttCanvasTestApi }
+    if (w.__ganttCanvasTestApi === this.registeredTestApi) {
+      delete w.__ganttCanvasTestApi
+    }
+    this.registeredTestApi = null
   }
 
   private propsSnapshot(): GanttEditorProps {

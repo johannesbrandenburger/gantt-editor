@@ -16,6 +16,14 @@ import { GanttChartCanvasController } from '../components/gantt-editor-lib/chart
 
 type SlotPointMode = 'center' | 'left-edge' | 'right-edge'
 
+type GanttCanvasTestApi = {
+  flush: () => void
+  refreshSelectionFromStorage: () => void
+  getState: () => ReturnType<GanttChartCanvasController['getTestState']>
+  probeCanvasPoint: (x: number, y: number) => ReturnType<GanttChartCanvasController['probeCanvasPoint']>
+  findSlotPoint: (slotId: string, mode?: SlotPointMode) => ReturnType<GanttChartCanvasController['findSlotPoint']>
+}
+
 export interface GanttEditorReactProps extends GanttEditorProps {
   onChangeStartAndEndTime?: (start: Date, end: Date) => void
   onChangeDestinationId?: (slotId: string, destinationId: string, preview: boolean) => void
@@ -45,12 +53,7 @@ export interface GanttEditorReactRef {
   clearSelection: () => void
   clearClipboard: () => void
   chartCanvas: HTMLCanvasElement | null
-  ganttCanvasTestApi: {
-    flush: () => void
-    getState: () => ReturnType<GanttChartCanvasController['getTestState']>
-    probeCanvasPoint: (x: number, y: number) => ReturnType<GanttChartCanvasController['probeCanvasPoint']>
-    findSlotPoint: (slotId: string, mode?: SlotPointMode) => ReturnType<GanttChartCanvasController['findSlotPoint']>
-  }
+  ganttCanvasTestApi: GanttCanvasTestApi
 }
 
 const containerStyle: CSSProperties = {
@@ -116,6 +119,8 @@ export const GanttEditorReact = forwardRef<GanttEditorReactRef, GanttEditorReact
     const containerRef = useRef<HTMLDivElement | null>(null)
     const canvasRef = useRef<HTMLCanvasElement | null>(null)
     const refreshQueuedRef = useRef(false)
+    const exposeTestApi = import.meta.env.DEV || import.meta.env.MODE === 'test'
+    const registeredTestApiRef = useRef<GanttCanvasTestApi | null>(null)
     const [currentTopContentHeight, setCurrentTopContentHeight] = useState(0)
 
     const controllerRef = useRef<GanttChartCanvasController | null>(null)
@@ -206,21 +211,42 @@ export const GanttEditorReact = forwardRef<GanttEditorReactRef, GanttEditorReact
       trackedMarkedRegionKey,
     ])
 
+    const ganttCanvasTestApi = useMemo<GanttCanvasTestApi>(
+      () => ({
+        flush: () => controller.flushForTests(),
+        refreshSelectionFromStorage: () => controller.updateSelection(),
+        getState: () => controller.getTestState(),
+        probeCanvasPoint: (x: number, y: number) => controller.probeCanvasPoint(x, y),
+        findSlotPoint: (slotId: string, mode: SlotPointMode = 'center') =>
+          controller.findSlotPoint(slotId, mode),
+      }),
+      [controller],
+    )
+
+    useEffect(() => {
+      if (!exposeTestApi || typeof window === 'undefined') return
+      registeredTestApiRef.current = ganttCanvasTestApi
+      ;(window as Window & { __ganttCanvasTestApi?: GanttCanvasTestApi }).__ganttCanvasTestApi =
+        registeredTestApiRef.current
+
+      return () => {
+        const w = window as Window & { __ganttCanvasTestApi?: GanttCanvasTestApi }
+        if (w.__ganttCanvasTestApi === registeredTestApiRef.current) {
+          delete w.__ganttCanvasTestApi
+        }
+        registeredTestApiRef.current = null
+      }
+    }, [exposeTestApi, ganttCanvasTestApi])
+
     useImperativeHandle(
       ref,
       () => ({
         clearSelection: () => controller.clearSelection(),
         clearClipboard: () => controller.clearSelection(),
         chartCanvas: canvasRef.current,
-        ganttCanvasTestApi: {
-          flush: () => controller.flushForTests(),
-          getState: () => controller.getTestState(),
-          probeCanvasPoint: (x: number, y: number) => controller.probeCanvasPoint(x, y),
-          findSlotPoint: (slotId: string, mode: SlotPointMode = 'center') =>
-            controller.findSlotPoint(slotId, mode),
-        },
+        ganttCanvasTestApi,
       }),
-      [controller],
+      [controller, ganttCanvasTestApi],
     )
 
     const showTopContent = Boolean(props.topContent) || Boolean(props.topContentPortion)
