@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "composite": false,
+    "incremental": false
+  },
+  "include": ["env.d.ts", "src/**/*", "src/**/*.vue"],
+  "exclude": ["src/main.ts", "src/App.vue", "src/router/**/*", "src/plugins/**/*", "src/pages/**/*", "tests/**/*"]
+}

@@ -1,22 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import GanttEditorComponent from '@/components/GanttEditorComponent.vue';
-import type { GanttEditorVerticalMarker } from '@/components/gantt-editor-lib/chart/types';
-
-const verticalMarkers = ref<GanttEditorVerticalMarker[]>([
-    {
-        id: 'vertical-marker-1',
-        date: new Date('2025-01-01T13:00:00Z'),
-        color: '#00ff00',
-        label: 'Example marker — drag horizontally or click',
-    },
-]);
-
-function onChangeVerticalMarker(id: string, date: Date) {
-    console.log(`onChangeVerticalMarker(${id}, ${date.toISOString()})`);
-    const m = verticalMarkers.value.find((x) => x.id === id);
-    if (m) m.date = date;
-}
 </script>
 <template>
     <!--
@@ -67,12 +50,15 @@ function onChangeVerticalMarker(id: string, date: Date) {
                 // optional suggestions for the user to see and apply
             ]"
 
-            :verticalMarkers="verticalMarkers"
-            @onChangeVerticalMarker="onChangeVerticalMarker"
-            @onClickVerticalMarker="(id) => console.log(`onClickVerticalMarker(${id})`)"
-
             @onChangeStartAndEndTime="(newStartTime, newEndTime) => console.log(`onChangeStartAndEndTime(${newStartTime}, ${newEndTime})`)"
             @onChangeDestinationId="(slotId, newDestinationId) => console.log(`onChangeDestinationId(${slotId}, ${newDestinationId})`)"
+            @onBulkChangeDestinationId="(slotIds, newDestinationId) => console.log(`onBulkChangeDestinationId(${slotIds.join(',')}, ${newDestinationId})`)"
+            @onCopyToDestinationId="(slotId, newDestinationId) => console.log(`onCopyToDestinationId(${slotId}, ${newDestinationId})`)"
+            @onBulkCopyToDestinationId="(slotIds, newDestinationId) => console.log(`onBulkCopyToDestinationId(${slotIds.join(',')}, ${newDestinationId})`)"
+            @onMoveSlotOnTimeAxis="(slotId, timeDiff) => console.log(`onMoveSlotOnTimeAxis(${slotId}, ${timeDiff})`)"
+            @onBulkMoveSlotsOnTimeAxis="(slotIds, timeDiff) => console.log(`onBulkMoveSlotsOnTimeAxis(${slotIds.join(',')}, ${timeDiff})`)"
+            @onCopySlotOnTimeAxis="(slotId, timeDiff) => console.log(`onCopySlotOnTimeAxis(${slotId}, ${timeDiff})`)"
+            @onBulkCopySlotsOnTimeAxis="(slotIds, timeDiff) => console.log(`onBulkCopySlotsOnTimeAxis(${slotIds.join(',')}, ${timeDiff})`)"
             @onChangeSlotTime="(slotId, newOpenTime, newCloseTime) => console.log(`onChangeSlotTime(${slotId}, ${newOpenTime}, ${newCloseTime})`)"
             @onClickOnSlot="(slotId) => console.log(`onClickOnSlot(${slotId})`)"
             @onHoverOnSlot="(slotId) => console.log(`onHoverOnSlot(${slotId})`)"

@@ -1,208 +1,301 @@
-import { test, expect } from '@playwright/test';
-import { waitForChartLoad, setupConsoleLogListener, switchToReadOnlyMode } from './helpers';
+import { expect, test, type Page } from "./coverage-test";
+import {
+  canvasPointToPagePoint,
+  clearHarnessEvents,
+  dispatchCanvasMouseEvent,
+  findSlotPoint,
+  getCanvasState,
+  getCanvasStateField,
+  getHarnessConfig,
+  getHarnessEvents,
+  mouseDrag,
+  openE2eHarness,
+} from "./helpers";
 
-test.describe('Brush Selection (Meta/Ctrl + Drag)', () => {
+type CanvasState = {
+  margin: { left: number; right: number };
+  layout: {
+    canvasCssWidth: number;
+    axisRect: { y: number; h: number };
+    groups: Array<{ id: string; y: number; h: number }>;
+  } | null;
+};
 
-  test('Meta/Ctrl + drag selects multiple slots within the brush rectangle', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+const DENSE_TARGET_SLOT_ID = "DENSE-0002";
 
-    const logs = setupConsoleLogListener(page);
+async function brushSelectFirstAllocatedGroup(
+  page: Page,
+  slots = 80,
+): Promise<{ selectedSlotIds: string[]; canvas: Awaited<ReturnType<typeof openE2eHarness>> }> {
+  const canvas = await openE2eHarness(page, { fixture: "dense", query: { slots } });
+  await page.evaluate(() => localStorage.removeItem("pointerSelection"));
 
-    // Get the first gantt container to find a region with slots
-    const ganttContainer = page.locator('#allocated-gantt-container svg').first();
-    const containerBox = await ganttContainer.boundingBox();
-    expect(containerBox).not.toBeNull();
+  const state = await getCanvasState<CanvasState>(page);
+  expect(state).not.toBeNull();
+  expect(state?.layout).not.toBeNull();
 
-    // Count initial copied slots (should be 0)
-    const initialCopiedCount = await page.locator('svg path.slot-box.copied').count();
-    expect(initialCopiedCount).toBe(0);
+  if (!state?.layout) {
+    throw new Error("Expected chart layout for brush selection");
+  }
 
-    // Hold Meta key to bring brush to front, then drag a selection rectangle
-    await page.keyboard.down('Meta');
-    await page.waitForTimeout(200);
+  const allocatedGroup = state.layout.groups.find((group) => group.id === "allocated");
+  expect(allocatedGroup).toBeDefined();
+  if (!allocatedGroup) {
+    throw new Error("Expected allocated group to exist");
+  }
 
-    if (containerBox) {
-      // Draw a large brush rectangle to capture multiple slots
-      const startX = containerBox.x + 200;
-      const startY = containerBox.y + 10;
-      const endX = containerBox.x + containerBox.width - 100;
-      const endY = containerBox.y + 200;
+  const startCanvas = {
+    x: state.margin.left + 4,
+    y: allocatedGroup.y + 4,
+  };
+  const endCanvas = {
+    x: state.layout.canvasCssWidth - state.margin.right - 4,
+    y: allocatedGroup.y + allocatedGroup.h - 4,
+  };
 
-      await page.mouse.move(startX, startY);
-      await page.mouse.down();
-      await page.mouse.move(endX, endY, { steps: 10 });
-      await page.mouse.up();
-    }
+  const from = await canvasPointToPagePoint(canvas, startCanvas);
+  const to = await canvasPointToPagePoint(canvas, endCanvas);
 
-    await page.keyboard.up('Meta');
-    await page.waitForTimeout(500);
+  await mouseDrag(page, from, to);
 
-    // Verify that some slots were selected (marked as copied)
-    const copiedSlots = await page.locator('svg path.slot-box.copied').count();
-    expect(copiedSlots).toBeGreaterThan(0);
+  await expect
+    .poll(
+      async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).length,
+      { timeout: 2_000 },
+    )
+    .toBeGreaterThan(1);
 
-    // Verify the "Selected something" console log was triggered
-    const hasSelectionLog = logs.some(log => log.includes('Selected something'));
-    expect(hasSelectionLog).toBe(true);
+  const selectedSlotIds = (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [];
+  return { selectedSlotIds, canvas };
+}
 
-    // Verify clipboard shows chips for the selected slots
-    await page.mouse.move(400, 300);
-    const clipboard = page.locator('.pointer-clipboard');
-    await expect(clipboard).toBeVisible({ timeout: 2000 });
+async function brushSelectViaAxis(
+  page: Page,
+  slots = 80,
+): Promise<{ selectedSlotIds: string[]; canvas: Awaited<ReturnType<typeof openE2eHarness>> }> {
+  const canvas = await openE2eHarness(page, { fixture: "dense", query: { slots } });
+  await page.evaluate(() => localStorage.removeItem("pointerSelection"));
 
-    const chips = clipboard.locator('.v-chip');
-    const chipCount = await chips.count();
-    expect(chipCount).toBe(copiedSlots);
+  const state = await getCanvasState<CanvasState>(page);
+  expect(state).not.toBeNull();
+  expect(state?.layout).not.toBeNull();
+
+  if (!state?.layout) {
+    throw new Error("Expected chart layout for axis brush selection");
+  }
+
+  const startCanvas = {
+    x: state.margin.left + 4,
+    y: state.layout.axisRect.y + state.layout.axisRect.h / 2,
+  };
+  const endCanvas = {
+    x: state.layout.canvasCssWidth - state.margin.right - 4,
+    y: startCanvas.y,
+  };
+
+  const from = await canvasPointToPagePoint(canvas, startCanvas);
+  const to = await canvasPointToPagePoint(canvas, endCanvas);
+  await mouseDrag(page, from, to);
+
+  await expect
+    .poll(
+      async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).length,
+      { timeout: 2_000 },
+    )
+    .toBeGreaterThan(1);
+
+  const selectedSlotIds = (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [];
+  return { selectedSlotIds, canvas };
+}
+
+test.describe("canvas rewrite brush selection", () => {
+  test("drag selects multiple slots and persists selection", async ({ page }) => {
+    const { selectedSlotIds } = await brushSelectFirstAllocatedGroup(page);
+
+    const selectionFromStorage = await page.evaluate(() => {
+      const raw = localStorage.getItem("pointerSelection");
+      return raw ? (JSON.parse(raw) as Array<{ id: string }>).map((slot) => slot.id) : [];
+    });
+
+    expect(selectedSlotIds.length).toBeGreaterThan(1);
+    expect(selectionFromStorage.sort()).toEqual([...selectedSlotIds].sort());
   });
 
-  test('Brush selection in read-only mode does not select any slots', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("drag in readonly fixture does not select slots", async ({ page }) => {
+    const canvas = await openE2eHarness(page, { fixture: "readonly" });
+    await page.evaluate(() => localStorage.removeItem("pointerSelection"));
 
-    // Switch to read-only mode
-    await switchToReadOnlyMode(page);
+    const slotCenter = await findSlotPoint(page, "LH123-20250101-F", "center");
+    const startCanvas = { x: slotCenter.x - 80, y: slotCenter.y - 20 };
+    const endCanvas = { x: slotCenter.x + 70, y: slotCenter.y + 20 };
+    const from = await canvasPointToPagePoint(canvas, startCanvas);
+    const to = await canvasPointToPagePoint(canvas, endCanvas);
 
-    const logs = setupConsoleLogListener(page);
+    await mouseDrag(page, from, to);
 
-    // Get the container
-    const ganttContainer = page.locator('#allocated-gantt-container svg').first();
-    const containerBox = await ganttContainer.boundingBox();
-    expect(containerBox).not.toBeNull();
-
-    // Hold Meta key and drag to select
-    await page.keyboard.down('Meta');
-    await page.waitForTimeout(200);
-
-    if (containerBox) {
-      const startX = containerBox.x + 200;
-      const startY = containerBox.y + 10;
-      const endX = containerBox.x + containerBox.width - 100;
-      const endY = containerBox.y + 200;
-
-      await page.mouse.move(startX, startY);
-      await page.mouse.down();
-      await page.mouse.move(endX, endY, { steps: 10 });
-      await page.mouse.up();
-    }
-
-    await page.keyboard.up('Meta');
-    await page.waitForTimeout(500);
-
-    // No slots should be copied in read-only mode
-    const copiedSlots = await page.locator('svg path.slot-box.copied').count();
-    expect(copiedSlots).toBe(0);
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 1_500 },
+      )
+      .toEqual([]);
   });
 
-  test('Brush selection can be followed by paste to move all selected slots', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("axis drag selects slots across groups for the brushed time range", async ({ page }) => {
+    const { selectedSlotIds: groupBrushSelection } = await brushSelectFirstAllocatedGroup(page, 80);
+    const { selectedSlotIds: axisBrushSelection } = await brushSelectViaAxis(page, 80);
 
-    const logs = setupConsoleLogListener(page);
-
-    // Get the container
-    const ganttContainer = page.locator('#allocated-gantt-container svg').first();
-    const containerBox = await ganttContainer.boundingBox();
-    expect(containerBox).not.toBeNull();
-
-    // Hold Meta key and drag to select a small area to capture at least 1 slot
-    await page.keyboard.down('Meta');
-    await page.waitForTimeout(200);
-
-    if (containerBox) {
-      const startX = containerBox.x + 200;
-      const startY = containerBox.y + 10;
-      const endX = containerBox.x + containerBox.width - 100;
-      const endY = containerBox.y + 100;
-
-      await page.mouse.move(startX, startY);
-      await page.mouse.down();
-      await page.mouse.move(endX, endY, { steps: 10 });
-      await page.mouse.up();
-    }
-
-    await page.keyboard.up('Meta');
-    await page.waitForTimeout(500);
-
-    const copiedSlots = await page.locator('svg path.slot-box.copied').count();
-
-    // Only proceed if we selected at least one slot
-    if (copiedSlots > 0) {
-      // To paste, we click on a slot in a different destination (not Ctrl/Meta).
-      // When the clipboard is non-empty, clicking a slot triggers moveClipboardToTopic.
-      // First, scroll down to find a slot group that's in a different destination area
-      // We need to find a slot that's visible and not already copied
-      const allSlots = page.locator('svg g.slot-group');
-      const allSlotCount = await allSlots.count();
-
-      // Find a slot that is NOT copied (i.e., in a different destination)
-      let targetSlotIndex = -1;
-      for (let i = allSlotCount - 1; i >= 0; i--) {
-        const slotBox = await allSlots.nth(i).locator('path.slot-box').first();
-        const isCopied = await slotBox.evaluate(el => el.classList.contains('copied'));
-        if (!isCopied) {
-          const box = await allSlots.nth(i).boundingBox();
-          if (box && box.y > 0 && box.y < 800) {
-            targetSlotIndex = i;
-            break;
-          }
-        }
-      }
-
-      expect(targetSlotIndex).toBeGreaterThanOrEqual(0);
-
-      // Click the target slot (without Ctrl) to trigger paste
-      await allSlots.nth(targetSlotIndex).click();
-      await page.waitForTimeout(1000);
-
-      // Verify move callbacks were triggered
-      const moveLogs = logs.filter(log => log.includes('Moved slot to different destination'));
-      expect(moveLogs.length).toBe(copiedSlots);
-
-      // Clipboard should be cleared after paste
-      const remainingCopied = await page.locator('svg path.slot-box.copied').count();
-      expect(remainingCopied).toBe(0);
-    }
+    expect(groupBrushSelection.length).toBeGreaterThan(1);
+    expect(axisBrushSelection.length).toBeGreaterThan(groupBrushSelection.length);
   });
 
-  test('ESC clears brush-selected slots from clipboard', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("brush selection followed by click moves selected slots to target destination", async ({ page }) => {
+    const { selectedSlotIds } = await brushSelectFirstAllocatedGroup(page);
+    await clearHarnessEvents(page);
 
-    // Get the container
-    const ganttContainer = page.locator('#allocated-gantt-container svg').first();
-    const containerBox = await ganttContainer.boundingBox();
-    expect(containerBox).not.toBeNull();
+    const targetPoint = await findSlotPoint(page, DENSE_TARGET_SLOT_ID, "center");
 
-    // Hold Meta key and drag to select
-    await page.keyboard.down('Meta');
-    await page.waitForTimeout(200);
+    await dispatchCanvasMouseEvent(page, targetPoint, "click");
 
-    if (containerBox) {
-      const startX = containerBox.x + 200;
-      const startY = containerBox.y + 10;
-      const endX = containerBox.x + containerBox.width - 100;
-      const endY = containerBox.y + 200;
-
-      await page.mouse.move(startX, startY);
-      await page.mouse.down();
-      await page.mouse.move(endX, endY, { steps: 10 });
-      await page.mouse.up();
+    const remainingAfterFirstClick =
+      (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [];
+    if (remainingAfterFirstClick.length > 0) {
+      await dispatchCanvasMouseEvent(page, targetPoint, "click");
     }
 
-    await page.keyboard.up('Meta');
-    await page.waitForTimeout(500);
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toEqual([]);
 
-    // Verify some slots are selected
-    const copiedBefore = await page.locator('svg path.slot-box.copied').count();
-    expect(copiedBefore).toBeGreaterThan(0);
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const bulkMoves = (events.onBulkChangeDestinationId ?? []) as Array<{
+          slotIds?: string[];
+          preview?: boolean;
+        }>;
+        const committedBulk = bulkMoves.find((event) => event.preview === false);
+        const movedSlotIds = [...(committedBulk?.slotIds ?? [])].sort();
+        return JSON.stringify(movedSlotIds);
+      })
+      .toBe(JSON.stringify([...selectedSlotIds].sort()));
+  });
 
-    // Press ESC to clear
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(400);
+  test("Escape clears selected slots", async ({ page }) => {
+    const { selectedSlotIds } = await brushSelectFirstAllocatedGroup(page);
+    expect(selectedSlotIds.length).toBeGreaterThan(0);
 
-    // Verify all slots are deselected
-    const copiedAfter = await page.locator('svg path.slot-box.copied').count();
-    expect(copiedAfter).toBe(0);
+    await page.keyboard.press("Escape");
+
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toEqual([]);
+  });
+
+  test("Alt toggles copy-mode indicator and destination preview mode", async ({ page }) => {
+    const { selectedSlotIds, canvas } = await brushSelectFirstAllocatedGroup(page, 5);
+    expect(selectedSlotIds.length).toBeGreaterThan(1);
+
+    const harnessConfig = await getHarnessConfig(page);
+    const selectedDestinations = new Set(
+      harnessConfig.slots
+        .filter((slot) => selectedSlotIds.includes(slot.id))
+        .map((slot) => slot.destinationId),
+    );
+    const previewTarget = harnessConfig.slots.find(
+      (slot) => !selectedSlotIds.includes(slot.id) && !selectedDestinations.has(slot.destinationId),
+    );
+    expect(previewTarget).toBeDefined();
+    if (!previewTarget) {
+      throw new Error("Expected to find a destination target for preview mode assertion");
+    }
+
+    const targetPoint = await findSlotPoint(page, previewTarget.id, "center");
+    const targetPagePoint = await canvasPointToPagePoint(canvas, targetPoint);
+    await page.mouse.move(targetPagePoint.x, targetPagePoint.y);
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewMode"))
+      .toBe("move");
+
+    await page.keyboard.down("Alt");
+    await page.mouse.move(targetPagePoint.x + 2, targetPagePoint.y + 2);
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewMode"))
+      .toBe("copy");
+    await expect
+      .poll(async () => await getCanvasStateField<boolean>(page, "altCopyModifierActive"))
+      .toBe(true);
+
+    await page.keyboard.up("Alt");
+    await page.mouse.move(targetPagePoint.x + 4, targetPagePoint.y + 4);
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewMode"))
+      .toBe("move");
+    await expect
+      .poll(async () => await getCanvasStateField<boolean>(page, "altCopyModifierActive"))
+      .toBe(false);
+  });
+
+  test("copy cursor appears/disappears without extra mouse movement", async ({ page }) => {
+    const { selectedSlotIds, canvas } = await brushSelectFirstAllocatedGroup(page, 5);
+    expect(selectedSlotIds.length).toBeGreaterThan(1);
+
+    const harnessConfig = await getHarnessConfig(page);
+    const selectedDestinations = new Set(
+      harnessConfig.slots
+        .filter((slot) => selectedSlotIds.includes(slot.id))
+        .map((slot) => slot.destinationId),
+    );
+    const previewTarget = harnessConfig.slots.find(
+      (slot) => !selectedSlotIds.includes(slot.id) && !selectedDestinations.has(slot.destinationId),
+    );
+    expect(previewTarget).toBeDefined();
+    if (!previewTarget) {
+      throw new Error("Expected to find a destination target for copy-cursor assertion");
+    }
+
+    const targetPoint = await findSlotPoint(page, previewTarget.id, "center");
+    const targetPagePoint = await canvasPointToPagePoint(canvas, targetPoint);
+    await page.mouse.move(targetPagePoint.x, targetPagePoint.y);
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewMode"))
+      .toBe("move");
+
+    await page.keyboard.down("Alt");
+
+    await expect
+      .poll(async () => {
+        return await canvas.evaluate((node) => (node as HTMLCanvasElement).style.cursor);
+      })
+      .toBe("copy");
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewMode"))
+      .toBe("copy");
+
+    await page.mouse.click(targetPagePoint.x, targetPagePoint.y);
+
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toEqual([]);
+    await expect
+      .poll(async () => {
+        return await canvas.evaluate((node) => (node as HTMLCanvasElement).style.cursor);
+      })
+      .toBe("");
+
+    await page.keyboard.up("Alt");
   });
 });

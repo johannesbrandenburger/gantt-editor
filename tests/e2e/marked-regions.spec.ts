@@ -1,244 +1,211 @@
-import { test, expect } from '@playwright/test';
-import { waitForChartLoad, setupConsoleLogListener } from './helpers';
+import { expect, test, type Page } from "./coverage-test";
+import { getCanvasState, getHarnessConfig, openE2eHarness } from "./helpers";
 
-test.describe('Marked Regions', () => {
+type CanvasState = {
+  margin: { left: number; right: number };
+  internalStartTimeMs: number;
+  internalEndTimeMs: number;
+  layout: {
+    canvasCssWidth: number;
+    groups: Array<{ id: string; y: number; h: number }>;
+  } | null;
+};
 
-  test('No marked region is displayed by default', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+type Rgba = { r: number; g: number; b: number; a: number };
 
-    // By default, markedRegion is null so no interval markers should exist
-    const intervalMarkers = page.locator('svg .interval-marker');
-    expect(await intervalMarkers.count()).toBe(0);
-  });
+function parseTimeMs(value: string | Date | undefined): number | null {
+  if (!value) return null;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
 
-  test('Clicking toggle button enables a marked region on a specific destination', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+function pickMarkerSafeTimeMs(
+  state: CanvasState,
+  preferredMs: number,
+  blockedTimesMs: number[],
+  minimumMarkerGapPx = 8,
+): number {
+  const offsetsMinutes = [0, 5, -5, 10, -10, 15, -15, 20, -20, 30, -30, 45, -45];
+  const candidates = offsetsMinutes.map((minutes) => preferredMs + minutes * 60_000);
 
-    const logs = setupConsoleLogListener(page);
+  const start = state.internalStartTimeMs;
+  const end = state.internalEndTimeMs;
+  const blockedXs = blockedTimesMs.map((ms) => timeToCanvasX(state, ms));
 
-    // Click the toggle marked region button
-    const toggleButton = page.locator('[data-testid="toggle-marked-region-button"]');
-    await expect(toggleButton).toBeVisible();
-    await toggleButton.click();
-    await page.waitForTimeout(1000);
+  for (const candidate of candidates) {
+    if (candidate <= start || candidate >= end) continue;
+    const candidateX = timeToCanvasX(state, candidate);
+    const clearOfMarkers = blockedXs.every((blockedX) => Math.abs(candidateX - blockedX) >= minimumMarkerGapPx);
+    if (clearOfMarkers) return candidate;
+  }
 
-    // Verify the console log confirms it was enabled
-    const hasEnabledLog = logs.some(log => log.includes('Marked region enabled'));
-    expect(hasEnabledLog).toBe(true);
+  return preferredMs;
+}
 
-    // An interval marker rectangle should now be visible in the SVG
-    const intervalMarkers = page.locator('svg .interval-marker');
-    expect(await intervalMarkers.count()).toBeGreaterThan(0);
-  });
+function timeToCanvasX(state: CanvasState, dateMs: number): number {
+  if (!state.layout) {
+    throw new Error("Expected layout in canvas state");
+  }
+  const chartWidth = state.layout.canvasCssWidth - state.margin.left - state.margin.right;
+  const ratio = (dateMs - state.internalStartTimeMs) / (state.internalEndTimeMs - state.internalStartTimeMs);
+  return state.margin.left + ratio * chartWidth;
+}
 
-  test('Marked region has correct visual styling (yellow fill, gold stroke)', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+async function sampleCanvasPixel(
+  page: Page,
+  point: { x: number; y: number },
+): Promise<Rgba> {
+  return await page.evaluate(({ x, y }: { x: number; y: number }) => {
+    const canvas = document.querySelector("canvas.chart-canvas") as HTMLCanvasElement | null;
+    if (!canvas) throw new Error("Expected chart canvas");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("Expected 2d context");
 
-    // Enable marked region
-    const toggleButton = page.locator('[data-testid="toggle-marked-region-button"]');
-    await toggleButton.click();
-    await page.waitForTimeout(1000);
+    const dpr = window.devicePixelRatio || 1;
+    const pixelX = Math.max(0, Math.min(canvas.width - 1, Math.round(x * dpr)));
+    const pixelY = Math.max(0, Math.min(canvas.height - 1, Math.round(y * dpr)));
+    const data = context.getImageData(pixelX, pixelY, 1, 1).data;
 
-    const marker = page.locator('svg .interval-marker').first();
-    await expect(marker).toBeVisible();
+    return { r: data[0] ?? 0, g: data[1] ?? 0, b: data[2] ?? 0, a: data[3] ?? 0 };
+  }, point);
+}
 
-    // Check visual attributes
-    const fill = await marker.getAttribute('fill');
-    expect(fill).toContain('rgba(255, 255, 0');
+async function findTopicProbePoint(
+  page: Page,
+  topicId: string,
+): Promise<{ x: number; y: number }> {
+  const point = await page.evaluate((targetTopicId: string) => {
+    const api = (window as Window & {
+      __ganttCanvasTestApi?: {
+        flush: () => void;
+        getState: () => {
+          margin: { left: number; right: number };
+          layout: { canvasCssWidth: number; canvasCssHeight: number } | null;
+        };
+        probeCanvasPoint: (x: number, y: number) => { topicId: string | null };
+      };
+    }).__ganttCanvasTestApi;
 
-    const stroke = await marker.getAttribute('stroke');
-    expect(stroke).toContain('rgba(255, 215, 0');
+    api?.flush();
+    const state = api?.getState();
+    if (!api || !state?.layout) return null;
 
-    const strokeWidth = await marker.getAttribute('stroke-width');
-    expect(strokeWidth).toBe('2');
+    const maxY = Math.max(1, state.layout.canvasCssHeight - 2);
+    const x = Math.max(2, Math.floor(state.margin.left * 0.5));
 
-    // Check rounded corners
-    const rx = await marker.getAttribute('rx');
-    const ry = await marker.getAttribute('ry');
-    expect(rx).toBe('4');
-    expect(ry).toBe('4');
-  });
-
-  test('Marked region does not capture pointer events (click-through)', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
-
-    // Enable marked region
-    const toggleButton = page.locator('[data-testid="toggle-marked-region-button"]');
-    await toggleButton.click();
-    await page.waitForTimeout(1000);
-
-    const marker = page.locator('svg .interval-marker').first();
-    await expect(marker).toBeVisible();
-
-    // Verify pointer-events is set to "none" to allow clicks to pass through
-    const pointerEvents = await marker.getAttribute('pointer-events');
-    expect(pointerEvents).toBe('none');
-  });
-
-  test('Marked region has a pulsing opacity animation', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
-
-    // Enable marked region
-    const toggleButton = page.locator('[data-testid="toggle-marked-region-button"]');
-    await toggleButton.click();
-    await page.waitForTimeout(1500); // Wait for initial animation
-
-    const marker = page.locator('svg .interval-marker').first();
-    await expect(marker).toBeVisible();
-
-    // Capture opacity at two different points in time to verify it's animating
-    const opacity1 = await marker.evaluate(el => parseFloat(window.getComputedStyle(el).opacity));
-    await page.waitForTimeout(800);
-    const opacity2 = await marker.evaluate(el => parseFloat(window.getComputedStyle(el).opacity));
-
-    // Both opacities should be in the valid range (0.4 - 0.7)
-    expect(opacity1).toBeGreaterThanOrEqual(0.3); // slight tolerance
-    expect(opacity1).toBeLessThanOrEqual(0.8);
-    expect(opacity2).toBeGreaterThanOrEqual(0.3);
-    expect(opacity2).toBeLessThanOrEqual(0.8);
-  });
-
-  test('Clicking toggle again disables the marked region', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
-
-    const logs = setupConsoleLogListener(page);
-
-    // Enable marked region
-    const toggleButton = page.locator('[data-testid="toggle-marked-region-button"]');
-    await toggleButton.click();
-    await page.waitForTimeout(1000);
-
-    // Verify marker exists
-    let markers = page.locator('svg .interval-marker');
-    expect(await markers.count()).toBeGreaterThan(0);
-
-    // Disable marked region by clicking again
-    await toggleButton.click();
-    await page.waitForTimeout(1000);
-
-    // Verify marker was removed
-    markers = page.locator('svg .interval-marker');
-    expect(await markers.count()).toBe(0);
-
-    // Verify the console log confirms it was disabled
-    const hasDisabledLog = logs.some(log => log.includes('Marked region disabled'));
-    expect(hasDisabledLog).toBe(true);
-  });
-
-  test('Marked region with "multiple" destinationId spans across all destinations', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
-
-    const logs = setupConsoleLogListener(page);
-
-    // Click the "multiple" marked region toggle button
-    const toggleMultipleButton = page.locator('[data-testid="toggle-marked-region-multiple-button"]');
-    await expect(toggleMultipleButton).toBeVisible();
-    await toggleMultipleButton.click();
-    await page.waitForTimeout(1000);
-
-    // Verify the console log
-    const hasMultipleLog = logs.some(log => log.includes('Marked region enabled multiple'));
-    expect(hasMultipleLog).toBe(true);
-
-    // Interval markers should be rendered
-    const markers = page.locator('svg .interval-marker');
-    expect(await markers.count()).toBeGreaterThan(0);
-
-    // When destinationId is "multiple", the marker should span a large height
-    // (covering all destinations in the group, not just one)
-    const marker = markers.first();
-    const markerBox = await marker.boundingBox();
-    expect(markerBox).not.toBeNull();
-
-    // The "multiple" marker should be taller than a single-destination marker
-    // A single destination row is ~40px, multiple should span many rows
-    if (markerBox) {
-      expect(markerBox.height).toBeGreaterThan(100);
+    for (let y = 2; y <= maxY; y += 2) {
+      const probe = api.probeCanvasPoint(x, y);
+      if (probe.topicId === targetTopicId) {
+        return { x, y };
+      }
     }
+
+    return null;
+  }, topicId);
+
+  expect(point, `Expected probe point for topic ${topicId}`).not.toBeNull();
+  return point as { x: number; y: number };
+}
+
+test.describe("canvas rewrite marked regions", () => {
+  test("core fixture has no marked region by default", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
+
+    const config = await getHarnessConfig(page);
+    expect(config.markedRegion ?? null).toBeNull();
   });
 
-  test('Single-destination marked region has limited height', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("multiple-destination marked region tints first group only", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "markers" });
 
-    // Enable single-destination marked region
-    const toggleButton = page.locator('[data-testid="toggle-marked-region-button"]');
-    await toggleButton.click();
-    await page.waitForTimeout(1000);
-
-    const markers = page.locator('svg .interval-marker');
-    expect(await markers.count()).toBeGreaterThan(0);
-
-    const marker = markers.first();
-    const markerBox = await marker.boundingBox();
-    expect(markerBox).not.toBeNull();
-
-    // A single-destination marker should have limited height (roughly one row)
-    if (markerBox) {
-      expect(markerBox.height).toBeLessThan(200); // single destination should be small
-      expect(markerBox.height).toBeGreaterThan(10); // but still visible
+    const state = await getCanvasState<CanvasState>(page);
+    const config = await getHarnessConfig(page);
+    expect(state).not.toBeNull();
+    expect(state?.layout).not.toBeNull();
+    if (!state?.layout || state.layout.groups.length < 2) {
+      throw new Error("Expected at least two groups for marked region test");
     }
+
+    const markedRegion = config.markedRegion;
+    expect(markedRegion).not.toBeNull();
+    expect(markedRegion?.destinationId).toBe("multiple");
+
+    const markedStartMs = parseTimeMs(markedRegion?.startTime);
+    const markedEndMs = parseTimeMs(markedRegion?.endTime);
+    if (markedStartMs === null || markedEndMs === null) {
+      throw new Error("Expected valid marked region bounds");
+    }
+
+    const markerTimesMs = (config.verticalMarkers ?? [])
+      .map((marker) => parseTimeMs(marker.date))
+      .filter((ms): ms is number => ms !== null);
+
+    const insidePreferredMs = Math.floor((markedStartMs + markedEndMs) / 2);
+    const outsidePreferredMs = Math.max(
+      state.internalStartTimeMs + 60_000,
+      markedStartMs - 60 * 60_000,
+    );
+
+    const insideMs = pickMarkerSafeTimeMs(state, insidePreferredMs, markerTimesMs);
+    const outsideMs = pickMarkerSafeTimeMs(state, outsidePreferredMs, markerTimesMs);
+
+    const firstGroupY = state.layout.groups[0]!.y + 3;
+    const secondGroupY = state.layout.groups[1]!.y + 3;
+
+    const firstInsidePixel = await sampleCanvasPixel(page, {
+      x: timeToCanvasX(state, insideMs),
+      y: firstGroupY,
+    });
+    const firstOutsidePixel = await sampleCanvasPixel(page, {
+      x: timeToCanvasX(state, outsideMs),
+      y: firstGroupY,
+    });
+    const secondInsidePixel = await sampleCanvasPixel(page, {
+      x: timeToCanvasX(state, insideMs),
+      y: secondGroupY,
+    });
+    const secondOutsidePixel = await sampleCanvasPixel(page, {
+      x: timeToCanvasX(state, outsideMs),
+      y: secondGroupY,
+    });
+
+    // The marked region should measurably reduce blue channel only in the first group.
+    expect(firstInsidePixel.b + 8).toBeLessThan(firstOutsidePixel.b);
+    expect(Math.abs(secondInsidePixel.b - secondOutsidePixel.b)).toBeLessThanOrEqual(2);
+
+    // Cross-check at the same in-region x keeps first-group tint stronger than second group.
+    expect(firstInsidePixel.b).toBeLessThan(secondInsidePixel.b);
   });
 
-  test('Marked region has a positive width (occupies time interval)', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("single-destination marked region affects only the target destination", async ({ page }) => {
+    const customData = {
+      markedRegion: {
+        startTime: "2025-01-01T10:00:00.000Z",
+        endTime: "2025-01-01T14:00:00.000Z",
+        destinationId: "chute-2",
+      },
+    };
 
-    // Enable marked region
-    const toggleButton = page.locator('[data-testid="toggle-marked-region-button"]');
-    await toggleButton.click();
-    await page.waitForTimeout(1000);
+    await openE2eHarness(page, {
+      fixture: "core",
+      query: { data: JSON.stringify(customData) },
+    });
 
-    const marker = page.locator('svg .interval-marker').first();
-    await expect(marker).toBeVisible();
-
-    const markerBox = await marker.boundingBox();
-    expect(markerBox).not.toBeNull();
-    if (markerBox) {
-      // The marked region spans 4 hours (10:00-14:00), should have significant width
-      expect(markerBox.width).toBeGreaterThan(50);
+    const state = await getCanvasState<CanvasState>(page);
+    expect(state).not.toBeNull();
+    expect(state?.layout).not.toBeNull();
+    if (!state?.layout) {
+      throw new Error("Expected layout for single-destination marked region test");
     }
-  });
 
-  test('Switching from single to multiple destination marked region updates rendering', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+    const x = timeToCanvasX(state, Date.parse("2025-01-01T11:00:00Z"));
+    const chute1Point = await findTopicProbePoint(page, "chute-1");
+    const chute2Point = await findTopicProbePoint(page, "chute-2");
 
-    // Enable single-destination marked region
-    const singleButton = page.locator('[data-testid="toggle-marked-region-button"]');
-    await singleButton.click();
-    await page.waitForTimeout(1000);
+    const chute1Pixel = await sampleCanvasPixel(page, { x, y: chute1Point.y });
+    const chute2Pixel = await sampleCanvasPixel(page, { x, y: chute2Point.y });
 
-    let markers = page.locator('svg .interval-marker');
-    expect(await markers.count()).toBeGreaterThan(0);
-
-    const singleMarkerBox = await markers.first().boundingBox();
-    expect(singleMarkerBox).not.toBeNull();
-
-    // Disable, then enable "multiple"
-    await singleButton.click(); // disable
-    await page.waitForTimeout(500);
-
-    const multipleButton = page.locator('[data-testid="toggle-marked-region-multiple-button"]');
-    await multipleButton.click();
-    await page.waitForTimeout(1000);
-
-    markers = page.locator('svg .interval-marker');
-    expect(await markers.count()).toBeGreaterThan(0);
-
-    const multipleMarkerBox = await markers.first().boundingBox();
-    expect(multipleMarkerBox).not.toBeNull();
-
-    // The "multiple" marker should be taller than the single-destination marker
-    if (singleMarkerBox && multipleMarkerBox) {
-      expect(multipleMarkerBox.height).toBeGreaterThan(singleMarkerBox.height);
-    }
+    expect(chute2Pixel.b).toBeLessThan(chute1Pixel.b);
+    expect(chute2Pixel.g).toBeGreaterThanOrEqual(chute1Pixel.g);
   });
 });

@@ -5,6 +5,9 @@
       "path": "./tsconfig.node.json"
     },
     {
+      "path": "./tests/e2e/tsconfig.json"
+    },
+    {
       "path": "./tsconfig.app.json"
     }
   ]

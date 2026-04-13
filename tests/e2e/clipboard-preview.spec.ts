@@ -1,181 +1,331 @@
-import { test, expect } from '@playwright/test';
-import { waitForChartLoad, clickSlot, setupConsoleLogListener } from './helpers';
+import { expect, test, type Page, type TestInfo } from "./coverage-test";
+import {
+  canvasPointToPagePoint,
+  dispatchCanvasMouseEvent,
+  findSlotPoint,
+  getCanvasStateField,
+  getHarnessConfig,
+  getHarnessEvents,
+  mouseDrag,
+  openE2eHarness,
+} from "./helpers";
 
-test.describe('Clipboard Preview and Floating UI', () => {
+const SOURCE_SLOT_ID = "LH123-20250101-F";
+const TARGET_SLOT_ID = "OS200-20250101-G";
+const DENSE_HOVER_SLOT_ID = "DENSE-0002";
 
-  test('Floating clipboard follows cursor position', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+async function brushSelectDenseFixture(page: Page, slots = 5): Promise<string[]> {
+  const canvas = await openE2eHarness(page, { fixture: "dense", query: { slots } });
+  await page.evaluate(() => localStorage.removeItem("pointerSelection"));
 
-    // Pin a slot
-    await clickSlot(page, 0);
-    await page.waitForTimeout(300);
-
-    // Move mouse to specific position in chart area
-    const chartContainer = page.locator('.chart-container');
-    const chartBox = await chartContainer.boundingBox();
-    expect(chartBox).not.toBeNull();
-
-    if (chartBox) {
-      const targetX = chartBox.x + 300;
-      const targetY = chartBox.y + 150;
-      await page.mouse.move(targetX, targetY);
-      await page.waitForTimeout(200);
-
-      // Verify clipboard is visible
-      const clipboard = page.locator('.pointer-clipboard');
-      await expect(clipboard).toBeVisible();
-
-      // The clipboard should be positioned near the cursor (offset by 15px)
-      const clipboardBox = await clipboard.boundingBox();
-      expect(clipboardBox).not.toBeNull();
-      if (clipboardBox) {
-        // Allow some tolerance for the 15px offset
-        expect(clipboardBox.x).toBeGreaterThan(targetX - 5);
-        expect(clipboardBox.x).toBeLessThan(targetX + 30);
-      }
-    }
+  const state = await page.evaluate(() => {
+    const api = (window as Window & {
+      __ganttCanvasTestApi?: {
+        flush: () => void;
+        getState: () => {
+          margin?: { left: number; right: number };
+          layout?: { canvasCssWidth: number; groups: Array<{ id: string; y: number; h: number }> | null } | null;
+        };
+      };
+    }).__ganttCanvasTestApi;
+    api?.flush();
+    return api?.getState() ?? null;
   });
 
-  test('Floating clipboard hides when mouse leaves chart container', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  const margin = state?.margin;
+  const layout = state?.layout;
+  const allocated = layout?.groups?.find((group) => group.id === "allocated");
+  if (!margin || !layout || !allocated) {
+    throw new Error("Expected dense fixture layout for brush selection");
+  }
 
-    // Pin a slot
-    await clickSlot(page, 0);
-    await page.waitForTimeout(300);
-
-    // Move mouse inside chart to show clipboard
-    const chartContainer = page.locator('.chart-container');
-    const chartBox = await chartContainer.boundingBox();
-    expect(chartBox).not.toBeNull();
-
-    if (chartBox) {
-      // Hover inside the chart container
-      await page.mouse.move(chartBox.x + chartBox.width / 2, chartBox.y + chartBox.height / 2);
-      await page.waitForTimeout(200);
-
-      const clipboard = page.locator('.pointer-clipboard');
-      await expect(clipboard).toBeVisible();
-
-      // Move mouse clearly below the chart container to trigger mouseleave
-      await page.mouse.move(chartBox.x + chartBox.width / 2, chartBox.y + chartBox.height + 100);
-      await page.waitForTimeout(300);
-
-      // Clipboard uses v-if so it should be removed from DOM
-      await expect(clipboard).not.toBeVisible();
-    }
+  const dragFrom = await canvasPointToPagePoint(canvas, {
+    x: margin.left + 4,
+    y: allocated.y + 4,
+  });
+  const dragTo = await canvasPointToPagePoint(canvas, {
+    x: layout.canvasCssWidth - margin.right - 4,
+    y: allocated.y + allocated.h - 4,
   });
 
-  test('Hovering over a different destination shows preview slots', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  await page.keyboard.down("ControlOrMeta");
+  await mouseDrag(page, dragFrom, dragTo);
+  await page.keyboard.up("ControlOrMeta");
 
-    // Pin a slot to clipboard
-    await clickSlot(page, 0);
-    await expect(page.locator('svg path.slot-box.copied')).toHaveCount(1);
+  await expect
+    .poll(
+      async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).length,
+      { timeout: 2_000 },
+    )
+    .toBeGreaterThan(2);
 
-    const clipboard = await page.evaluate(() => {
-      return JSON.parse(localStorage.getItem('pointerClipboard') || '[]') as Array<{ destinationId: string }>;
+  return (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [];
+}
+
+async function attachScreenshot(
+  page: Page,
+  testInfo: TestInfo,
+  name: string,
+): Promise<void> {
+  const path = testInfo.outputPath(`${name}.png`);
+  await page.screenshot({ path });
+  await testInfo.attach(name, {
+    path,
+    contentType: "image/png",
+  });
+}
+
+test.describe("canvas rewrite selection preview behavior", () => {
+  test("selection preview visibility signal follows pointer enter/leave", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
+
+    const sourcePoint = await findSlotPoint(page, SOURCE_SLOT_ID, "center");
+    await dispatchCanvasMouseEvent(page, sourcePoint, "click");
+
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toContain(SOURCE_SLOT_ID);
+
+    const sourcePagePoint = await canvasPointToPagePoint(canvas, sourcePoint);
+    await page.mouse.move(sourcePagePoint.x, sourcePagePoint.y);
+
+    await expect
+      .poll(async () => await getCanvasStateField<boolean>(page, "pointerInChart"), { timeout: 2_000 })
+      .toBe(true);
+
+    await page.evaluate(() => {
+      const container = document.querySelector(".chart-container");
+      container?.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
     });
-    expect(clipboard.length).toBeGreaterThan(0);
-    const sourceDestinationId = clipboard[0].destinationId;
 
-    // Find a topic area with a destination id different from the pinned slot destination
-    const topicAreas = page.locator('svg .topic-area');
-    const topicCount = await topicAreas.count();
-    let targetIndex = -1;
-    for (let i = 0; i < topicCount; i++) {
-      const topicId = await topicAreas.nth(i).evaluate(el => (el as any).__data__?.id as string | undefined);
-      if (topicId && topicId !== sourceDestinationId) {
-        targetIndex = i;
-        break;
-      }
+    await expect
+      .poll(async () => await getCanvasStateField<boolean>(page, "pointerInChart"), { timeout: 2_000 })
+      .toBe(false);
+  });
+
+  test("Meta/Ctrl click on an already pinned slot unpins it", async ({ page }) => {
+    await openE2eHarness(page);
+
+    const sourcePoint = await findSlotPoint(page, SOURCE_SLOT_ID, "center");
+    await dispatchCanvasMouseEvent(page, sourcePoint, "click");
+
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toEqual([SOURCE_SLOT_ID]);
+
+    await dispatchCanvasMouseEvent(page, sourcePoint, "click", { ctrlKey: true });
+
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toEqual([]);
+  });
+
+  test("clicking another slot with selected items moves and clears selection", async ({ page }) => {
+    await openE2eHarness(page);
+
+    const sourcePoint = await findSlotPoint(page, SOURCE_SLOT_ID, "center");
+    await dispatchCanvasMouseEvent(page, sourcePoint, "click");
+
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toEqual([SOURCE_SLOT_ID]);
+
+    const before = await getHarnessConfig(page);
+    const targetDestination = before.slots.find((slot) => slot.id === TARGET_SLOT_ID)?.destinationId;
+    expect(targetDestination).toBeTruthy();
+
+    const targetPoint = await findSlotPoint(page, TARGET_SLOT_ID, "center");
+    await dispatchCanvasMouseEvent(page, targetPoint, "click");
+
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toEqual([]);
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const moves = (events.onChangeDestinationId ?? []) as Array<{
+          slotId?: string;
+          destinationId?: string;
+          preview?: boolean;
+        }>;
+        const committed = moves.find((event) => event.slotId === SOURCE_SLOT_ID && event.preview === false);
+        return committed ?? null;
+      })
+      .toEqual({
+        slotId: SOURCE_SLOT_ID,
+        destinationId: targetDestination,
+        preview: false,
+      });
+  });
+
+  test("selection payload keeps slot display names", async ({ page }) => {
+    await openE2eHarness(page);
+
+    const sourcePoint = await findSlotPoint(page, SOURCE_SLOT_ID, "center");
+    await dispatchCanvasMouseEvent(page, sourcePoint, "click");
+
+    await expect
+      .poll(
+        async () => {
+          const items = await page.evaluate(() => {
+            const raw = localStorage.getItem("pointerSelection");
+            return raw ? (JSON.parse(raw) as Array<{ id: string; displayName?: string }>) : [];
+          });
+          return items.length;
+        },
+        { timeout: 2_000 },
+      )
+      .toBeGreaterThan(0);
+
+    const selectionItems = await page.evaluate(() => {
+      const raw = localStorage.getItem("pointerSelection");
+      return raw ? (JSON.parse(raw) as Array<{ id: string; displayName?: string }>) : [];
+    });
+
+    expect(selectionItems[0]?.id).toBe(SOURCE_SLOT_ID);
+    expect(selectionItems[0]?.displayName).toContain("LH123");
+  });
+
+  test("hovering another destination shows embedded animated preview for selected slots", async ({ page }, testInfo) => {
+    const selectedSlotIds = await brushSelectDenseFixture(page);
+    expect(selectedSlotIds.length).toBeGreaterThan(2);
+
+    const before = await getHarnessConfig(page);
+    const targetDestination = before.slots.find((slot) => slot.id === DENSE_HOVER_SLOT_ID)?.destinationId;
+    expect(targetDestination).toBeTruthy();
+    const expectedPreviewSourceSlotIds = before.slots
+      .filter((slot) => selectedSlotIds.includes(slot.id) && slot.destinationId !== targetDestination)
+      .map((slot) => slot.id)
+      .sort();
+
+    const targetPoint = await findSlotPoint(page, DENSE_HOVER_SLOT_ID, "center");
+    const canvas = page.locator("canvas.chart-canvas").first();
+    const targetPagePoint = await canvasPointToPagePoint(canvas, targetPoint);
+    await page.mouse.move(targetPagePoint.x, targetPagePoint.y);
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewTopicId"), {
+        timeout: 2_000,
+      })
+      .toBe(targetDestination ?? null);
+
+    await expect
+      .poll(async () => {
+        const ids = (await getCanvasStateField<string[]>(page, "destinationPreviewSourceSlotIds")) ?? [];
+        return [...ids].sort().join(",");
+      })
+      .toBe(expectedPreviewSourceSlotIds.join(","));
+
+    await attachScreenshot(page, testInfo, "destination-preview-hovered-row");
+
+    await page.evaluate(() => {
+      const container = document.querySelector(".chart-container");
+      container?.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
+    });
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewTopicId"), {
+        timeout: 2_000,
+      })
+      .toBeNull();
+    await expect
+      .poll(async () => (await getCanvasStateField<string[]>(page, "destinationPreviewSourceSlotIds")) ?? [], {
+        timeout: 2_000,
+      })
+      .toEqual([]);
+
+    await attachScreenshot(page, testInfo, "destination-preview-cleared");
+  });
+
+  test("Alt copy preview includes selected slots already in hovered destination", async ({ page }) => {
+    const selectedSlotIds = await brushSelectDenseFixture(page);
+    expect(selectedSlotIds.length).toBeGreaterThan(2);
+
+    const before = await getHarnessConfig(page);
+    const selectedSlots = before.slots.filter((slot) => selectedSlotIds.includes(slot.id));
+    expect(selectedSlots.length).toBeGreaterThan(2);
+
+    const selectedByDestination = new Map<string, string[]>();
+    selectedSlots.forEach((slot) => {
+      const existing = selectedByDestination.get(slot.destinationId) ?? [];
+      existing.push(slot.id);
+      selectedByDestination.set(slot.destinationId, existing);
+    });
+
+    const targetDestination = Array.from(selectedByDestination.keys()).find((destinationId) => {
+      const inDestination = selectedByDestination.get(destinationId) ?? [];
+      return inDestination.length > 0 && inDestination.length < selectedSlotIds.length;
+    });
+    expect(targetDestination).toBeTruthy();
+    if (!targetDestination) {
+      throw new Error("Expected selected slots across multiple destinations for Alt copy preview assertion");
     }
-    expect(targetIndex).toBeGreaterThanOrEqual(0);
 
-    const targetArea = topicAreas.nth(targetIndex);
-    const targetBox = await targetArea.boundingBox();
-    expect(targetBox).not.toBeNull();
-    if (targetBox) {
-      // Move within the topic-area's left label zone to avoid slot overlays intercepting events.
-      await page.mouse.move(targetBox.x + 20, targetBox.y + targetBox.height / 2);
+    const hoverSlotId =
+      before.slots.find(
+        (slot) => slot.destinationId === targetDestination && !selectedSlotIds.includes(slot.id),
+      )?.id ??
+      selectedByDestination.get(targetDestination)?.[0];
+    expect(hoverSlotId).toBeTruthy();
+    if (!hoverSlotId) {
+      throw new Error("Expected a slot in hovered destination for Alt copy preview assertion");
     }
 
-    const previewSlots = page.locator('svg path.slot-box[fill*="diagonal-stripe-2"]');
-    await expect.poll(async () => await previewSlots.count()).toBeGreaterThan(0);
-  });
+    const movePreviewSourceSlotIds = [...selectedSlotIds]
+      .filter((slotId) => !((selectedByDestination.get(targetDestination) ?? []).includes(slotId)))
+      .sort();
+    const copyPreviewSourceSlotIds = [...selectedSlotIds].sort();
 
-  test('Toggle pin: clicking a pinned slot with Ctrl unpins it', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+    const targetPoint = await findSlotPoint(page, hoverSlotId, "center");
+    const canvas = page.locator("canvas.chart-canvas").first();
+    const targetPagePoint = await canvasPointToPagePoint(canvas, targetPoint);
+    await page.mouse.move(targetPagePoint.x, targetPagePoint.y);
 
-    // Pin first slot
-    await clickSlot(page, 0);
-    await page.waitForTimeout(300);
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewTopicId"), {
+        timeout: 2_000,
+      })
+      .toBe(targetDestination);
 
-    // Verify it's pinned
-    let copiedSlots = await page.locator('svg path.slot-box.copied').count();
-    expect(copiedSlots).toBe(1);
+    await expect
+      .poll(async () => {
+        const ids = (await getCanvasStateField<string[]>(page, "destinationPreviewSourceSlotIds")) ?? [];
+        return [...ids].sort().join(",");
+      })
+      .toBe(movePreviewSourceSlotIds.join(","));
 
-    // Ctrl+click the same slot to unpin it
-    const slots = page.locator('svg g.slot-group');
-    await slots.nth(0).click({ modifiers: ['Meta'] });
-    await page.waitForTimeout(300);
+    await page.keyboard.down("Alt");
+    await page.mouse.move(targetPagePoint.x + 2, targetPagePoint.y + 2);
 
-    // The slot should be unpinned
-    copiedSlots = await page.locator('svg path.slot-box.copied').count();
-    expect(copiedSlots).toBe(0);
-  });
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewMode"), {
+        timeout: 2_000,
+      })
+      .toBe("copy");
 
-  test('Clicking slot when clipboard has items pastes to that slot destination', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+    await expect
+      .poll(async () => {
+        const ids = (await getCanvasStateField<string[]>(page, "destinationPreviewSourceSlotIds")) ?? [];
+        return [...ids].sort().join(",");
+      })
+      .toBe(copyPreviewSourceSlotIds.join(","));
 
-    const logs = setupConsoleLogListener(page);
-
-    // Pin first slot
-    await clickSlot(page, 0);
-    await page.waitForTimeout(300);
-
-    // Verify it's pinned
-    const copiedBefore = await page.locator('svg path.slot-box.copied').count();
-    expect(copiedBefore).toBe(1);
-
-    // Click on a different slot (without Ctrl/Meta) - this should paste to that slot's destination
-    const slots = page.locator('svg g.slot-group');
-    await slots.nth(5).click();
-    await page.waitForTimeout(500);
-
-    // The clipboard should be cleared (paste happened)
-    const copiedAfter = await page.locator('svg path.slot-box.copied').count();
-    expect(copiedAfter).toBe(0);
-
-    // Verify move callback was triggered
-    const hasMoveCallback = logs.some(log => log.includes('Moved slot to different destination'));
-    expect(hasMoveCallback).toBe(true);
-  });
-
-  test('Clipboard displays correct slot display names in chips', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
-
-    // Pin first slot
-    await clickSlot(page, 0);
-    await page.waitForTimeout(300);
-
-    // Move mouse into chart
-    await page.mouse.move(400, 300);
-
-    // Get clipboard chip text
-    const clipboard = page.locator('.pointer-clipboard');
-    await expect(clipboard).toBeVisible({ timeout: 2000 });
-
-    const chips = clipboard.locator('.v-chip');
-    expect(await chips.count()).toBe(1);
-
-    // Chip should contain a slot display name (FL followed by a number)
-    const chipText = await chips.first().textContent();
-    expect(chipText).toMatch(/FL\d+/);
+    await page.keyboard.up("Alt");
   });
 });

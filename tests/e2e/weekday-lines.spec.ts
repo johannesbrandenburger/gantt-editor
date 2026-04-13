@@ -1,66 +1,142 @@
-import { test, expect } from '@playwright/test';
-import { waitForChartLoad, setupConsoleLogListener } from './helpers';
+import type { Page } from "@playwright/test";
+import { expect, test } from "./coverage-test";
+import { applyHarnessQuery, openE2eHarness } from "./helpers";
 
-test.describe('Weekday Lines and Labels', () => {
+type Pixel = { r: number; g: number; b: number; a: number };
 
-  test('Weekday lines are rendered when time range spans multiple days', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+async function sampleWeekdayLinePixel(page: Page, dayYmd: string): Promise<Pixel | null> {
+  return await page.evaluate((targetDayIso: string) => {
+    const canvas = document.querySelector("canvas.chart-canvas") as HTMLCanvasElement | null;
+    const api = (window as Window & {
+      __ganttCanvasTestApi?: {
+        flush: () => void;
+        getState: () => {
+          margin: { left: number; right: number };
+          internalStartTimeMs: number;
+          internalEndTimeMs: number;
+          layout: {
+            canvasCssWidth: number;
+            axisRect: { y: number; h: number };
+          } | null;
+        };
+      };
+    }).__ganttCanvasTestApi;
 
-    // The default view is today (1 day) which is < 14 days, so weekday overlay should show
-    // However, if we zoom out to span multiple days, we should see weekday lines at midnight boundaries
-    const ganttContainer = page.locator('.gantt-container').first();
-    const box = await ganttContainer.boundingBox();
+    api?.flush();
+    const state = api?.getState();
+    if (!canvas || !state?.layout) return null;
 
-    if (box) {
-      // Zoom out to see more days (Shift+scroll down)
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await page.keyboard.down('Shift');
-      await page.mouse.wheel(0, 300); // Zoom out significantly
-      await page.mouse.wheel(0, 300); // Zoom out more
-      await page.keyboard.up('Shift');
+    const parts = targetDayIso.split("-").map((v: string) => Number(v));
+    const [year, month, day] = parts;
+    if (!year || !month || !day) return null;
+    // Weekday overlay uses local-day boundaries (d3-time's timeDay), so build
+    // the probe timestamp in local time as well.
+    const targetMs = new Date(year, month - 1, day).getTime();
+    const startMs = state.internalStartTimeMs;
+    const endMs = state.internalEndTimeMs;
+    const spanMs = endMs - startMs;
+    if (spanMs <= 0) return null;
 
-      await page.waitForTimeout(1000);
+    const chartWidth = state.layout.canvasCssWidth - state.margin.left - state.margin.right;
+    if (chartWidth <= 0) return null;
+
+    const ratio = (targetMs - startMs) / spanMs;
+    const x = state.margin.left + ratio * chartWidth;
+    const y = state.layout.axisRect.y + state.layout.axisRect.h + 14;
+
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+
+    const dpr = window.devicePixelRatio || 1;
+    const baseX = Math.max(0, Math.min(canvas.width - 1, Math.round(x * dpr)));
+    const baseY = Math.max(0, Math.min(canvas.height - 1, Math.round(y * dpr)));
+
+    // Sample a tiny neighborhood and pick the most green-dominant pixel to
+    // avoid anti-aliasing misses at exact line boundaries.
+    let best: Pixel | null = null;
+    let bestScore = Number.NEGATIVE_INFINITY;
+    for (let dx = -1; dx <= 1; dx += 1) {
+      for (let dy = -1; dy <= 1; dy += 1) {
+        const sx = Math.max(0, Math.min(canvas.width - 1, baseX + dx));
+        const sy = Math.max(0, Math.min(canvas.height - 1, baseY + dy));
+        const data = ctx.getImageData(sx, sy, 1, 1).data;
+        const pixel: Pixel = {
+          r: data[0] ?? 0,
+          g: data[1] ?? 0,
+          b: data[2] ?? 0,
+          a: data[3] ?? 0,
+        };
+        const score = pixel.g - Math.max(pixel.r, pixel.b);
+        if (score > bestScore) {
+          bestScore = score;
+          best = pixel;
+        }
+      }
     }
 
-    // Check for weekday line elements
-    const weekdayLines = page.locator('svg .weekday-line');
-    const lineCount = await weekdayLines.count();
-    expect(lineCount).toBeGreaterThan(0);
+    return best;
+  }, dayYmd);
+}
 
-    // Weekday lines should have green stroke
-    const firstLine = weekdayLines.first();
-    const stroke = await firstLine.getAttribute('stroke');
-    expect(stroke).toBe('#008000');
+function isGreenish(pixel: Pixel): boolean {
+  return pixel.g > pixel.r + 8 && pixel.g > pixel.b + 8;
+}
+
+test.describe("canvas rewrite weekday lines", () => {
+  test("weekday boundary lines are rendered for ranges shorter than 14 days", async ({ page }) => {
+    await openE2eHarness(page, {
+      fixture: "core",
+      query: {
+        startTime: "2025-01-01T00:00:00Z",
+        endTime: "2025-01-03T00:00:00Z",
+      },
+    });
+
+    const pixel = await sampleWeekdayLinePixel(page, "2025-01-02");
+    expect(pixel).not.toBeNull();
+    expect(isGreenish(pixel as Pixel)).toBe(true);
   });
 
-  test('Weekday labels display day names', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("weekday boundary lines are not rendered for ranges of 14 days or more", async ({ page }) => {
+    await openE2eHarness(page, {
+      fixture: "core",
+      query: {
+        startTime: "2025-01-01T00:00:00Z",
+        endTime: "2025-01-16T00:00:00Z",
+      },
+    });
 
-    const ganttContainer = page.locator('.gantt-container').first();
-    const box = await ganttContainer.boundingBox();
+    const pixel = await sampleWeekdayLinePixel(page, "2025-01-08");
+    expect(pixel).not.toBeNull();
+    expect(isGreenish(pixel as Pixel)).toBe(false);
+  });
 
-    if (box) {
-      // Zoom out to see multiple days
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await page.keyboard.down('Shift');
-      await page.mouse.wheel(0, 300);
-      await page.mouse.wheel(0, 300);
-      await page.keyboard.up('Shift');
+  test("weekday line visibility updates after time-range query changes", async ({ page }) => {
+    await openE2eHarness(page, {
+      fixture: "core",
+      query: {
+        startTime: "2025-01-01T00:00:00Z",
+        endTime: "2025-01-03T00:00:00Z",
+      },
+    });
 
-      await page.waitForTimeout(1000);
-    }
+    await expect
+      .poll(async () => {
+        const pixel = await sampleWeekdayLinePixel(page, "2025-01-02");
+        return pixel ? isGreenish(pixel) : null;
+      })
+      .toBe(true);
 
-    // Check for weekday label elements
-    const weekdayLabels = page.locator('svg .weekday-label');
-    const labelCount = await weekdayLabels.count();
-    expect(labelCount).toBeGreaterThan(0);
+    await applyHarnessQuery(page, {
+      startTime: "2025-01-01T00:00:00Z",
+      endTime: "2025-01-16T00:00:00Z",
+    });
 
-    // Labels should contain valid day names
-    const validDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const firstLabelText = await weekdayLabels.first().textContent();
-    expect(firstLabelText).not.toBeNull();
-    expect(validDays).toContain(firstLabelText!.trim());
+    await expect
+      .poll(async () => {
+        const pixel = await sampleWeekdayLinePixel(page, "2025-01-08");
+        return pixel ? isGreenish(pixel) : null;
+      })
+      .toBe(false);
   });
 });

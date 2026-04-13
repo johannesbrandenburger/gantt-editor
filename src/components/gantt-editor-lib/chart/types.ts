@@ -1,3 +1,5 @@
+import type { TimeDomainValue, TimeTickSpec } from "./time_scale";
+
 export type GanttEditorSlot = {
     id: string,
     group: string, // flightId
@@ -47,22 +49,31 @@ export type GanttEditorVerticalMarker = {
     label?: string,
     /** When false, the marker cannot be dragged (still clickable if a handler is provided). Default: true when the chart is not read-only. */
     draggable?: boolean,
+    /** When false, the marker is excluded from the background context-menu "Move marker here" action. Default: true when the chart is not read-only. */
+    movableByContextMenu?: boolean,
+};
+
+export type GanttEditorCanvasContextMenuAction = {
+    id: string,
+    label: string,
+    enabled?: boolean,
 };
 
 export type GanttEditorSlotWithUiAttributes = GanttEditorSlot & {
     isConflict?: boolean;
     isCopied?: boolean;
     isPreview?: boolean;
+    isCopyPreview?: boolean;
 }
 
 export type GanttEditorXAxisOptions = {
     upper?: {
-        tickFormat?: (domainValue: Date | d3.NumberValue) => string;
-        ticks?: d3.TimeInterval;
+        tickFormat?: (domainValue: TimeDomainValue) => string;
+        ticks?: TimeTickSpec;
     };
     lower?: {
-        tickFormat?: (domainValue: Date | d3.NumberValue) => string;
-        ticks?: d3.TimeInterval;
+        tickFormat?: (domainValue: TimeDomainValue) => string;
+        ticks?: TimeTickSpec;
     };
 };
 

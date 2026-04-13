@@ -1,81 +1,58 @@
-import { test, expect } from '@playwright/test';
-import { waitForChartLoad } from './helpers';
+import { expect, test, type Page } from "./coverage-test";
+import { waitForCanvasApi } from "./helpers";
 
-test.describe('Top Content Slot and Resize', () => {
+async function openMainPage(page: Page): Promise<void> {
+  await page.goto("/");
+  await waitForCanvasApi(page);
+}
 
-  test('Top content container is rendered with toolbar buttons', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+test.describe("canvas rewrite top content and resize", () => {
+  test("top content container renders with toolbar buttons", async ({ page }) => {
+    await openMainPage(page);
 
-    // The top content container should be visible (topContentPortion = 0.1 in demo)
-    const topContent = page.locator('.top-content-container');
-    await expect(topContent).toBeVisible();
-
-    // It should contain the toolbar buttons
-    const modeButton = page.locator('button:has-text("Mode")');
-    await expect(modeButton).toBeVisible();
-
-    const markedRegionButton = page.locator('[data-testid="toggle-marked-region-button"]');
-    await expect(markedRegionButton).toBeVisible();
-
-    const clearClipboardButton = page.locator('[data-testid="clear-clipboard-button"]');
-    await expect(clearClipboardButton).toBeVisible();
+    await expect(page.locator(".top-content-container")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Editable Mode|Read-Only Mode/ })).toBeVisible();
+    await expect(page.getByTestId("toggle-marked-region-button")).toBeVisible();
+    await expect(page.getByTestId("clear-selection-button")).toBeVisible();
   });
 
-  test('Top content has a resize handle that can be dragged', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("top content can be resized by dragging the top resize band", async ({ page }) => {
+    await openMainPage(page);
 
-    // Get initial top content height
-    const topContent = page.locator('.top-content-container');
+    const topContent = page.locator(".top-content-container");
     const initialBox = await topContent.boundingBox();
     expect(initialBox).not.toBeNull();
 
-    // Find the resize handle (it's the .resize-handle after the top content)
-    const resizeHandle = page.locator('.resize-handle').first();
-    await expect(resizeHandle).toBeVisible();
-
-    const handleBox = await resizeHandle.boundingBox();
-    expect(handleBox).not.toBeNull();
-
-    if (handleBox && initialBox) {
-      // Drag the resize handle downward to increase top content height
-      await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
-      await page.mouse.down();
-      await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + 100, { steps: 5 });
-      await page.mouse.up();
-
-      await page.waitForTimeout(300);
-
-      // Verify top content grew
-      const newBox = await topContent.boundingBox();
-      expect(newBox).not.toBeNull();
-      if (newBox) {
-        expect(newBox.height).toBeGreaterThan(initialBox.height);
-      }
+    if (!initialBox) {
+      throw new Error("Expected top content container to be measurable");
     }
+
+    const dragX = initialBox.x + Math.max(30, Math.floor(initialBox.width * 0.3));
+    const dragStartY = initialBox.y + initialBox.height + 1;
+
+    await page.mouse.move(dragX, dragStartY);
+    await page.mouse.down();
+    await page.mouse.move(dragX, dragStartY + 80, { steps: 10 });
+    await page.mouse.up();
+
+    await expect
+      .poll(async () => {
+        const box = await topContent.boundingBox();
+        return box?.height ?? 0;
+      })
+      .toBeGreaterThan(initialBox.height + 20);
   });
 
-  test('Top content can be toggled with T key', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("top content can be toggled with the T key", async ({ page }) => {
+    await openMainPage(page);
 
-    // Top content should be visible initially
-    const topContent = page.locator('.top-content-container');
+    const topContent = page.locator(".top-content-container");
     await expect(topContent).toBeVisible();
 
-    // Press T to toggle off
-    await page.keyboard.press('t');
-    await page.waitForTimeout(500);
+    await page.keyboard.press("t");
+    await expect(topContent).toBeHidden();
 
-    // Top content should be hidden (topContentPortion = 0)
-    await expect(topContent).not.toBeVisible();
-
-    // Press T to toggle back on
-    await page.keyboard.press('t');
-    await page.waitForTimeout(500);
-
-    // Top content should be visible again
+    await page.keyboard.press("t");
     await expect(topContent).toBeVisible();
   });
 });

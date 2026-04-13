@@ -1,202 +1,166 @@
-import { test, expect } from '@playwright/test';
-import { waitForChartLoad, clickSlot, setupConsoleLogListener, switchToReadOnlyMode } from './helpers';
+import { expect, test } from "./coverage-test";
+import {
+  canvasPointToPagePoint,
+  clearHarnessEvents,
+  dispatchCanvasMouseEvent,
+  findSlotPoint,
+  getCanvasState,
+  getCanvasStateField,
+  getHarnessConfig,
+  getHarnessEvents,
+  getHarnessSlotCloseTimeMs,
+  mouseDrag,
+  openE2eHarness,
+} from "./helpers";
 
-test.describe('Integration Tests', () => {
+const SLOT_A = "LH123-20250101-F";
+const SLOT_B = "OS200-20250101-G";
 
-  test('Full workflow: Pin slot, preview, and paste to new destination', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+type CanvasState = {
+  margin: { left: number; right: number };
+  internalStartTimeMs: number;
+  internalEndTimeMs: number;
+  layout: {
+    canvasCssWidth: number;
+    groups: Array<{ id: string; y: number; h: number }>;
+  } | null;
+};
 
-    const logs = setupConsoleLogListener(page);
+test.describe("canvas rewrite integration workflows", () => {
+  test("full workflow: pin slot then paste to different destination", async ({ page }) => {
+    await openE2eHarness(page);
+    await clearHarnessEvents(page);
 
-    // 1. Click a slot to pin it
-    const firstSlot = page.locator('svg g.slot-group').first();
-    await firstSlot.click();
-    await page.waitForTimeout(1000);
+    const sourcePoint = await findSlotPoint(page, SLOT_A, "center");
+    await dispatchCanvasMouseEvent(page, sourcePoint, "click");
 
-    // 2. Verify it's pinned (has copied class)
-    const copiedSlot = page.locator('svg path.slot-box.copied');
-    await expect(copiedSlot.first()).toBeVisible();
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toEqual([SLOT_A]);
 
-    // 3. Hover over a different topic area to see preview
-    const topicAreas = page.locator('svg .topic-area');
-    const targetArea = topicAreas.nth(5);
-    const targetBox = await targetArea.boundingBox();
-    if (targetBox) {
-      const centerX = targetBox.x + targetBox.width / 2;
-      const centerY = targetBox.y + targetBox.height / 2;
-      await page.mouse.move(centerX - 5, centerY);
-      await page.mouse.move(centerX, centerY);
-    }
-    await page.waitForTimeout(1000);
+    const targetDestination = (await getHarnessConfig(page)).slots.find((slot) => slot.id === SLOT_B)?.destinationId;
+    expect(targetDestination).toBeTruthy();
 
-    // 4. Click to paste
-    await targetArea.click({ force: true });
-    await page.waitForTimeout(1000);
+    const targetPoint = await findSlotPoint(page, SLOT_B, "center");
+    await dispatchCanvasMouseEvent(page, targetPoint, "click");
 
-    // 5. Verify move callback was triggered
-    const hasMoveCallback = logs.some(log => log.includes('Moved slot to different destination'));
-    expect(hasMoveCallback).toBe(true);
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toEqual([]);
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const moves = (events.onChangeDestinationId ?? []) as Array<{
+          slotId?: string;
+          destinationId?: string;
+          preview?: boolean;
+        }>;
+        return moves.find((event) => event.slotId === SLOT_A && event.preview === false) ?? null;
+      })
+      .toEqual({ slotId: SLOT_A, destinationId: targetDestination, preview: false });
   });
 
-  test('Resize multiple slots and verify all times are updated', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("resizing multiple slots updates close times", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
 
-    const logs = setupConsoleLogListener(page);
-    
-    const slotGroups = page.locator('svg g.slot-group');
-    const slotCount = await slotGroups.count();
-    
-    // We require at least 3 successful resizes for this test to pass
-    const requiredResizes = 3;
+    const slotIds = [SLOT_A, SLOT_B];
     let successfulResizes = 0;
-    let attemptedSlots = 0;
-    const maxAttempts = Math.min(slotCount, 20);
 
-    for (let i = 0; i < maxAttempts && successfulResizes < requiredResizes; i++) {
-      const slotGroup = slotGroups.nth(i);
-      const slotBox = await slotGroup.boundingBox();
-      if (!slotBox) continue;
-      
-      attemptedSlots++;
-      const logCountBefore = logs.filter(log => log.includes('Edited slots time window')).length;
+    for (const slotId of slotIds) {
+      const beforeCloseMs = await getHarnessSlotCloseTimeMs(page, slotId);
+      expect(beforeCloseMs).not.toBeNull();
 
-      await slotGroup.hover();
-      await page.waitForTimeout(200);
+      const edgePoint = await findSlotPoint(page, slotId, "right-edge");
+      const from = await canvasPointToPagePoint(canvas, edgePoint);
+      const to = { x: from.x + 70, y: from.y };
 
-      const rightEdgeX = slotBox.x + slotBox.width - 4;
-      const centerY = slotBox.y + slotBox.height / 2;
+      await mouseDrag(page, from, to);
 
-      await page.mouse.move(rightEdgeX, centerY);
-      await page.mouse.down();
-      await page.mouse.move(rightEdgeX + 50, centerY, { steps: 5 });
-      await page.mouse.up();
+      await expect
+        .poll(async () => await getHarnessSlotCloseTimeMs(page, slotId), { timeout: 2_000 })
+        .not.toBe(beforeCloseMs);
 
-      await page.waitForTimeout(500);
-
-      const logCountAfter = logs.filter(log => log.includes('Edited slots time window')).length;
-      
-      if (logCountAfter > logCountBefore) {
-        successfulResizes++;
-      }
-      
-      // Press ESC to clear any selection state before next attempt
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(200);
+      successfulResizes += 1;
     }
 
-    // Verify we got at least the required number of successful resizes
-    expect(successfulResizes).toBeGreaterThanOrEqual(requiredResizes);
-    
-    // Also verify the total count of resize events matches our successful resizes
-    const totalResizeEvents = logs.filter(log => log.includes('Edited slots time window')).length;
-    expect(totalResizeEvents).toBeGreaterThanOrEqual(requiredResizes);
+    expect(successfulResizes).toBe(slotIds.length);
   });
 
-  test('Read-only mode blocks all edit operations', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("read-only mode blocks pin and resize edits", async ({ page }) => {
+    const canvas = await openE2eHarness(page, { fixture: "readonly" });
 
-    // Switch to read-only mode
-    await switchToReadOnlyMode(page);
+    const slotCenter = await findSlotPoint(page, SLOT_A, "center");
+    await dispatchCanvasMouseEvent(page, slotCenter, "click");
 
-    // Try to pin a slot - should not work
-    await clickSlot(page, 0);
-    await page.waitForTimeout(200);
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toEqual([]);
 
-    // Move mouse to where clipboard would appear
-    await page.mouse.move(400, 300);
+    const beforeCloseMs = await getHarnessSlotCloseTimeMs(page, SLOT_A);
+    expect(beforeCloseMs).not.toBeNull();
 
-    // Clipboard should not show pinned items
-    const clipboard = page.locator('.pointer-clipboard .v-chip');
-    const chipCount = await clipboard.count();
-    expect(chipCount).toBe(0);
+    const from = await canvasPointToPagePoint(canvas, slotCenter);
+    const to = { x: from.x + 80, y: from.y };
+    await mouseDrag(page, from, to);
 
-    // Verify slot is not marked as copied
-    const copiedSlots = page.locator('svg path.slot-box.copied');
-    expect(await copiedSlots.count()).toBe(0);
+    await expect
+      .poll(async () => await getHarnessSlotCloseTimeMs(page, SLOT_A), { timeout: 2_000 })
+      .toBe(beforeCloseMs);
   });
 
-  test('Read-only mode also blocks resize operations', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("pan and zoom workflow keeps chart interactive", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
 
-    const logs = setupConsoleLogListener(page);
-
-    // Switch to read-only mode
-    await switchToReadOnlyMode(page);
-
-    // Try to resize a slot - should not trigger any callback
-    const slotGroups = page.locator('svg g.slot-group');
-    const slotCount = await slotGroups.count();
-
-    for (let i = 0; i < Math.min(slotCount, 5); i++) {
-      const slotGroup = slotGroups.nth(i);
-      const slotBox = await slotGroup.boundingBox();
-      
-      if (!slotBox || slotBox.width < 30) continue;
-
-      await slotGroup.hover();
-      await page.waitForTimeout(200);
-
-      const rightEdgeX = slotBox.x + slotBox.width - 4;
-      const centerY = slotBox.y + slotBox.height / 2;
-
-      await page.mouse.move(rightEdgeX, centerY);
-      await page.mouse.down();
-      await page.mouse.move(rightEdgeX + 50, centerY, { steps: 5 });
-      await page.mouse.up();
-
-      await page.waitForTimeout(300);
+    const before = await getCanvasState<CanvasState>(page);
+    expect(before).not.toBeNull();
+    expect(before?.layout).not.toBeNull();
+    if (!before?.layout || before.layout.groups.length === 0) {
+      throw new Error("Expected canvas layout for pan/zoom test");
     }
 
-    // No resize events should have been triggered
-    const hasResizeCallback = logs.some(log => log.includes('Edited slots time window'));
-    expect(hasResizeCallback).toBe(false);
-  });
+    const panCanvasPoint = {
+      x: before.margin.left + 40,
+      y: before.layout.groups[0]!.y + Math.max(10, Math.floor(before.layout.groups[0]!.h * 0.25)),
+    };
+    const panPagePoint = await canvasPointToPagePoint(canvas, panCanvasPoint);
 
-  test('Pan and zoom workflow maintains slot visibility', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+    await page.mouse.move(panPagePoint.x, panPagePoint.y);
+    await page.mouse.down({ button: "right" });
+    await page.mouse.move(panPagePoint.x - 160, panPagePoint.y, { steps: 8 });
+    await page.mouse.up({ button: "right" });
 
-    // Get initial slot count
-    const initialSlotCount = await page.locator('svg path.slot-box').count();
-    expect(initialSlotCount).toBeGreaterThan(0);
+    await expect
+      .poll(async () => await getCanvasStateField<number>(page, "internalStartTimeMs"), { timeout: 2_000 })
+      .not.toBe(before.internalStartTimeMs);
 
-    // Pan the timeline
-    const ganttContainer = page.locator('.gantt-container').first();
-    const box = await ganttContainer.boundingBox();
+    const spanBeforeZoom = before.internalEndTimeMs - before.internalStartTimeMs;
 
-    if (box) {
-      // Pan right
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await page.mouse.down({ button: 'right' });
-      await page.mouse.move(box.x + box.width / 2 - 200, box.y + box.height / 2);
-      await page.mouse.up({ button: 'right' });
-    }
+    await page.mouse.move(panPagePoint.x, panPagePoint.y);
+    await page.keyboard.down("Shift");
+    await page.mouse.wheel(0, -120);
+    await page.keyboard.up("Shift");
 
-    await page.waitForTimeout(500);
+    await expect
+      .poll(async () => {
+        const start = await getCanvasStateField<number>(page, "internalStartTimeMs");
+        const end = await getCanvasStateField<number>(page, "internalEndTimeMs");
+        if (start == null || end == null) return null;
+        return end - start;
+      })
+      .toBeLessThan(spanBeforeZoom);
 
-    // Verify slots are still rendered (may be different count due to viewport)
-    const afterPanSlotCount = await page.locator('svg path.slot-box').count();
-    expect(afterPanSlotCount).toBeGreaterThanOrEqual(0);
-
-    // Zoom in
-    if (box) {
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await page.keyboard.down('Shift');
-      await page.mouse.wheel(0, -100); // Zoom in
-      await page.keyboard.up('Shift');
-    }
-
-    await page.waitForTimeout(500);
-
-    // Verify component still renders properly after zoom
-    const afterZoomSlotCount = await page.locator('svg path.slot-box').count();
-    expect(afterZoomSlotCount).toBeGreaterThanOrEqual(0);
-
-    // Verify the SVG structure is still intact
-    await expect(page.locator('.gantt-container svg').first()).toBeVisible();
+    const slotPointAfterZoom = await findSlotPoint(page, SLOT_A, "center");
+    expect(slotPointAfterZoom.x).toBeGreaterThan(0);
+    expect(slotPointAfterZoom.y).toBeGreaterThan(0);
   });
 });

@@ -2,26 +2,53 @@
     <div style="height: 100vh; width: 100%; display: flex; flex-direction: column;">
         <!-- Toolbar -->
         <div
-            style="color: black; padding: 8px 16px; background: #f5f5f5; border-bottom: 1px solid #ddd; display: flex; gap: 12px; align-items: center; font-size: 14px; flex-shrink: 0;">
+            style="color: black; padding: 8px 16px; background: #f5f5f5; border-bottom: 1px solid #ddd; display: flex; gap: 12px; align-items: center; font-size: 14px; flex-wrap: wrap; flex-shrink: 0;">
             <strong>⚡ Performance Test</strong>
-            <span data-testid="total-slot-count">{{ slots.length }} slots</span>
-            <span>{{ numberOfDestinations }} destinations</span>
-            <button
-                @click="toggleLazyRendering"
-                data-testid="toggle-lazy-rendering"
-                :style="{
-                    padding: '6px 14px',
-                    borderRadius: '4px',
-                    border: '1px solid #ccc',
-                    background: lazyRendering ? '#27ae60' : '#e74c3c',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                    fontSize: '13px'
-                }"
+            <label
+                style="display: inline-flex; align-items: center; gap: 6px;"
             >
-                Lazy Rendering: {{ lazyRendering ? 'ON' : 'OFF' }}
-            </button>
+                Slots
+                <input
+                    v-model.number="numberOfSlots"
+                    type="number"
+                    min="1"
+                    data-testid="perf-slot-count"
+                    style="width: 5.5rem; padding: 4px 6px; border: 1px solid #ccc; border-radius: 4px; color: black;"
+                    @change="applyConfiguration"
+                    @keyup.enter="applyConfiguration"
+                />
+            </label>
+            <label
+                style="display: inline-flex; align-items: center; gap: 6px;"
+            >
+                Days
+                <input
+                    v-model.number="numberOfDays"
+                    type="number"
+                    min="1"
+                    data-testid="perf-days"
+                    style="width: 3.5rem; padding: 4px 6px; border: 1px solid #ccc; border-radius: 4px; color: black;"
+                    @change="applyConfiguration"
+                    @keyup.enter="applyConfiguration"
+                />
+            </label>
+            <label
+                style="display: inline-flex; align-items: center; gap: 6px;"
+            >
+                Destinations
+                <input
+                    v-model.number="numberOfDestinations"
+                    type="number"
+                    min="1"
+                    data-testid="perf-destinations"
+                    style="width: 4rem; padding: 4px 6px; border: 1px solid #ccc; border-radius: 4px; color: black;"
+                    @change="applyConfiguration"
+                    @keyup.enter="applyConfiguration"
+                />
+            </label>
+            <span data-testid="total-slot-count">{{ slots.length }} slots</span>
+            <span>{{ effectiveDays }} days</span>
+            <span>{{ effectiveDestinations }} destinations</span>
         </div>
 
         <!-- Gantt Editor -->
@@ -35,9 +62,15 @@
                 :destinationGroups="destinationGroups"
                 :suggestions="[]"
                 :markedRegion="null"
-                :lazyRendering="lazyRendering"
                 @onChangeStartAndEndTime="handleChangeStartAndEndTime"
                 @onChangeDestinationId="handleChangeDestinationId"
+                @onBulkChangeDestinationId="handleBulkChangeDestinationId"
+                @onCopyToDestinationId="handleCopyDestinationId"
+                @onBulkCopyToDestinationId="handleBulkCopyDestinationId"
+                @onMoveSlotOnTimeAxis="handleMoveSlotOnTimeAxis"
+                @onBulkMoveSlotsOnTimeAxis="handleBulkMoveSlotsOnTimeAxis"
+                @onCopySlotOnTimeAxis="handleCopySlotOnTimeAxis"
+                @onBulkCopySlotsOnTimeAxis="handleBulkCopySlotsOnTimeAxis"
                 @onChangeSlotTime="handleChangeSlotTime"
                 @onClickOnSlot="() => {}"
                 @onHoverOnSlot="() => {}"
@@ -49,53 +82,73 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import type { GanttEditorSlot } from '../components/gantt-editor-lib/chart/types';
 import GanttEditorComponent from '../components/GanttEditorComponent.vue';
 
-// Performance test parameters
-const numberOfSlots = 2000;
-const numberOfDestinations = 50;
+const DEFAULT_SLOTS = 10_000;
+const DEFAULT_DAYS = 7;
+const DEFAULT_DESTINATIONS = 50;
 
-// Lazy rendering toggle
-const lazyRendering = ref(false);
-const toggleLazyRendering = () => {
-    lazyRendering.value = !lazyRendering.value;
-};
+const numberOfSlots = ref(DEFAULT_SLOTS);
+const numberOfDays = ref(DEFAULT_DAYS);
+const numberOfDestinations = ref(DEFAULT_DESTINATIONS);
 
-// Time range: today 00:00 - 23:59
-const startTime = ref(new Date(new Date().setHours(0, 0, 0, 0)));
-const endTime = ref(new Date(new Date().setHours(23, 59, 59, 999)));
+function clampPositiveInt(value: unknown, fallback: number): number {
+    const n = Math.floor(Number(value));
+    if (!Number.isFinite(n) || n < 1) {
+        return fallback;
+    }
+    return n;
+}
 
-// Generate destinations
-const destinations = reactive([
-    ...Array.from({ length: numberOfDestinations }, (_, i) => ({
-        id: `dest-${i}`,
-        displayName: `Dest ${i + 1}`,
-        active: true,
-        groupId: 'allocated',
-    })),
-    { id: 'UNALLOCATED', displayName: 'UNALLOCATED', active: true, groupId: 'unallocated' },
-]);
+const effectiveDays = computed(() => clampPositiveInt(numberOfDays.value, DEFAULT_DAYS));
+const effectiveDestinations = computed(() =>
+    clampPositiveInt(numberOfDestinations.value, DEFAULT_DESTINATIONS)
+);
 
-// Destination groups
+function createTimeRange(days: number): { start: Date; end: Date } {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + days - 1);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+}
+
+function buildDestinations(count: number) {
+    return [
+        ...Array.from({ length: count }, (_, i) => ({
+            id: `dest-${i}`,
+            displayName: `Dest ${i + 1}`,
+            active: true,
+            groupId: 'allocated',
+        })),
+        { id: 'UNALLOCATED', displayName: 'UNALLOCATED', active: true, groupId: 'unallocated' },
+    ];
+}
+
+const startTime = ref(new Date());
+const endTime = ref(new Date());
+
+const destinations = reactive<ReturnType<typeof buildDestinations>>(buildDestinations(DEFAULT_DESTINATIONS));
+
 const destinationGroups = reactive([
     { id: 'allocated', displayName: 'Allocated', heightPortion: 0.9 },
     { id: 'unallocated', displayName: 'UNALLOCATED', heightPortion: 0.1 },
 ]);
 
-// Generate many slots
-const generateSlots = (count: number): GanttEditorSlot[] => {
-    const dayStart = startTime.value.getTime();
-    const dayEnd = endTime.value.getTime();
-    const dayRange = dayEnd - dayStart;
+const generateSlots = (count: number, rangeStart: Date, rangeEnd: Date, destCount: number): GanttEditorSlot[] => {
+    const rangeStartMs = rangeStart.getTime();
+    const rangeEndMs = rangeEnd.getTime();
+    const rangeMs = rangeEndMs - rangeStartMs;
 
     return Array.from({ length: count }, (_, index) => {
-        const slotStartMs = dayStart + Math.random() * dayRange * 0.8;
+        const slotStartMs = rangeStartMs + Math.random() * rangeMs * 0.8;
         const duration = 30 * 60 * 1000 + Math.random() * 2 * 60 * 60 * 1000; // 30min - 2.5h
-        const slotEndMs = Math.min(slotStartMs + duration, dayEnd);
+        const slotEndMs = Math.min(slotStartMs + duration, rangeEndMs);
 
-        const destIndex = index % numberOfDestinations;
+        const destIndex = index % destCount;
         const flightNumber = `PF${String(index + 1).padStart(5, '0')}`;
 
         return {
@@ -106,13 +159,33 @@ const generateSlots = (count: number): GanttEditorSlot[] => {
             closeTime: new Date(slotEndMs),
             destinationId: `dest-${destIndex}`,
             deadline: new Date(slotEndMs + 60 * 60 * 1000),
-            // Optional on any slot: secondaryDeadline, deadlineColor, secondaryDeadlineColor
             hoverData: `🛫 Departure`,
         };
     }).sort((a, b) => a.openTime.getTime() - b.openTime.getTime());
 };
 
-const slots = ref<GanttEditorSlot[]>(generateSlots(numberOfSlots));
+const slots = ref<GanttEditorSlot[]>([]);
+
+function applyConfiguration() {
+    const nSlots = clampPositiveInt(numberOfSlots.value, DEFAULT_SLOTS);
+    const nDays = clampPositiveInt(numberOfDays.value, DEFAULT_DAYS);
+    const nDests = clampPositiveInt(numberOfDestinations.value, DEFAULT_DESTINATIONS);
+
+    numberOfSlots.value = nSlots;
+    numberOfDays.value = nDays;
+    numberOfDestinations.value = nDests;
+
+    const { start, end } = createTimeRange(nDays);
+    startTime.value = start;
+    endTime.value = end;
+
+    const nextDestinations = buildDestinations(nDests);
+    destinations.splice(0, destinations.length, ...nextDestinations);
+
+    slots.value = generateSlots(nSlots, start, end, nDests);
+}
+
+applyConfiguration();
 
 // Event handlers
 const handleChangeStartAndEndTime = (newStartTime: Date, newEndTime: Date) => {
@@ -126,6 +199,62 @@ const handleChangeDestinationId = (slotId: string, destinationId: string) => {
     );
 };
 
+const handleBulkChangeDestinationId = (slotIds: string[], destinationId: string) => {
+    const movedSlotIds = new Set(slotIds);
+    slots.value = slots.value.map(slot =>
+        movedSlotIds.has(slot.id) ? { ...slot, destinationId } : slot
+    );
+};
+
+const copyIdCounters = new Map<string, number>();
+
+const reserveCopyId = (slotId: string, existingIds: Set<string>): string => {
+    let nextCounter = copyIdCounters.get(slotId) ?? 1;
+    let nextId = `${slotId}-copy-${nextCounter}`;
+    while (existingIds.has(nextId)) {
+        nextCounter += 1;
+        nextId = `${slotId}-copy-${nextCounter}`;
+    }
+    copyIdCounters.set(slotId, nextCounter + 1);
+    existingIds.add(nextId);
+    return nextId;
+};
+
+const buildCopiedSlot = (
+    source: GanttEditorSlot,
+    nextId: string,
+    overrides: Partial<GanttEditorSlot> = {},
+): GanttEditorSlot => ({
+    ...source,
+    id: nextId,
+    group: nextId,
+    ...overrides,
+});
+
+const handleCopyDestinationId = (slotId: string, destinationId: string) => {
+    const source = slots.value.find((slot) => slot.id === slotId);
+    if (!source) return;
+    const existingIds = new Set(slots.value.map((slot) => slot.id));
+    const nextId = reserveCopyId(source.id, existingIds);
+    slots.value = [
+        ...slots.value,
+        buildCopiedSlot(source, nextId, { destinationId }),
+    ];
+};
+
+const handleBulkCopyDestinationId = (slotIds: string[], destinationId: string) => {
+    const slotIdsToCopy = new Set(slotIds);
+    const existingIds = new Set(slots.value.map((slot) => slot.id));
+    const copiedSlots = slots.value
+        .filter((slot) => slotIdsToCopy.has(slot.id))
+        .map((slot) => {
+            const nextId = reserveCopyId(slot.id, existingIds);
+            return buildCopiedSlot(slot, nextId, { destinationId });
+        });
+    if (copiedSlots.length === 0) return;
+    slots.value = [...slots.value, ...copiedSlots];
+};
+
 const handleChangeSlotTime = (slotId: string, openTime: Date, closeTime: Date) => {
     const slot = slots.value.find(s => s.id === slotId);
     if (slot) {
@@ -133,5 +262,75 @@ const handleChangeSlotTime = (slotId: string, openTime: Date, closeTime: Date) =
         slot.closeTime = closeTime;
     }
     slots.value = [...slots.value];
+};
+
+const shiftDateByMs = (value: Date | undefined, timeDiffMs: number): Date | undefined =>
+    value ? new Date(value.getTime() + timeDiffMs) : undefined;
+
+const handleMoveSlotOnTimeAxis = (slotId: string, timeDiffMs: number) => {
+    if (timeDiffMs === 0) return;
+    slots.value = slots.value.map((slot) =>
+        slot.id === slotId
+            ? {
+                ...slot,
+                openTime: new Date(slot.openTime.getTime() + timeDiffMs),
+                closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
+                deadline: shiftDateByMs(slot.deadline, timeDiffMs),
+                secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
+            }
+            : slot
+    );
+};
+
+const handleBulkMoveSlotsOnTimeAxis = (slotIds: string[], timeDiffMs: number) => {
+    if (timeDiffMs === 0) return;
+    const slotIdSet = new Set(slotIds);
+    slots.value = slots.value.map((slot) =>
+        slotIdSet.has(slot.id)
+            ? {
+                ...slot,
+                openTime: new Date(slot.openTime.getTime() + timeDiffMs),
+                closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
+                deadline: shiftDateByMs(slot.deadline, timeDiffMs),
+                secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
+            }
+            : slot
+    );
+};
+
+const handleCopySlotOnTimeAxis = (slotId: string, timeDiffMs: number) => {
+    if (timeDiffMs === 0) return;
+    const source = slots.value.find((slot) => slot.id === slotId);
+    if (!source) return;
+    const existingIds = new Set(slots.value.map((slot) => slot.id));
+    const nextId = reserveCopyId(source.id, existingIds);
+    slots.value = [
+        ...slots.value,
+        buildCopiedSlot(source, nextId, {
+            openTime: new Date(source.openTime.getTime() + timeDiffMs),
+            closeTime: new Date(source.closeTime.getTime() + timeDiffMs),
+            deadline: shiftDateByMs(source.deadline, timeDiffMs),
+            secondaryDeadline: shiftDateByMs(source.secondaryDeadline, timeDiffMs),
+        }),
+    ];
+};
+
+const handleBulkCopySlotsOnTimeAxis = (slotIds: string[], timeDiffMs: number) => {
+    if (timeDiffMs === 0) return;
+    const slotIdsToCopy = new Set(slotIds);
+    const existingIds = new Set(slots.value.map((slot) => slot.id));
+    const copiedSlots = slots.value
+        .filter((slot) => slotIdsToCopy.has(slot.id))
+        .map((slot) => {
+            const nextId = reserveCopyId(slot.id, existingIds);
+            return buildCopiedSlot(slot, nextId, {
+                openTime: new Date(slot.openTime.getTime() + timeDiffMs),
+                closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
+                deadline: shiftDateByMs(slot.deadline, timeDiffMs),
+                secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
+            });
+        });
+    if (copiedSlots.length === 0) return;
+    slots.value = [...slots.value, ...copiedSlots];
 };
 </script>

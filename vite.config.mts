@@ -1,9 +1,7 @@
-// Plugins
-import Components from 'unplugin-vue-components/vite'
 import Vue from '@vitejs/plugin-vue'
-import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
-import Fonts from 'unplugin-fonts/vite'
 import VueRouter from 'unplugin-vue-router/vite'
+import { libInjectCss } from 'vite-plugin-lib-inject-css'
+import istanbul from 'vite-plugin-istanbul'
 
 // Utilities
 import { defineConfig } from 'vite'
@@ -12,32 +10,17 @@ import { fileURLToPath, URL } from 'node:url'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
+    libInjectCss(),
     VueRouter({
       dts: 'src/typed-router.d.ts',
     }),
-    Vue({
-      template: { transformAssetUrls },
-    }),
-    // https://github.com/vuetifyjs/vuetify-loader/tree/master/packages/vite-plugin#readme
-    Vuetify({
-      autoImport: true,
-      styles: {
-        configFile: 'src/styles/settings.scss',
-      },
-    }),
-    Components({
-      dts: 'src/components.d.ts',
-    }),
-    Fonts({
-      fontsource: {
-        families: [
-          {
-            name: 'Roboto',
-            weights: [100, 300, 400, 500, 700, 900],
-            styles: ['normal', 'italic'],
-          },
-        ],
-      },
+    Vue(),
+    istanbul({
+      include: 'src/**',
+      extension: ['.js', '.ts', '.vue'],
+      requireEnv: true,
+      cypress: false,
+      forceBuildInstrument: false,
     }),
   ],
   build: {
@@ -50,12 +33,10 @@ export default defineConfig({
     cssCodeSplit: false, 
     assetsDir: '',
     rollupOptions: {
-      external: ['vue', 'vuetify', 'd3'],
+      external: ['vue'],
       output: {
         globals: {
           vue: 'Vue',
-          vuetify: 'Vuetify',
-          d3: 'D3'
         },
         exports: 'named',
         assetFileNames: 'style.css',
@@ -65,7 +46,6 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: [
-      'vuetify',
       'vue-router',
       'unplugin-vue-router/runtime',
       'unplugin-vue-router/data-loaders',
@@ -88,16 +68,6 @@ export default defineConfig({
     ],
   },
   server: {
-    port: 3000,
-  },
-  css: {
-    preprocessorOptions: {
-      sass: {
-        api: 'modern-compiler',
-      },
-      scss: {
-        api: 'modern-compiler',
-      },
-    },
+    port: 4000,
   },
 })

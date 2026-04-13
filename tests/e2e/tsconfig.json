@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.app.json",
+  "include": ["../../env.d.ts", "./**/*"],
+  "compilerOptions": {
+    "types": ["node", "vite/client", "unplugin-vue-router/client", "@playwright/test"]
+  }
+}

@@ -1,91 +1,137 @@
-import { test, expect } from '@playwright/test';
-import { waitForChartLoad, clickSlot, setupConsoleLogListener } from './helpers';
+import { expect, test, type Page } from "./coverage-test";
+import { dispatchCanvasMouseEvent, getCanvasStateField, waitForCanvasApi } from "./helpers";
 
-test.describe('Programmatic Clipboard Clear', () => {
+async function openMainPage(page: Page): Promise<void> {
+  await page.goto("/");
+  await waitForCanvasApi(page);
+}
 
-  test('Clear clipboard programmatically via button', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+async function findAnySlotPoint(page: Page): Promise<{ x: number; y: number; slotId: string }> {
+  const point = await page.evaluate(() => {
+    const api = (window as Window & {
+      __ganttCanvasTestApi?: {
+        flush: () => void;
+        getState: () => {
+          margin: { left: number; right: number };
+          layout: { canvasCssWidth: number; canvasCssHeight: number } | null;
+        };
+        probeCanvasPoint: (x: number, y: number) => { slotId: string | null };
+      };
+    }).__ganttCanvasTestApi;
 
-    const logs = setupConsoleLogListener(page);
+    api?.flush();
+    const state = api?.getState();
+    if (!api || !state?.layout) return null;
 
-    // First, pin a slot to the clipboard
-    await clickSlot(page, 0);
-    await page.waitForTimeout(300);
+    const minX = Math.max(1, state.margin.left + 1);
+    const maxX = Math.max(minX, state.layout.canvasCssWidth - state.margin.right - 1);
+    const maxY = Math.max(1, state.layout.canvasCssHeight - 1);
 
-    // Verify slot is copied (has the 'copied' class)
-    let copiedSlots = page.locator('svg path.slot-box.copied');
-    const copiedCount = await copiedSlots.count();
-    expect(copiedCount).toBeGreaterThan(0);
+    for (let y = 1; y <= maxY; y += 2) {
+      for (let x = minX; x <= maxX; x += 2) {
+        const probe = api.probeCanvasPoint(x, y);
+        if (probe.slotId) {
+          return { x, y, slotId: probe.slotId };
+        }
+      }
+    }
 
-    // Verify clipboard indicator is visible when moving the mouse
-    await page.mouse.move(400, 300);
-    const clipboard = page.locator('.pointer-clipboard');
-    await expect(clipboard).toBeVisible({ timeout: 2000 });
-
-    // Click the "Clear Clipboard" button to programmatically clear the clipboard
-    const clearClipboardButton = page.locator('[data-testid="clear-clipboard-button"]');
-    await expect(clearClipboardButton).toBeVisible();
-    await clearClipboardButton.click();
-
-    await page.waitForTimeout(400);
-
-    // Verify clipboard is cleared (slots no longer marked as copied)
-    copiedSlots = page.locator('svg path.slot-box.copied');
-    expect(await copiedSlots.count()).toBe(0);
-
-    // Verify that the console log was called
-    const hasLogMessage = logs.some(log =>
-      log.includes('Clearing clipboard programmatically')
-    );
-    expect(hasLogMessage).toBe(true);
+    return null;
   });
 
-  test('Clear clipboard button works when slot is selected', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  expect(point).not.toBeNull();
+  return point as { x: number; y: number; slotId: string };
+}
 
-    // Select first slot
-    await clickSlot(page, 0);
-    await page.waitForTimeout(200);
+test.describe("canvas rewrite programmatic selection clear", () => {
+  test("clear selection button removes pinned slots", async ({ page }) => {
+    await openMainPage(page);
 
-    // Verify at least one slot is copied
-    let copiedSlots = page.locator('svg path.slot-box.copied');
-    const copiedCount = await copiedSlots.count();
-    expect(copiedCount).toBeGreaterThanOrEqual(1);
+    const slotPoint = await findAnySlotPoint(page);
+    await dispatchCanvasMouseEvent(page, slotPoint, "click");
 
-    // Click the "Clear Clipboard" button
-    const clearClipboardButton = page.locator('[data-testid="clear-clipboard-button"]');
-    await clearClipboardButton.click();
+    await expect
+      .poll(
+        async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).length,
+        { timeout: 2_000 },
+      )
+      .toBeGreaterThan(0);
 
-    await page.waitForTimeout(400);
+    await page.getByTestId("clear-selection-button").click();
 
-    // Verify all slots are cleared
-    copiedSlots = page.locator('svg path.slot-box.copied');
-    expect(await copiedSlots.count()).toBe(0);
-
-    // Verify we can select another slot after clearing (clipboard is functional)
-    await clickSlot(page, 1);
-    await page.waitForTimeout(200);
-    
-    copiedSlots = page.locator('svg path.slot-box.copied');
-    expect(await copiedSlots.count()).toBeGreaterThanOrEqual(1);
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toEqual([]);
   });
 
-  test('Event message shows when clipboard is cleared', async ({ page }) => {
-    await page.goto('/');
-    await waitForChartLoad(page);
+  test("selection can be used again after programmatic clear", async ({ page }) => {
+    await openMainPage(page);
 
-    // Pin a slot
-    await clickSlot(page, 0);
-    await page.waitForTimeout(300);
+    const slotPoint = await findAnySlotPoint(page);
+    await dispatchCanvasMouseEvent(page, slotPoint, "click");
 
-    // Click the "Clear Clipboard" button
-    const clearClipboardButton = page.locator('[data-testid="clear-clipboard-button"]');
-    await clearClipboardButton.click();
+    await expect
+      .poll(
+        async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).length,
+        { timeout: 2_000 },
+      )
+      .toBeGreaterThan(0);
 
-    // Check that the event message appears
-    const eventMessage = page.locator('text=Clipboard cleared programmatically');
-    await expect(eventMessage).toBeVisible({ timeout: 2000 });
+    await page.getByTestId("clear-selection-button").click();
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toEqual([]);
+
+    await dispatchCanvasMouseEvent(page, slotPoint, "click");
+    await expect
+      .poll(
+        async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).length,
+        { timeout: 2_000 },
+      )
+      .toBeGreaterThan(0);
+  });
+
+  test("event message is shown when selection is cleared programmatically", async ({ page }) => {
+    await openMainPage(page);
+
+    const slotPoint = await findAnySlotPoint(page);
+    await dispatchCanvasMouseEvent(page, slotPoint, "click");
+
+    await page.getByTestId("clear-selection-button").click();
+
+    await expect(page.getByText("Selection cleared programmatically", { exact: false })).toBeVisible({
+      timeout: 2_000,
+    });
+  });
+
+  test("delete selection button removes selected slots from parent state", async ({ page }) => {
+    await openMainPage(page);
+
+    const slotPoint = await findAnySlotPoint(page);
+    await dispatchCanvasMouseEvent(page, slotPoint, "click");
+
+    await expect
+      .poll(
+        async () => ((await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? []).length,
+        { timeout: 2_000 },
+      )
+      .toBeGreaterThan(0);
+
+    await page.getByTestId("delete-selection-button").click();
+
+    await expect
+      .poll(
+        async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [],
+        { timeout: 2_000 },
+      )
+      .toEqual([]);
+
+    await expect(page.getByText("Deleted", { exact: false })).toBeVisible({ timeout: 2_000 });
   });
 });

@@ -5,10 +5,22 @@ export type {
     GanttEditorDestinationGroup,
     GanttEditorMarkedRegion,
     GanttEditorSuggestion,
+    GanttEditorCanvasContextMenuAction,
+    GanttEditorVerticalMarker,
     GanttEditorSlotWithUiAttributes,
     GanttEditorXAxisOptions,
-    GanttEditorVerticalMarker,
 } from './components/gantt-editor-lib/chart/types.ts'
+export type {
+    GanttEditorProps,
+    GanttEditorCallbacks,
+    GanttEditorHost,
+} from './components/gantt-editor-lib/chart/gantt_canvas_props'
+export type { GanttEditorRulerMode } from './components/gantt-editor-lib/chart/gantt_canvas_props'
+export {
+    getSelectionItemDisplayName,
+    getClipboardItemDisplayName,
+} from './components/gantt-editor-lib/chart/gantt_canvas_props'
+export { GanttChartCanvasController } from './components/gantt-editor-lib/chart/gantt_chart_canvas_controller'
 
 // Named export
 export { GanttEditorComponent }
