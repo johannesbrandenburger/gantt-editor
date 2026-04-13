@@ -1,9 +1,3 @@
-import {
-  layoutWithLines,
-  measureNaturalWidth,
-  prepareWithSegments,
-  type PreparedTextWithSegments,
-} from "@chenglou/pretext";
 import type {
   CanvasRect,
   HelpOverlayHitTarget,
@@ -44,7 +38,8 @@ const SHORTCUT_TEXT_PAD_X = 6;
 const TEXT_BOTTOM_PAD = 6;
 const TEXT_TOP_PAD = 8;
 
-const preparedTextCache = new Map<string, PreparedTextWithSegments>();
+const measuredTextWidthCache = new Map<string, number>();
+let textMeasureCtx: CanvasRenderingContext2D | null = null;
 
 type TextBlockLayout = {
   lines: string[];
@@ -90,14 +85,25 @@ function drawWrappedTextLines(
   }
 }
 
-function getPreparedText(text: string, font: string): PreparedTextWithSegments {
+function getTextMeasureContext(): CanvasRenderingContext2D | null {
+  if (textMeasureCtx) return textMeasureCtx;
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  textMeasureCtx = canvas.getContext("2d");
+  return textMeasureCtx;
+}
+
+function measureTextWidth(text: string, font: string): number {
   const cacheKey = `${font}\n${text}`;
-  const cached = preparedTextCache.get(cacheKey);
+  const cached = measuredTextWidthCache.get(cacheKey);
   if (cached) return cached;
 
-  const prepared = prepareWithSegments(text, font);
-  preparedTextCache.set(cacheKey, prepared);
-  return prepared;
+  const ctx = getTextMeasureContext();
+  if (!ctx) return text.length * 7;
+  ctx.font = font;
+  const width = ctx.measureText(text).width;
+  measuredTextWidthCache.set(cacheKey, width);
+  return width;
 }
 
 function layoutTextBlock(text: string, font: string, maxWidth: number, lineHeight: number): TextBlockLayout {
@@ -106,17 +112,40 @@ function layoutTextBlock(text: string, font: string, maxWidth: number, lineHeigh
     return { lines: [], height: 0 };
   }
 
-  const result = layoutWithLines(getPreparedText(trimmed, font), Math.max(1, maxWidth), lineHeight);
+  const width = Math.max(1, maxWidth);
+  const lines: string[] = [];
+  const paragraphs = trimmed.split(/\r?\n/);
+
+  for (const paragraph of paragraphs) {
+    const words = paragraph.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      lines.push("");
+      continue;
+    }
+
+    let current = "";
+    for (const word of words) {
+      const next = current ? `${current} ${word}` : word;
+      if (measureTextWidth(next, font) <= width || !current) {
+        current = next;
+      } else {
+        lines.push(current);
+        current = word;
+      }
+    }
+    if (current) lines.push(current);
+  }
+
   return {
-    lines: result.lines.map((line) => line.text),
-    height: result.lineCount * lineHeight,
+    lines,
+    height: lines.length * lineHeight,
   };
 }
 
 function measureTextNaturalWidth(text: string, font: string): number {
   const trimmed = text.trim();
   if (!trimmed) return 0;
-  return measureNaturalWidth(getPreparedText(trimmed, font));
+  return measureTextWidth(trimmed, font);
 }
 
 function buildTileCandidateLayout(tile: HelpOverlayTileDefinition, tileWidth: number): TileCandidateLayout | null {
@@ -211,11 +240,11 @@ function layoutTiles(
     const textX = previewRect.x + previewRect.w + PREVIEW_TEXT_GAP;
     const shortcutRect = resolvedCandidate.shortcutRect
       ? {
-          x: textX,
-          y: rect.y + resolvedCandidate.shortcutRect.y,
-          w: resolvedCandidate.shortcutRect.w,
-          h: resolvedCandidate.shortcutRect.h,
-        }
+        x: textX,
+        y: rect.y + resolvedCandidate.shortcutRect.y,
+        w: resolvedCandidate.shortcutRect.w,
+        h: resolvedCandidate.shortcutRect.h,
+      }
       : null;
     tileLayouts.push({
       tile,
