@@ -79,6 +79,7 @@ const exposeTestApi = import.meta.env.DEV || import.meta.env.MODE === "test";
 
 type GanttCanvasTestApi = {
   flush: () => void;
+  refreshSelectionFromStorage: () => void;
   getState: () => ReturnType<GanttChartCanvasController["getTestState"]>;
   probeCanvasPoint: (x: number, y: number) => ReturnType<GanttChartCanvasController["probeCanvasPoint"]>;
   findSlotPoint: (
@@ -93,6 +94,7 @@ const installTestApi = () => {
   if (!exposeTestApi) return;
   registeredTestApi = {
     flush: () => controller.flushForTests(),
+    refreshSelectionFromStorage: () => controller.updateSelection(),
     getState: () => controller.getTestState(),
     probeCanvasPoint: (x, y) => controller.probeCanvasPoint(x, y),
     findSlotPoint: (slotId, mode = "center") => controller.findSlotPoint(slotId, mode),

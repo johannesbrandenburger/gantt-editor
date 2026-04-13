@@ -2,7 +2,10 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import GanttEditorComponent from "@/components/GanttEditorComponent.vue";
-import type { GanttEditorRulerMode } from "@/components/gantt-editor-lib/chart/gantt_canvas_props";
+import type {
+  GanttEditorFeature,
+  GanttEditorRulerMode,
+} from "@/components/gantt-editor-lib/chart/gantt_canvas_props";
 import type {
   GanttEditorDestination,
   GanttEditorDestinationGroup,
@@ -35,6 +38,7 @@ type HarnessData = {
   activateRulers: GanttEditorRulerMode;
   isReadOnly: boolean;
   topContentPortion: number;
+  features?: GanttEditorFeature[];
 };
 
 type QueryInput = Partial<{
@@ -46,10 +50,45 @@ type QueryInput = Partial<{
   markedRegion: string;
   activateRulers: string;
   topContentPortion: string;
+  features: string;
   startTime: string;
   endTime: string;
   data: string;
 }>;
+
+const FEATURE_IDS: readonly GanttEditorFeature[] = [
+  "select-slots",
+  "brush-select-slots",
+  "resize-slot-time",
+  "apply-slot-suggestions",
+  "collapse-topics",
+  "canvas-context-menu",
+  "move-vertical-markers",
+  "move-vertical-markers-from-context-menu",
+  "move-slots-to-destination",
+  "bulk-move-slots-to-destination",
+  "copy-slots-to-destination",
+  "bulk-copy-slots-to-destination",
+  "move-slots-on-time-axis",
+  "bulk-move-slots-on-time-axis",
+  "copy-slots-on-time-axis",
+  "bulk-copy-slots-on-time-axis",
+  "preview-slots-to-destination",
+  "preview-slots-on-time-axis",
+  "copy-modifier-alt",
+  "time-axis-modifier-shift",
+];
+
+const FEATURE_ID_SET = new Set<GanttEditorFeature>(FEATURE_IDS);
+
+function parseFeatures(value: string | null | undefined): GanttEditorFeature[] | undefined {
+  if (!value) return undefined;
+  const parsed = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item): item is GanttEditorFeature => FEATURE_ID_SET.has(item as GanttEditorFeature));
+  return parsed.length > 0 ? parsed : [];
+}
 
 type HarnessApi = {
   getConfig: () => HarnessData;
@@ -365,6 +404,7 @@ function fromQuery(query: QueryInput): HarnessData {
   const rulersRaw = (query.activateRulers ?? "").toUpperCase();
   data.activateRulers = rulersRaw === "ROW" || rulersRaw === "GLOBAL" ? rulersRaw : null;
   data.topContentPortion = Math.max(0, Math.min(0.5, parseNumber(query.topContentPortion ?? null, 0)));
+  data.features = parseFeatures(query.features ?? null);
   data.startTime = parseDate(query.startTime ?? null, data.startTime);
   data.endTime = parseDate(query.endTime ?? null, data.endTime);
 
@@ -409,6 +449,7 @@ function fromQuery(query: QueryInput): HarnessData {
           }
         : data.markedRegion,
         activateRulers: custom.activateRulers ?? data.activateRulers,
+        features: custom.features ?? data.features,
     });
   }
 
@@ -764,6 +805,7 @@ onBeforeUnmount(() => {
       :markedRegion="harnessData.markedRegion"
       :topContentPortion="harnessData.topContentPortion"
       :activateRulers="harnessData.activateRulers"
+      :features="harnessData.features"
       @onChangeStartAndEndTime="onChangeStartAndEndTime"
       @onChangeDestinationId="onChangeDestinationId"
       @onBulkChangeDestinationId="onBulkChangeDestinationId"

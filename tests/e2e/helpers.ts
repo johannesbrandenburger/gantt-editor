@@ -48,6 +48,7 @@ type HarnessConfig = {
     destinationId: string;
   } | null;
   activateRulers?: "ROW" | "GLOBAL" | null;
+  features?: string[];
 };
 
 type HarnessEvents = Record<string, unknown[]>;
