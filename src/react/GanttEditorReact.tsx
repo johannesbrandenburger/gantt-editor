@@ -188,6 +188,26 @@ export const GanttEditorReact = forwardRef<GanttEditorReactRef, GanttEditorReact
       }
     }, [controller])
 
+    useEffect(() => {
+      const container = containerRef.current
+      const canvas = canvasRef.current
+      if (!container || !canvas) return
+
+      const handleContainerMouseEnter = () => controller.onMouseEnter()
+      const handleContainerMouseLeave = () => controller.onMouseLeave()
+      const handleCanvasMouseLeave = () => controller.onChartMouseLeave()
+
+      container.addEventListener('mouseenter', handleContainerMouseEnter)
+      container.addEventListener('mouseleave', handleContainerMouseLeave)
+      canvas.addEventListener('mouseleave', handleCanvasMouseLeave)
+
+      return () => {
+        container.removeEventListener('mouseenter', handleContainerMouseEnter)
+        container.removeEventListener('mouseleave', handleContainerMouseLeave)
+        canvas.removeEventListener('mouseleave', handleCanvasMouseLeave)
+      }
+    }, [controller])
+
     const trackedMarkedRegionKey = useMemo(() => markedRegionKey(props.markedRegion), [props.markedRegion])
 
     useEffect(() => {
@@ -254,20 +274,26 @@ export const GanttEditorReact = forwardRef<GanttEditorReactRef, GanttEditorReact
       ...containerStyle,
       ...props.style,
     }
+    const containerClassName = props.className ? `chart-container ${props.className}` : 'chart-container'
 
     return (
       <div
         ref={containerRef}
-        className={props.className}
+        className={containerClassName}
         style={mergedContainerStyle}
         onMouseMove={(e) => controller.onContainerMouseMove(e.nativeEvent)}
         onMouseEnter={() => controller.onMouseEnter()}
         onMouseLeave={() => controller.onMouseLeave()}
       >
-        {showTopContent && <div style={topContentStyle(currentTopContentHeight)}>{props.topContent}</div>}
+        {showTopContent && (
+          <div className='top-content-container' style={topContentStyle(currentTopContentHeight)}>
+            {props.topContent}
+          </div>
+        )}
 
         <div style={chartCanvasWrapStyle}>
           <canvas
+            className='chart-canvas'
             ref={canvasRef}
             style={chartCanvasStyle}
             onMouseDown={(e) => controller.onCanvasMouseDown(e.nativeEvent)}
