@@ -891,8 +891,27 @@ export function E2eHarnessPage() {
       },
       setGanttMounted: async (mounted) => {
         setGanttMounted(mounted)
-        await new Promise<void>((resolve) => {
-          requestAnimationFrame(() => resolve())
+        await new Promise<void>((resolve, reject) => {
+          const timeoutMs = 2000
+          const startedAt = performance.now()
+
+          const settle = () => {
+            const w = window as Window & { __ganttCanvasTestApi?: unknown }
+            const hasApi = !!w.__ganttCanvasTestApi
+            const hasCanvas = !!document.querySelector('canvas.chart-canvas')
+            const ready = mounted ? hasApi && hasCanvas : !hasApi && !hasCanvas
+            if (ready) {
+              resolve()
+              return
+            }
+            if (performance.now() - startedAt >= timeoutMs) {
+              reject(new Error('Timed out waiting for gantt mount state to settle'))
+              return
+            }
+            requestAnimationFrame(settle)
+          }
+
+          requestAnimationFrame(settle)
         })
         return ganttMountedRef.current
       },
