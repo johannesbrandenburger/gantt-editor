@@ -1,5 +1,4 @@
 import Vue from '@vitejs/plugin-vue'
-import VueRouter from 'unplugin-vue-router/vite'
 import { libInjectCss } from 'vite-plugin-lib-inject-css'
 import istanbul from 'vite-plugin-istanbul'
 
@@ -11,9 +10,6 @@ import { fileURLToPath, URL } from 'node:url'
 export default defineConfig({
   plugins: [
     libInjectCss(),
-    VueRouter({
-      dts: 'src/typed-router.d.ts',
-    }),
     Vue(),
     istanbul({
       include: 'src/**',
@@ -44,14 +40,6 @@ export default defineConfig({
       }
     },
     emitAssets: true,
-  },
-  optimizeDeps: {
-    exclude: [
-      'vue-router',
-      'unplugin-vue-router/runtime',
-      'unplugin-vue-router/data-loaders',
-      'unplugin-vue-router/data-loaders/basic',
-    ],
   },
   define: { 'process.env': {} },
   resolve: {

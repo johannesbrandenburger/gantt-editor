@@ -5,14 +5,14 @@
     "composite": false,
     "incremental": false
   },
-  "include": ["env.d.ts", "src/**/*", "src/**/*.vue"],
-  "exclude": [
+  "include": [
+    "env.d.ts",
     "src/index.ts",
-    "src/main.ts",
-    "src/App.vue",
-    "src/router/**/*",
-    "src/plugins/**/*",
-    "src/pages/**/*",
+    "src/components/gantt-editor-lib/**/*.ts",
+    "src/vue/**/*.ts",
+    "src/vue/**/*.vue"
+  ],
+  "exclude": [
     "src/react/**/*",
     "src/angular/**/*",
     "tests/**/*"

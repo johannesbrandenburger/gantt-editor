@@ -156,9 +156,9 @@ import type {
     GanttEditorCanvasContextMenuAction,
     GanttEditorSlot,
     GanttEditorVerticalMarker,
-} from '../components/gantt-editor-lib/chart/types';
-import GanttEditorComponent from '../vue/GanttEditorComponent.vue';
-import { timeHour, type TimeDomainValue } from '../components/gantt-editor-lib/chart/time_scale';
+} from '@/components/gantt-editor-lib/chart/types';
+import GanttEditorComponent from '@/vue/GanttEditorComponent.vue';
+import { timeHour, type TimeDomainValue } from '@/components/gantt-editor-lib/chart/time_scale';
 
 const upperAxisFormatter = new Intl.DateTimeFormat(undefined, {
     month: 'short',

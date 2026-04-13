@@ -30,8 +30,8 @@ export default defineConfig({
   ],
   webServer: {
     command: isCoverageRun
-      ? `cross-env VITE_COVERAGE=true NODE_ENV=test npm run dev -- --port=${appPort}`
-      : "npm run dev",
+      ? `cross-env VITE_COVERAGE=true NODE_ENV=test npm run dev:vue -- --port=${appPort}`
+      : "npm run dev:vue",
     url: appUrl,
     reuseExistingServer: !process.env.CI,
   },

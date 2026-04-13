@@ -2,6 +2,18 @@
 
 Canvas-based Gantt editor library with framework wrappers for Vue 3, React, and Angular.
 
+## Repository Layout
+
+- Root package contains framework-agnostic TypeScript library and wrapper builds.
+- Framework demo/test apps live under `apps/*`.
+- Current demo app: `apps/vue`.
+
+## Local Development
+
+- Install dependencies: `npm install`
+- Start Vue demo app: `npm run dev:vue`
+- Default `npm run dev` delegates to `npm run dev:vue`.
+
 - Vue entry: `@pf/gantt-editor-vue-component` (or `@pf/gantt-editor-vue-component/vue`)
 - React entry: `@pf/gantt-editor-vue-component/react`
 - Angular entry: `@pf/gantt-editor-vue-component/angular`
