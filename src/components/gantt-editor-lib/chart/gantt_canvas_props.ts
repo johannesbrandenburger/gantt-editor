@@ -13,6 +13,28 @@ import type { HelpOverlayTileDefinition } from "./help_overlay/help_overlay_tile
 
 export type GanttEditorRulerMode = "ROW" | "GLOBAL" | null;
 
+export type GanttEditorFeature =
+  | "select-slots"
+  | "brush-select-slots"
+  | "resize-slot-time"
+  | "apply-slot-suggestions"
+  | "collapse-topics"
+  | "canvas-context-menu"
+  | "move-vertical-markers"
+  | "move-vertical-markers-from-context-menu"
+  | "move-slots-to-destination"
+  | "bulk-move-slots-to-destination"
+  | "copy-slots-to-destination"
+  | "bulk-copy-slots-to-destination"
+  | "move-slots-on-time-axis"
+  | "bulk-move-slots-on-time-axis"
+  | "copy-slots-on-time-axis"
+  | "bulk-copy-slots-on-time-axis"
+  | "preview-slots-to-destination"
+  | "preview-slots-on-time-axis"
+  | "copy-modifier-alt"
+  | "time-axis-modifier-shift";
+
 /**
  * Framework-agnostic input model for the canvas Gantt chart.
  * Kept aligned with the Vue component’s `defineProps` surface so other frameworks
@@ -34,6 +56,8 @@ export interface GanttEditorProps {
   topContentPortion?: number;
   xAxisOptions?: GanttEditorXAxisOptions;
   hoverPreviewMaxClipboardSize?: number;
+  /** Optional allow-list of enabled interaction features. Omit to enable all features. */
+  features?: GanttEditorFeature[];
   /** Custom help tiles appended to built-in defaults (same-id custom tiles override defaults). */
   helpOverlayTiles?: HelpOverlayTileDefinition[];
   /** Help tile ids to include; omit to include all, pass [] to disable help UI entirely. */

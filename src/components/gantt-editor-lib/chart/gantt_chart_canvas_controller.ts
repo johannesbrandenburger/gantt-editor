@@ -54,6 +54,7 @@ import type {
 import type {
   GanttEditorHost,
   GanttEditorCallbacks,
+  GanttEditorFeature,
   GanttEditorProps,
   GanttEditorRulerMode,
 } from "./gantt_canvas_props";
@@ -160,6 +161,7 @@ export class GanttChartCanvasController {
   private props: GanttEditorProps;
   private readonly callbacks: GanttEditorCallbacks;
   private readonly host: GanttEditorHost;
+  private enabledFeatures: ReadonlySet<GanttEditorFeature> | null = null;
 
   private container: HTMLElement | null = null;
   private canvas: HTMLCanvasElement | null = null;
@@ -381,6 +383,7 @@ export class GanttChartCanvasController {
     this.props = initialProps;
     this.callbacks = callbacks;
     this.host = host;
+    this.enabledFeatures = this.resolveEnabledFeatures(initialProps.features);
     this.helpOverlayTiles = this.resolveHelpOverlayTiles(initialProps);
     this.internalStartTime = new Date(initialProps.startTime);
     this.internalEndTime = new Date(initialProps.endTime);
@@ -415,6 +418,7 @@ export class GanttChartCanvasController {
       previousProps.destinationGroups === next.destinationGroups &&
       previousProps.suggestions === next.suggestions &&
       previousProps.activateRulers === next.activateRulers &&
+      previousProps.features === next.features &&
       previousProps.helpOverlayTiles === next.helpOverlayTiles &&
       previousProps.helpOverlayTileIds === next.helpOverlayTileIds &&
       previousProps.verticalMarkers === next.verticalMarkers &&
@@ -425,6 +429,7 @@ export class GanttChartCanvasController {
     const isTimeRangeOnlyUpdate = parentTimeRangeChanged && nonTimePropsUnchangedByRef;
 
     this.props = next;
+    const featureFlagsChanged = this.syncEnabledFeatures(next.features);
 
     let shouldRedraw = false;
     let nextFingerprint: number | null = null;
@@ -456,6 +461,11 @@ export class GanttChartCanvasController {
 
     if (!wasReadOnly && next.isReadOnly) {
       this.clearSelection();
+      shouldRedraw = true;
+    }
+
+    if (featureFlagsChanged) {
+      this.enforceFeatureStateAfterToggle();
       shouldRedraw = true;
     }
 
@@ -521,6 +531,145 @@ export class GanttChartCanvasController {
       this.redraw();
     }
     this.maybeNotifyTopContentLayout();
+  }
+
+  private resolveEnabledFeatures(
+    features: GanttEditorProps["features"],
+  ): ReadonlySet<GanttEditorFeature> | null {
+    if (!features) return null;
+    return new Set(features);
+  }
+
+  private syncEnabledFeatures(features: GanttEditorProps["features"]): boolean {
+    const nextSet = this.resolveEnabledFeatures(features);
+    if (this.enabledFeatures === null && nextSet === null) return false;
+    if (this.enabledFeatures === null || nextSet === null) {
+      this.enabledFeatures = nextSet;
+      return true;
+    }
+    if (this.enabledFeatures.size !== nextSet.size) {
+      this.enabledFeatures = nextSet;
+      return true;
+    }
+    for (const feature of this.enabledFeatures) {
+      if (!nextSet.has(feature)) {
+        this.enabledFeatures = nextSet;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private isFeatureEnabled(feature: GanttEditorFeature): boolean {
+    return this.enabledFeatures === null || this.enabledFeatures.has(feature);
+  }
+
+  private canSelectSlots(): boolean {
+    return this.isFeatureEnabled("select-slots");
+  }
+
+  private canBrushSelectSlots(): boolean {
+    return this.canSelectSlots() && this.isFeatureEnabled("brush-select-slots");
+  }
+
+  private canResizeSlotTime(): boolean {
+    return this.isFeatureEnabled("resize-slot-time");
+  }
+
+  private canApplySlotSuggestions(): boolean {
+    return this.isFeatureEnabled("apply-slot-suggestions");
+  }
+
+  private canCollapseTopics(): boolean {
+    return this.isFeatureEnabled("collapse-topics");
+  }
+
+  private canUseCanvasContextMenu(): boolean {
+    return this.isFeatureEnabled("canvas-context-menu");
+  }
+
+  private canMoveVerticalMarkers(): boolean {
+    return this.isFeatureEnabled("move-vertical-markers");
+  }
+
+  private canMoveVerticalMarkersFromContextMenu(): boolean {
+    return this.isFeatureEnabled("move-vertical-markers-from-context-menu");
+  }
+
+  private canMoveSlotsToDestination(selectionCount: number): boolean {
+    return selectionCount > 1
+      ? this.isFeatureEnabled("bulk-move-slots-to-destination")
+      : this.isFeatureEnabled("move-slots-to-destination");
+  }
+
+  private canCopySlotsToDestination(selectionCount: number): boolean {
+    return selectionCount > 1
+      ? this.isFeatureEnabled("bulk-copy-slots-to-destination")
+      : this.isFeatureEnabled("copy-slots-to-destination");
+  }
+
+  private canMoveSlotsOnTimeAxis(selectionCount: number): boolean {
+    return selectionCount > 1
+      ? this.isFeatureEnabled("bulk-move-slots-on-time-axis")
+      : this.isFeatureEnabled("move-slots-on-time-axis");
+  }
+
+  private canCopySlotsOnTimeAxis(selectionCount: number): boolean {
+    return selectionCount > 1
+      ? this.isFeatureEnabled("bulk-copy-slots-on-time-axis")
+      : this.isFeatureEnabled("copy-slots-on-time-axis");
+  }
+
+  private canUseAltCopyModifier(): boolean {
+    return this.isFeatureEnabled("copy-modifier-alt");
+  }
+
+  private canUseShiftTimeAxisModifier(): boolean {
+    return this.isFeatureEnabled("time-axis-modifier-shift");
+  }
+
+  private canPreviewSlotsToDestination(
+    selectionCount: number,
+    copyInsteadOfMove: boolean,
+  ): boolean {
+    if (!this.isFeatureEnabled("preview-slots-to-destination")) return false;
+    return copyInsteadOfMove
+      ? this.canCopySlotsToDestination(selectionCount)
+      : this.canMoveSlotsToDestination(selectionCount);
+  }
+
+  private canPreviewSlotsOnTimeAxis(
+    selectionCount: number,
+    copyInsteadOfMove: boolean,
+  ): boolean {
+    if (!this.isFeatureEnabled("preview-slots-on-time-axis")) return false;
+    return copyInsteadOfMove
+      ? this.canCopySlotsOnTimeAxis(selectionCount)
+      : this.canMoveSlotsOnTimeAxis(selectionCount);
+  }
+
+  private enforceFeatureStateAfterToggle(): void {
+    if (!this.canUseAltCopyModifier()) {
+      this.altCopyModifierActive = false;
+    }
+    if (!this.canUseShiftTimeAxisModifier()) {
+      this.shiftTimeAxisModifierActive = false;
+      this.hoveredTimeAxisDiffMs = null;
+    }
+    if (!this.canPreviewSlotsToDestination(this.clipboardItems.length, this.altCopyModifierActive)) {
+      this.hoveredClipboardTopicId = null;
+      this.destinationPreviewTransition = null;
+      this.destinationPreviewTopicsCache = null;
+    }
+    if (!this.canPreviewSlotsOnTimeAxis(this.clipboardItems.length, this.altCopyModifierActive)) {
+      this.hoveredTimeAxisDiffMs = null;
+      this.destinationPreviewTransition = null;
+      this.destinationPreviewTopicsCache = null;
+    }
+    if (!this.canUseCanvasContextMenu()) {
+      this.closeContextMenu(false);
+    }
+    this.refreshCopyCursorIndicator();
   }
 
   /** Sync maps when `destinationGroups` identity/length changes (matches Vue deep watch). */
@@ -741,12 +890,18 @@ export class GanttChartCanvasController {
         const scroll = this.verticalScrollOffsets.get(hit.groupId) || 0;
         const contentY = pt.y - gr.y + scroll;
         if (!this.props.isReadOnly && this.clipboardItems.length > 0 && !this.brushSelection) {
-          if (this.shiftTimeAxisModifierActive) {
+          if (
+            this.shiftTimeAxisModifierActive &&
+            this.canPreviewSlotsOnTimeAxis(this.clipboardItems.length, this.altCopyModifierActive)
+          ) {
             hoveredTimeAxisDiffMs = this.resolveTimeAxisDiffFromCanvasX(
               pt.x,
               layout.canvasCssWidth,
             );
-          } else {
+          } else if (
+            !this.shiftTimeAxisModifierActive &&
+            this.canPreviewSlotsToDestination(this.clipboardItems.length, this.altCopyModifierActive)
+          ) {
             hoveredClipboardTopicId = this.topicIdAtContentY(hit.groupId, contentY);
           }
         }
@@ -806,7 +961,7 @@ export class GanttChartCanvasController {
                   startTime: this.internalStartTime,
                   endTime: this.internalEndTime,
                 })?.slotId ?? null);
-          if (!this.props.isReadOnly) {
+          if (!this.props.isReadOnly && this.canResizeSlotTime()) {
             ewResize =
               hitTestSlotResizeEdge({
                 topics: groupTopics,
@@ -1000,7 +1155,7 @@ export class GanttChartCanvasController {
       return;
     }
     if (e.button !== 0) return;
-    if (e.shiftKey) {
+    if (e.shiftKey && this.canUseShiftTimeAxisModifier()) {
       // Shift+drag is reserved for time panning; do not start brush/select drags.
       e.preventDefault();
       return;
@@ -1024,7 +1179,7 @@ export class GanttChartCanvasController {
       return;
     }
     if (hit.type === "axis") {
-      if (this.props.isReadOnly) return;
+      if (this.props.isReadOnly || !this.canBrushSelectSlots()) return;
       e.preventDefault();
       this.brushSelection = {
         mode: "axis",
@@ -1063,7 +1218,7 @@ export class GanttChartCanvasController {
       layout.canvasCssWidth,
     );
     if (markerHit) {
-      if (markerHit.draggable) {
+      if (markerHit.draggable && this.canMoveVerticalMarkers()) {
         e.preventDefault();
         this.suppressNextCanvasClick = true;
         this.cancelSlotReflowAnimation();
@@ -1089,7 +1244,7 @@ export class GanttChartCanvasController {
         endTime: this.internalEndTime,
         isReadOnly: this.props.isReadOnly,
       });
-      if (rh) {
+      if (rh && this.canResizeSlotTime()) {
         e.preventDefault();
         this.suppressNextCanvasClick = true;
         this.cancelSlotReflowAnimation();
@@ -1133,7 +1288,7 @@ export class GanttChartCanvasController {
       }
     }
 
-    if (!this.props.isReadOnly) {
+    if (!this.props.isReadOnly && this.canBrushSelectSlots()) {
       e.preventDefault();
       this.brushSelection = {
         mode: "group",
@@ -1189,7 +1344,7 @@ export class GanttChartCanvasController {
       ctx.layout.canvasCssWidth,
       ctx.groupTopics,
     );
-    if (suggestionHit) {
+    if (suggestionHit && this.canApplySlotSuggestions()) {
       this.applySuggestionForSlot(suggestionHit.slotId);
       return;
     }
@@ -1200,7 +1355,7 @@ export class GanttChartCanvasController {
         ctx.layout.canvasCssWidth,
       );
       if (timeDiffMs !== null && timeDiffMs !== 0) {
-        this.moveSelectionOnTimeAxis(timeDiffMs, e.altKey);
+        this.moveSelectionOnTimeAxis(timeDiffMs, e.altKey && this.canUseAltCopyModifier());
       }
       return;
     }
@@ -1219,7 +1374,11 @@ export class GanttChartCanvasController {
       : null;
 
     if (slotHit) {
-      this.onSlotPrimaryClick(slotHit.slotId, e.metaKey || e.ctrlKey, e.altKey);
+      this.onSlotPrimaryClick(
+        slotHit.slotId,
+        e.metaKey || e.ctrlKey,
+        e.altKey && this.canUseAltCopyModifier(),
+      );
       this.lastClickedSlotId = slotHit.slotId;
       this.callbacks.onClickOnSlot?.(slotHit.slotId);
       return;
@@ -1228,10 +1387,12 @@ export class GanttChartCanvasController {
     const topicId = this.topicIdAtContentY(ctx.groupId, ctx.contentY);
     if (topicId) {
       if (ctx.point.x < MARGIN.left) {
-        this.toggleTopicCollapse(topicId);
+        if (this.canCollapseTopics()) {
+          this.toggleTopicCollapse(topicId);
+        }
         return;
       }
-      this.moveSelectionToTopic(topicId, e.altKey);
+      this.moveSelectionToTopic(topicId, e.altKey && this.canUseAltCopyModifier());
     }
   }
 
@@ -1259,10 +1420,12 @@ export class GanttChartCanvasController {
   }
 
   onCanvasContextMenu(e: MouseEvent): void {
+    if (!this.canUseCanvasContextMenu()) return;
     this.openCanvasContextMenuFromClientPoint(e.clientX, e.clientY);
   }
 
   onCanvasPointerUp(e: PointerEvent): void {
+    if (!this.canUseCanvasContextMenu()) return;
     if (e.button !== 2) return;
     const candidate = this.secondaryPointerContextMenuCandidate;
     this.clearSecondaryPointerContextMenuCandidate();
@@ -1271,6 +1434,7 @@ export class GanttChartCanvasController {
   }
 
   private openCanvasContextMenuFromClientPoint(clientX: number, clientY: number): void {
+    if (!this.canUseCanvasContextMenu()) return;
     if (this.helpOverlayOpen || this.resolveHelpOverlayHitFromClientPoint(clientX, clientY) !== null) {
       return;
     }
@@ -2552,6 +2716,9 @@ export class GanttChartCanvasController {
       if (timeDiffMs === null) return null;
       const sourceSlotIds = this.clipboardItems.map((slot) => slot.id);
       if (sourceSlotIds.length === 0) return null;
+      if (!this.canPreviewSlotsOnTimeAxis(sourceSlotIds.length, this.altCopyModifierActive)) {
+        return null;
+      }
 
       return {
         topicId: `__time_axis__${timeDiffMs}`,
@@ -2570,6 +2737,9 @@ export class GanttChartCanvasController {
     if (this.clipboardItems.length >= (this.props.hoverPreviewMaxClipboardSize ?? HOVER_PREVIEW_MAX_CLIPBOARD_SIZE)) return null;
     const sourceSlotIds = this.getPreviewEligibleClipboardItems(topicId).map((slot) => slot.id);
     if (sourceSlotIds.length === 0) return null;
+    if (!this.canPreviewSlotsToDestination(sourceSlotIds.length, this.altCopyModifierActive)) {
+      return null;
+    }
     const transition = this.getActiveDestinationPreviewTransition(nowMs, topicId);
 
     return {
@@ -2783,11 +2953,17 @@ export class GanttChartCanvasController {
   }
 
   private shouldUseTimeAxisSelectionMode(shiftPressed: boolean): boolean {
+    const selectionCount = this.readSelection().length;
     return (
       shiftPressed &&
+      this.canUseShiftTimeAxisModifier() &&
       !this.props.isReadOnly &&
       !this.brushSelection &&
-      this.readSelection().length > 0
+      selectionCount > 0 &&
+      (
+        this.canMoveSlotsOnTimeAxis(selectionCount) ||
+        this.canCopySlotsOnTimeAxis(selectionCount)
+      )
     );
   }
 
@@ -2830,15 +3006,16 @@ export class GanttChartCanvasController {
 
     if (!this.props.isReadOnly && !slot.readOnly) {
       const clipboard = this.readSelection();
-      if (clipboard.length === 0 || multiSelect) {
+      if ((clipboard.length === 0 || multiSelect) && this.canSelectSlots()) {
         this.toggleSlotSelection(slotId);
-      } else {
+      } else if (clipboard.length > 0) {
         this.moveSelectionToTopic(slot.destinationId, copyInsteadOfMove);
       }
     }
   }
 
   private toggleSlotSelection(slotId: string): void {
+    if (!this.canSelectSlots()) return;
     const slot = this.props.slots.find((s) => s.id === slotId);
     if (!slot || slot.readOnly) return;
 
@@ -2854,6 +3031,7 @@ export class GanttChartCanvasController {
   }
 
   private addSlotsToSelection(slotIds: string[]): void {
+    if (!this.canSelectSlots()) return;
     if (slotIds.length === 0) return;
     const clipboard = this.readSelection();
     const idsInClipboard = new Set(clipboard.map((s) => s.id));
@@ -2883,6 +3061,7 @@ export class GanttChartCanvasController {
     }
 
     if (copiedSlotIds.length > 1) {
+      if (!this.canCopySlotsToDestination(copiedSlotIds.length)) return false;
       if (this.callbacks.onBulkCopyToDestinationId) {
         this.callbacks.onBulkCopyToDestinationId(copiedSlotIds, topicId, false);
       } else {
@@ -2891,6 +3070,7 @@ export class GanttChartCanvasController {
         }
       }
     } else if (copiedSlotIds.length === 1) {
+      if (!this.canCopySlotsToDestination(copiedSlotIds.length)) return false;
       this.callbacks.onCopyToDestinationId?.(copiedSlotIds[0], topicId, false);
     }
 
@@ -2907,6 +3087,7 @@ export class GanttChartCanvasController {
     }
 
     if (copiedSlotIds.length > 1) {
+      if (!this.canCopySlotsOnTimeAxis(copiedSlotIds.length)) return false;
       if (this.callbacks.onBulkCopySlotsOnTimeAxis) {
         this.callbacks.onBulkCopySlotsOnTimeAxis(copiedSlotIds, timeDiffMs, false);
       } else {
@@ -2915,6 +3096,7 @@ export class GanttChartCanvasController {
         }
       }
     } else if (copiedSlotIds.length === 1) {
+      if (!this.canCopySlotsOnTimeAxis(copiedSlotIds.length)) return false;
       this.callbacks.onCopySlotOnTimeAxis?.(copiedSlotIds[0], timeDiffMs, false);
     }
 
@@ -2925,8 +3107,14 @@ export class GanttChartCanvasController {
     if (this.props.isReadOnly) return;
     const clipboard = this.readSelection();
     if (clipboard.length === 0) return;
+    const slotById = new Map(this.props.slots.map((s) => [s.id, s]));
 
     if (copyInsteadOfMove) {
+      const copyEligibleCount = clipboard.filter((copiedSlot) => {
+        const source = slotById.get(copiedSlot.id);
+        return !!source && !source.readOnly && source.destinationId !== topicId;
+      }).length;
+      if (copyEligibleCount === 0 || !this.canCopySlotsToDestination(copyEligibleCount)) return;
       this.writeSelection([]);
       this.updateSelection();
       const copiedSomething = this.emitCopySelectionToTopic(clipboard, topicId);
@@ -2940,11 +3128,12 @@ export class GanttChartCanvasController {
     const previousLayoutByGroupId = this.captureTopicLayoutSnapshotByGroupId();
 
     let movedSomething = false;
+    const movedTargets = clipboard
+      .map((copiedSlot) => slotById.get(copiedSlot.id))
+      .filter((slot): slot is GanttEditorSlotWithUiAttributes => !!slot && !slot.readOnly);
+    if (movedTargets.length === 0 || !this.canMoveSlotsToDestination(movedTargets.length)) return;
     const movedSlotIds: string[] = [];
-    const slotById = new Map(this.props.slots.map((s) => [s.id, s]));
-    for (const copiedSlot of clipboard) {
-      const target = slotById.get(copiedSlot.id);
-      if (!target || target.readOnly) continue;
+    for (const target of movedTargets) {
       target.destinationId = topicId;
       target.isCopied = false;
       movedSomething = true;
@@ -2982,8 +3171,14 @@ export class GanttChartCanvasController {
 
     const clipboard = this.readSelection();
     if (clipboard.length === 0) return;
+    const slotById = new Map(this.props.slots.map((s) => [s.id, s]));
 
     if (copyInsteadOfMove) {
+      const copyEligibleCount = clipboard.filter((copiedSlot) => {
+        const source = slotById.get(copiedSlot.id);
+        return !!source && !source.readOnly;
+      }).length;
+      if (copyEligibleCount === 0 || !this.canCopySlotsOnTimeAxis(copyEligibleCount)) return;
       this.writeSelection([]);
       this.updateSelection();
       const copiedSomething = this.emitCopySelectionOnTimeAxis(clipboard, timeDiffMs);
@@ -2993,13 +3188,11 @@ export class GanttChartCanvasController {
       return;
     }
 
-    const movedSlotIds: string[] = [];
-    const slotById = new Map(this.props.slots.map((s) => [s.id, s]));
-    for (const copiedSlot of clipboard) {
-      const target = slotById.get(copiedSlot.id);
-      if (!target || target.readOnly) continue;
-      movedSlotIds.push(target.id);
-    }
+    const movedSlotIds = clipboard
+      .map((copiedSlot) => slotById.get(copiedSlot.id))
+      .filter((slot): slot is GanttEditorSlotWithUiAttributes => !!slot && !slot.readOnly)
+      .map((slot) => slot.id);
+    if (movedSlotIds.length === 0 || !this.canMoveSlotsOnTimeAxis(movedSlotIds.length)) return;
 
     if (movedSlotIds.length > 1) {
       if (this.callbacks.onBulkMoveSlotsOnTimeAxis) {
@@ -3472,14 +3665,14 @@ export class GanttChartCanvasController {
 
   private onDocumentKeyDown(e: KeyboardEvent): void {
     if (e.key === "Alt") {
-      if (this.syncAltCopyModifier(true)) {
+      if (this.canUseAltCopyModifier() && this.syncAltCopyModifier(true)) {
         this.scheduleFrameRedraw(true);
       }
       return;
     }
 
     if (e.key === "Shift") {
-      if (this.syncShiftTimeAxisModifier(true)) {
+      if (this.canUseShiftTimeAxisModifier() && this.syncShiftTimeAxisModifier(true)) {
         this.scheduleFrameRedraw(true);
       }
       return;
@@ -3518,6 +3711,7 @@ export class GanttChartCanvasController {
   }
 
   private syncAltCopyModifier(active: boolean): boolean {
+    if (active && !this.canUseAltCopyModifier()) return false;
     if (this.altCopyModifierActive === active) return false;
     this.altCopyModifierActive = active;
     this.destinationPreviewTopicsCache = null;
@@ -3526,6 +3720,7 @@ export class GanttChartCanvasController {
   }
 
   private syncShiftTimeAxisModifier(active: boolean): boolean {
+    if (active && !this.canUseShiftTimeAxisModifier()) return false;
     if (this.shiftTimeAxisModifierActive === active) return false;
     this.shiftTimeAxisModifierActive = active;
     if (active) {
@@ -3553,12 +3748,18 @@ export class GanttChartCanvasController {
   }
 
   private shouldShowCopyCursorIndicator(): boolean {
+    const selectionCount = this.clipboardItems.length;
     return (
       this.pointerInChart &&
       !this.brushSelection &&
       !this.props.isReadOnly &&
+      this.canUseAltCopyModifier() &&
       this.altCopyModifierActive &&
-      this.clipboardItems.length > 0
+      selectionCount > 0 &&
+      (
+        this.canCopySlotsToDestination(selectionCount) ||
+        this.canCopySlotsOnTimeAxis(selectionCount)
+      )
     );
   }
 
@@ -3849,7 +4050,7 @@ export class GanttChartCanvasController {
 
       this.drawMarkedRegionOverlay(ctx, group.id, displayContentHeight, layout.canvasCssWidth);
 
-      if (suggestionsVisible(this.rowHeight)) {
+      if (suggestionsVisible(this.rowHeight) && this.canApplySlotSuggestions()) {
         drawSuggestionButtons({
           ctx,
           width: layout.canvasCssWidth,
@@ -3876,7 +4077,7 @@ export class GanttChartCanvasController {
       startTime: this.internalStartTime,
       endTime: this.internalEndTime,
       markers: this.props.verticalMarkers ?? [],
-      isReadOnly: this.props.isReadOnly,
+      isReadOnly: this.props.isReadOnly || !this.canMoveVerticalMarkers(),
       lineTop: 0,
       lineBottom: layout.canvasCssHeight,
       draggingMarker: this.verticalMarkerDrag
@@ -4725,6 +4926,7 @@ export class GanttChartCanvasController {
   private runContextMenuAction(payload: ContextMenuActionPayload | undefined): void {
     if (!payload) return;
     if (payload.kind === "move-vertical-marker") {
+      if (!this.canMoveVerticalMarkersFromContextMenu()) return;
       this.callbacks.onVerticalMarkerChange?.(payload.markerId, payload.targetDate);
       return;
     }
@@ -4738,6 +4940,7 @@ export class GanttChartCanvasController {
   }
 
   private getContextMenuMovableMarkers(): Array<{ id: string; label?: string }> {
+    if (!this.canMoveVerticalMarkersFromContextMenu()) return [];
     if (this.props.isReadOnly) return [];
     const markers = this.props.verticalMarkers ?? [];
     return markers
@@ -4823,6 +5026,7 @@ export class GanttChartCanvasController {
   }
 
   private applySuggestionForSlot(slotId: string): void {
+    if (!this.canApplySlotSuggestions()) return;
     if (!slotId || this.props.isReadOnly) return;
     const suggestion = this.props.suggestions.find((s) => s.slotId === slotId);
     if (!suggestion) return;
@@ -4851,6 +5055,7 @@ export class GanttChartCanvasController {
     width: number,
     groupTopics: Topic[],
   ) {
+    if (!this.canApplySlotSuggestions()) return null;
     if (!suggestionsVisible(this.rowHeight)) return null;
     return hitSuggestionForGroup({
       canvasX,
@@ -4881,7 +5086,7 @@ export class GanttChartCanvasController {
       width,
       layout,
       markers: this.props.verticalMarkers,
-      isReadOnly: this.props.isReadOnly,
+      isReadOnly: this.props.isReadOnly || !this.canMoveVerticalMarkers(),
       startTime: this.internalStartTime,
       endTime: this.internalEndTime,
       margin: MARGIN,

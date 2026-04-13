@@ -14,6 +14,7 @@ export type {
     GanttEditorProps,
     GanttEditorCallbacks,
     GanttEditorHost,
+    GanttEditorFeature,
 } from './components/gantt-editor-lib/chart/gantt_canvas_props'
 export type { GanttEditorRulerMode } from './components/gantt-editor-lib/chart/gantt_canvas_props'
 export type { HelpOverlayTileDefinition } from './components/gantt-editor-lib/chart/help_overlay/help_overlay_tile'

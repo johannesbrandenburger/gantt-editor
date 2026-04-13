@@ -171,6 +171,44 @@ function onContextMenuAction(actionId: string, timestamp: Date, destinationId: s
 | `xAxisOptions` | `GanttEditorXAxisOptions` | no | `undefined` | Tick format / tick generation customization |
 | `helpOverlayTiles` | `HelpOverlayTileDefinition[]` | no | `undefined` | Custom help tiles appended to built-in defaults (same-id custom tiles override defaults) |
 | `helpOverlayTileIds` | `string[]` | no | `undefined` | Help tile ids to include from the active tile list (built-in + custom); omit to show all active tiles, pass `[]` to disable help UI entirely |
+| `features` | `GanttEditorFeature[]` | no | `undefined` | Feature allow-list. Omit to keep all interactions enabled. Pass specific ids to enable only those features. |
+
+#### Feature Flags (`features`)
+
+Use `features` as an allow-list of enabled behavior. Example:
+
+```vue
+<GanttEditorComponent
+  :features="[
+    'copy-slots-to-destination',
+    'bulk-copy-slots-to-destination',
+    'move-slots-to-destination'
+  ]"
+/>
+```
+
+Supported feature ids:
+
+- `select-slots`
+- `brush-select-slots`
+- `resize-slot-time`
+- `apply-slot-suggestions`
+- `collapse-topics`
+- `canvas-context-menu`
+- `move-vertical-markers`
+- `move-vertical-markers-from-context-menu`
+- `move-slots-to-destination`
+- `bulk-move-slots-to-destination`
+- `copy-slots-to-destination`
+- `bulk-copy-slots-to-destination`
+- `move-slots-on-time-axis`
+- `bulk-move-slots-on-time-axis`
+- `copy-slots-on-time-axis`
+- `bulk-copy-slots-on-time-axis`
+- `preview-slots-to-destination`
+- `preview-slots-on-time-axis`
+- `copy-modifier-alt`
+- `time-axis-modifier-shift`
 
 #### Rulers (`activateRulers`)
 
@@ -292,6 +330,28 @@ export type GanttEditorVerticalMarker = {
 };
 
 export type GanttEditorRulerMode = "ROW" | "GLOBAL" | null;
+
+export type GanttEditorFeature =
+  | "select-slots"
+  | "brush-select-slots"
+  | "resize-slot-time"
+  | "apply-slot-suggestions"
+  | "collapse-topics"
+  | "canvas-context-menu"
+  | "move-vertical-markers"
+  | "move-vertical-markers-from-context-menu"
+  | "move-slots-to-destination"
+  | "bulk-move-slots-to-destination"
+  | "copy-slots-to-destination"
+  | "bulk-copy-slots-to-destination"
+  | "move-slots-on-time-axis"
+  | "bulk-move-slots-on-time-axis"
+  | "copy-slots-on-time-axis"
+  | "bulk-copy-slots-on-time-axis"
+  | "preview-slots-to-destination"
+  | "preview-slots-on-time-axis"
+  | "copy-modifier-alt"
+  | "time-axis-modifier-shift";
 ```
 
 `GanttEditorXAxisOptions`:

@@ -24,6 +24,10 @@ const routes = [
     path: '/e2e-harness',
     component: () => import('../pages/e2e-harness.vue'),
   },
+  {
+    path: '/features',
+    component: () => import('../pages/features.vue'),
+  },
 ]
 
 const router = createRouter({
