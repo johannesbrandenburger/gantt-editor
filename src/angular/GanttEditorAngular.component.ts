@@ -141,8 +141,19 @@ export class GanttEditorAngularComponent implements GanttEditorProps, AfterViewI
 
   currentTopContentHeight = 0
 
+  private static readonly INITIAL_CONTROLLER_PROPS: GanttEditorProps = {
+    startTime: new Date(0),
+    endTime: new Date(1),
+    slots: [],
+    destinations: [],
+    destinationGroups: [],
+    suggestions: [],
+    markedRegion: null,
+    isReadOnly: true,
+  }
+
   private readonly controller = new GanttChartCanvasController(
-    this.propsSnapshot(),
+    GanttEditorAngularComponent.INITIAL_CONTROLLER_PROPS,
     {
       onChangeStartAndEndTime: (start, end) => this.onChangeStartAndEndTime.emit([start, end]),
       onTopContentPortionChange: (portion, heightPx) =>
@@ -192,6 +203,8 @@ export class GanttEditorAngularComponent implements GanttEditorProps, AfterViewI
   ) {}
 
   ngAfterViewInit(): void {
+    // Inputs are assigned after construction; sync the model before first render.
+    this.controller.refreshModel(this.propsSnapshot())
     this.controller.updateSelection()
     this.controller.attach(this.chartContainerRef.nativeElement, this.chartCanvasRef.nativeElement)
     this.isAttached = true
