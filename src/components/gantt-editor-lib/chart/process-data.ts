@@ -183,6 +183,17 @@ function effectiveEndMs(slot: {
   return e;
 }
 
+function effectiveStartMs(slot: {
+  openTime: Date;
+  deadline?: Date;
+  secondaryDeadline?: Date;
+}): number {
+  let s = slot.openTime.getTime();
+  if (slot.deadline) s = Math.min(s, slot.deadline.getTime());
+  if (slot.secondaryDeadline) s = Math.min(s, slot.secondaryDeadline.getTime());
+  return s;
+}
+
 function sortSlotsByOpen(slots: GanttEditorSlot[]): GanttEditorSlot[] {
   return slots.slice().sort(
     (a, b) =>
@@ -201,7 +212,12 @@ function assignSlotsToRowsHeap(
   topicId: string,
   compactView: boolean,
 ): Array<{ name: string; slots: GanttEditorSlot[]; id: string }> {
-  const sorted = sortSlotsByOpen(topicSlots);
+  const sorted = topicSlots.slice().sort(
+    (a, b) =>
+      (compactView ? a.openTime.getTime() : effectiveStartMs(a)) -
+        (compactView ? b.openTime.getTime() : effectiveStartMs(b)) ||
+      a.id.localeCompare(b.id),
+  );
 
   type Prepared = { slot: GanttEditorSlot; open: number; end: number };
   const prepared: Prepared[] = new Array(sorted.length);
@@ -209,7 +225,7 @@ function assignSlotsToRowsHeap(
     const slot = sorted[i]!;
     prepared[i] = {
       slot,
-      open: slot.openTime.getTime(),
+      open: compactView ? slot.openTime.getTime() : effectiveStartMs(slot),
       end: compactView ? slot.closeTime.getTime() : effectiveEndMs(slot),
     };
   }
@@ -268,23 +284,32 @@ const doesSlotOverlapRowWithDeadline = (
     secondaryDeadline?: Date;
   },
 ): boolean => {
-  const cOpen = candidate.openTime.getTime();
+  let cOpen = candidate.openTime.getTime();
   let cClose = candidate.closeTime.getTime();
   if (candidate.deadline) {
-    cClose = Math.max(cClose, candidate.deadline.getTime());
+    const deadlineTime = candidate.deadline.getTime();
+    cOpen = Math.min(cOpen, deadlineTime);
+    cClose = Math.max(cClose, deadlineTime);
   }
   if (candidate.secondaryDeadline) {
-    cClose = Math.max(cClose, candidate.secondaryDeadline.getTime());
+    const secondaryDeadlineTime = candidate.secondaryDeadline.getTime();
+    cOpen = Math.min(cOpen, secondaryDeadlineTime);
+    cClose = Math.max(cClose, secondaryDeadlineTime);
   }
   for (const s of existingSlots) {
+    let sOpen = s.openTime.getTime();
     let sClose = s.closeTime.getTime();
     if (s.deadline) {
-      sClose = Math.max(sClose, s.deadline.getTime());
+      const deadlineTime = s.deadline.getTime();
+      sOpen = Math.min(sOpen, deadlineTime);
+      sClose = Math.max(sClose, deadlineTime);
     }
     if (s.secondaryDeadline) {
-      sClose = Math.max(sClose, s.secondaryDeadline.getTime());
+      const secondaryDeadlineTime = s.secondaryDeadline.getTime();
+      sOpen = Math.min(sOpen, secondaryDeadlineTime);
+      sClose = Math.max(sClose, secondaryDeadlineTime);
     }
-    if (s.openTime.getTime() < cClose && sClose > cOpen) {
+    if (sOpen < cClose && sClose > cOpen) {
       return true;
     }
   }
@@ -363,7 +388,7 @@ function collectConflictIds(allSlots: GanttEditorSlot[]): Set<string> {
   for (let i = 0; i < n; i++) {
     const s = allSlots[i]!;
     evs[i] = {
-      open: s.openTime.getTime(),
+      open: effectiveStartMs(s),
       end: effectiveEndMs(s),
       id: s.id,
     };
