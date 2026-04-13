@@ -54,11 +54,11 @@
     "test:e2e:coverage": "node -e \"require('fs').rmSync('.nyc_output',{recursive:true,force:true})\" && cross-env PW_E2E_COVERAGE=1 playwright test && node -e \"require('fs').mkdirSync('.nyc_output',{recursive:true})\" && nyc report --temp-dir .nyc_output --reporter=text-summary --reporter=html --report-dir test-results/e2e-coverage && http-server test-results/e2e-coverage -p 4173 -c-1"
   },
   "dependencies": {
-    "vue": "^3.5.13"
+    "vue": "^3.5.32"
   },
   "peerDependencies": {
-    "@angular/common": "^17.0.0 || ^18.0.0 || ^19.0.0 || ^20.0.0",
-    "@angular/core": "^17.0.0 || ^18.0.0 || ^19.0.0 || ^20.0.0",
+    "@angular/common": "^18.0.0 || ^19.0.0 || ^20.0.0 || ^21.0.0",
+    "@angular/core": "^18.0.0 || ^19.0.0 || ^20.0.0 || ^21.0.0",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
   },
@@ -77,27 +77,27 @@
     }
   },
   "devDependencies": {
-    "@angular/common": "^20.3.4",
-    "@angular/core": "^20.3.4",
-    "@playwright/test": "^1.58.1",
-    "@tsconfig/node22": "^22.0.0",
-    "@types/node": "^22.19.17",
-    "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.2",
-    "@vitejs/plugin-vue": "^5.2.3",
-    "@vue/tsconfig": "^0.7.0",
+    "@angular/common": "21.2.8",
+    "@angular/core": "21.2.8",
+    "@playwright/test": "^1.59.1",
+    "@tsconfig/node22": "^22.0.5",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "@vue/tsconfig": "^0.9.1",
     "cross-env": "^10.1.0",
-    "eslint": "^9.23.0",
+    "eslint": "^10.2.0",
     "http-server": "^14.1.1",
-    "npm-run-all2": "^7.0.2",
+    "npm-run-all2": "^8.0.4",
     "nyc": "^18.0.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "tsup": "^8.5.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.2",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.8",
     "vite-plugin-istanbul": "^8.0.0",
     "vite-plugin-lib-inject-css": "^2.2.2",
-    "vue-tsc": "^2.2.8"
+    "vue-tsc": "^3.2.6"
   }
 }
