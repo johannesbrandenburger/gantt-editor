@@ -14,9 +14,9 @@ Canvas-based Gantt editor library with framework wrappers for Vue 3, React, and 
 - Start Vue demo app: `npm run dev:vue`
 - Default `npm run dev` delegates to `npm run dev:vue`.
 
-- Vue entry: `@pf/gantt-editor-vue-component` (or `@pf/gantt-editor-vue-component/vue`)
-- React entry: `@pf/gantt-editor-vue-component/react`
-- Angular entry: `@pf/gantt-editor-vue-component/angular`
+- Vue entry: `@pf/gantt-editor-component-vue`
+- React entry: `@pf/gantt-editor-component-react`
+- Angular entry: `@pf/gantt-editor-component-angular`
 
 ## Install via GitLab Package Registry
 
@@ -27,7 +27,7 @@ Canvas-based Gantt editor library with framework wrappers for Vue 3, React, and 
 //code.oair.io/api/v4/projects/671/packages/npm/:_authToken=${GITLAB_ACCESS_TOKEN}
 ```
 
-2. Create a GitLab access token [here](https://code.oair.io/pf/products/bagiq/hlc-ui-components/gantt-editor-vue-component/-/settings/access_tokens) (see [GitLab docs](https://docs.gitlab.com/user/packages/npm_registry/#authenticate-to-the-package-registry)).
+2. Create a GitLab access token [here](https://code.oair.io/pf/products/bagiq/hlc-ui-components/gantt-editor-component/-/settings/access_tokens) (see [GitLab docs](https://docs.gitlab.com/user/packages/npm_registry/#authenticate-to-the-package-registry)).
 
 - Role: `Developer`
 - Scopes: `read_api`
@@ -35,7 +35,7 @@ Canvas-based Gantt editor library with framework wrappers for Vue 3, React, and 
 3. Install package:
 
 ```bash
-GITLAB_ACCESS_TOKEN=<your-gitlab-access-token> npm install @pf/gantt-editor-vue-component@latest
+GITLAB_ACCESS_TOKEN=<your-gitlab-access-token> npm install @pf/gantt-editor-component-vue@latest
 ```
 
 Run the same command later to update.
@@ -63,7 +63,7 @@ import GanttEditorComponent, {
   type GanttEditorSlot,
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
-} from "@pf/gantt-editor-vue-component";
+} from "@pf/gantt-editor-component-vue";
 
 const startTime = ref(new Date("2025-01-01T00:00:00Z"));
 const endTime = ref(new Date("2025-01-02T00:00:00Z"));
@@ -171,7 +171,7 @@ function onContextMenuAction(actionId: string, timestamp: Date, destinationId: s
 
 ```tsx
 import { useMemo, useState } from "react";
-import { GanttEditorReact, type GanttEditorSlot } from "@pf/gantt-editor-vue-component/react";
+import { GanttEditorReact, type GanttEditorSlot } from "@pf/gantt-editor-component-react";
 
 export function ReactGanttPage() {
   const [startTime] = useState(new Date("2025-01-01T00:00:00Z"));
@@ -213,7 +213,7 @@ export function ReactGanttPage() {
 
 ```ts
 import { Component } from "@angular/core";
-import { GanttEditorAngularComponent } from "@pf/gantt-editor-vue-component/angular";
+import { GanttEditorAngularComponent } from "@pf/gantt-editor-component-angular";
 
 @Component({
   selector: "app-root",

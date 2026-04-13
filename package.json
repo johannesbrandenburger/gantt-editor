@@ -1,5 +1,5 @@
 {
-  "name": "@pf/gantt-editor-vue-component",
+  "name": "@pf/gantt-editor-component",
   "private": false,
   "workspaces": [
     "apps/*"

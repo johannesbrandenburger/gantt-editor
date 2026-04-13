@@ -3,7 +3,8 @@
   "compilerOptions": {
     "noEmit": false,
     "composite": false,
-    "incremental": false
+    "incremental": false,
+    "rootDir": ".",
   },
   "include": [
     "env.d.ts",
