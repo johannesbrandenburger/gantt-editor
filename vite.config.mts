@@ -13,7 +13,7 @@ export default defineConfig({
     Vue(),
     istanbul({
       include: 'src/**',
-      extension: ['.js', '.ts', '.vue'],
+      extension: ['.ts', '.vue', '.tsx'],
       requireEnv: true,
       cypress: false,
       forceBuildInstrument: false,

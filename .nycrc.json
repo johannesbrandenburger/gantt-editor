@@ -6,8 +6,10 @@
     ".vue"
   ],
   "include": [
-    "src/**/*.ts",
-    "src/**/*.vue"
+    "src/angular/**",
+    "src/vue/**",
+    "src/react/**",
+    "src/components/**"
   ],
   "exclude": [
     "**/*.d.ts"
