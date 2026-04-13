@@ -4729,7 +4729,7 @@ export class GanttChartCanvasController {
       return;
     }
     if (payload.kind === "custom-action") {
-      this.callbacks.onCanvasContextMenuAction?.(
+      this.callbacks.onContextMenuAction?.(
         payload.actionId,
         payload.targetDate,
         payload.destinationId,
@@ -4749,7 +4749,7 @@ export class GanttChartCanvasController {
     destinationId: string,
     targetDate: Date,
   ): Array<CanvasContextMenuItem<ContextMenuActionPayload>> {
-    const actions = this.props.canvasContextMenuActions ?? [];
+    const actions = this.props.contextMenuActions ?? [];
     if (actions.length === 0) return [];
 
     return actions.map((action: GanttEditorCanvasContextMenuAction) => ({

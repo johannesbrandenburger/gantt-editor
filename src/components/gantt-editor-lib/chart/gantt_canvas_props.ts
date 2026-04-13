@@ -28,7 +28,7 @@ export interface GanttEditorProps {
   /** Enable slot-edge snap rulers while resizing (`null` disables). */
   activateRulers?: GanttEditorRulerMode;
   verticalMarkers?: Array<GanttEditorVerticalMarker>;
-  canvasContextMenuActions?: Array<GanttEditorCanvasContextMenuAction>;
+  contextMenuActions?: Array<GanttEditorCanvasContextMenuAction>;
   markedRegion: GanttEditorMarkedRegion | null;
   isReadOnly: boolean;
   topContentPortion?: number;
@@ -62,7 +62,7 @@ export interface GanttEditorCallbacks {
   onContextClickOnSlot?: (slotId: string) => void;
   onVerticalMarkerChange?: (id: string, date: Date) => void;
   onVerticalMarkerClick?: (id: string) => void;
-  onCanvasContextMenuAction?: (actionId: string, timestamp: Date, destinationId: string) => void;
+  onContextMenuAction?: (actionId: string, timestamp: Date, destinationId: string) => void;
 }
 
 /** Optional hooks for host UI state (Vue refs, Angular signals, etc.). */

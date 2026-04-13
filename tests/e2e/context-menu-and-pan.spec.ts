@@ -161,7 +161,7 @@ test.describe("canvas rewrite context menu and pan", () => {
     await expect
       .poll(async () => {
         const events = await getHarnessEvents(page);
-        const actionEvents = (events.onCanvasContextMenuAction ?? []) as Array<{
+        const actionEvents = (events.onContextMenuAction ?? []) as Array<{
           actionId?: string;
           destinationId?: string;
           timestamp?: string;

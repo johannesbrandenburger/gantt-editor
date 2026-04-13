@@ -30,7 +30,7 @@ type HarnessData = {
   destinationGroups: GanttEditorDestinationGroup[];
   suggestions: GanttEditorSuggestion[];
   verticalMarkers: GanttEditorVerticalMarker[];
-  canvasContextMenuActions: GanttEditorCanvasContextMenuAction[];
+  contextMenuActions: GanttEditorCanvasContextMenuAction[];
   markedRegion: GanttEditorMarkedRegion | null;
   activateRulers: GanttEditorRulerMode;
   isReadOnly: boolean;
@@ -267,7 +267,7 @@ function baseData(fixture: FixtureName, slotCount: number): HarnessData {
     destinationGroups: destinationGroupsBase,
     suggestions: [],
     verticalMarkers: [],
-    canvasContextMenuActions: [],
+    contextMenuActions: [],
     markedRegion: null,
     activateRulers: null,
     isReadOnly: fixture === "readonly",
@@ -301,7 +301,7 @@ function baseData(fixture: FixtureName, slotCount: number): HarnessData {
       endTime: new Date(`${isoDay}T12:30:00Z`),
       destinationId: "multiple",
     };
-    data.canvasContextMenuActions = [
+    data.contextMenuActions = [
       { id: "create-flight", label: "Create a flight here" },
     ];
   }
@@ -333,7 +333,7 @@ function cloneData(data: HarnessData): HarnessData {
     destinationGroups: data.destinationGroups.map((g) => ({ ...g })),
     suggestions: data.suggestions.map((s) => ({ ...s })),
     verticalMarkers: data.verticalMarkers.map((m) => ({ ...m, date: new Date(m.date) })),
-    canvasContextMenuActions: data.canvasContextMenuActions.map((a) => ({ ...a })),
+    contextMenuActions: data.contextMenuActions.map((a) => ({ ...a })),
     markedRegion: data.markedRegion
       ? {
           ...data.markedRegion,
@@ -669,8 +669,8 @@ function onClickVerticalMarker(id: string): void {
   logEvent("onClickVerticalMarker", { id });
 }
 
-function onCanvasContextMenuAction(actionId: string, timestamp: Date, destinationId: string): void {
-  logEvent("onCanvasContextMenuAction", { actionId, timestamp, destinationId });
+function onContextMenuAction(actionId: string, timestamp: Date, destinationId: string): void {
+  logEvent("onContextMenuAction", { actionId, timestamp, destinationId });
 }
 
 const testApi: HarnessApi = {
@@ -760,7 +760,7 @@ onBeforeUnmount(() => {
       :destinationGroups="harnessData.destinationGroups"
       :suggestions="harnessData.suggestions"
       :verticalMarkers="harnessData.verticalMarkers"
-      :canvasContextMenuActions="harnessData.canvasContextMenuActions"
+      :contextMenuActions="harnessData.contextMenuActions"
       :markedRegion="harnessData.markedRegion"
       :topContentPortion="harnessData.topContentPortion"
       :activateRulers="harnessData.activateRulers"
@@ -781,7 +781,7 @@ onBeforeUnmount(() => {
       @onSelectionChange="onSelectionChange"
       @onChangeVerticalMarker="onChangeVerticalMarker"
       @onClickVerticalMarker="onClickVerticalMarker"
-      @onCanvasContextMenuAction="onCanvasContextMenuAction"
+      @onContextMenuAction="onContextMenuAction"
     />
   </div>
 </template>

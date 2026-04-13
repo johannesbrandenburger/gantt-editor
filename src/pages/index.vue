@@ -19,7 +19,7 @@
             :destinationGroups="destinationGroups"
             :suggestions="suggestions"
             :verticalMarkers="verticalMarkers"
-            :canvasContextMenuActions="canvasContextMenuActions"
+            :contextMenuActions="contextMenuActions"
             :markedRegion="markedRegion"
             :activate-rulers="'GLOBAL'"
             @onChangeStartAndEndTime="handleChangeStartAndEndTime"
@@ -39,7 +39,7 @@
             @onSelectionChange="handleSelectionChange"
             @onChangeVerticalMarker="handleChangeVerticalMarker"
             @onClickVerticalMarker="handleClickVerticalMarker"
-            @onCanvasContextMenuAction="handleCanvasContextMenuAction"
+            @onContextMenuAction="handleCanvasContextMenuAction"
             :topContentPortion="topContentPortion"
             @onTopContentPortionChange="(newPortion: number, newHeight: number) => topContentPortion = newPortion"
         >
@@ -414,7 +414,7 @@ const verticalMarkers = ref<GanttEditorVerticalMarker[]>([
     },
 ]);
 
-const canvasContextMenuActions = ref<GanttEditorCanvasContextMenuAction[]>([
+const contextMenuActions = ref<GanttEditorCanvasContextMenuAction[]>([
     { id: 'create-flight', label: 'Create a flight here' },
 ]);
 
