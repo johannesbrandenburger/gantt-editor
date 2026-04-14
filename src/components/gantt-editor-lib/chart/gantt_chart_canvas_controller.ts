@@ -3889,6 +3889,7 @@ export class GanttChartCanvasController {
         }
         this.scheduleFrameRedraw(true);
       },
+      isZoomEnabled: () => this.isFeatureEnabled("zoom-time-axis"),
       onTimeRangeCommit: (start: Date, end: Date) => {
         if (!this.isFeatureEnabled("scroll-horizontal")) return;
         this.cancelSlotReflowAnimation();

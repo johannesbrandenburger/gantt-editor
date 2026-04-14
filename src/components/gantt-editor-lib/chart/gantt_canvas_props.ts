@@ -34,7 +34,8 @@ export type GanttEditorFeature =
   | "preview-slots-on-time-axis"
   | "copy-modifier-alt"
   | "time-axis-modifier-shift"
-  | "scroll-horizontal";
+  | "scroll-horizontal"
+  | "zoom-time-axis";
 
 /**
  * Framework-agnostic input model for the canvas Gantt chart.

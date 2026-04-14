@@ -28,6 +28,8 @@ export interface PanZoomCallbacks {
   getChartWidth: () => number;
   /** Left margin (label area). */
   marginLeft: number;
+  /** Returns whether time-axis zoom (modifier+wheel) is currently enabled. */
+  isZoomEnabled: () => boolean;
 }
 
 export interface PanZoomCleanup {
@@ -120,6 +122,7 @@ export function handlePanZoomWheelEvent(
 
   const shouldZoom = event.ctrlKey || event.shiftKey || event.altKey;
   if (!shouldZoom) return false;
+  if (!callbacks.isZoomEnabled()) return false;
   if (timeRangeMs <= 0) return false;
 
   event.preventDefault();
