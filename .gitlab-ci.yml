@@ -26,9 +26,12 @@ test:
     - npm run test:e2e
 
 publish:
-  image: node:latest
+  image: node:22
   stage: publish
   rules:
+  # TEMP: if on multi-framework-component branch, publish regardless of changes to package.json
+    - if: $CI_COMMIT_BRANCH == "multi-framework-component"
+      when: on_success
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_REF_NAME =~ /^v\d+\.\d+\.\d+.*$/
       when: on_success
       changes:
@@ -45,6 +48,10 @@ publish:
         } >> .npmrc
       fi
     - echo "Created the following .npmrc:"; cat .npmrc
+
+    # Fail fast when the package registry is unreachable instead of hanging in npm retries.
+    - NPM_REGISTRY_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/npm/"
+    - npm ping --registry "$NPM_REGISTRY_URL"
 
     # Build package manifests for each framework wrapper and publish all three.
     - VERSION=$(node -p "require('./package.json').version")
@@ -127,5 +134,10 @@ publish:
         fi
 
         echo "Publishing ${package_name}@${VERSION} from ${package_dir}"
-        npm publish "$package_dir"
+        npm publish "./$package_dir" \
+          --registry "$NPM_REGISTRY_URL" \
+          --loglevel verbose \
+          --fetch-retries=1 \
+          --fetch-retry-mintimeout=1000 \
+          --fetch-retry-maxtimeout=5000
       done
