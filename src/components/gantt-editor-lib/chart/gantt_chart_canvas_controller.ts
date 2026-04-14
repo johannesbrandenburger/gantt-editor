@@ -1542,21 +1542,23 @@ export class GanttChartCanvasController {
               },
             },
           ]
-        : [
-            {
-              id: "move-marker-here",
-              label: "Move marker here",
-              children: contextMenuMovableMarkers.map((marker) => ({
-                id: `move-marker:${marker.id}`,
-                label: marker.label && marker.label.trim().length > 0 ? marker.label : marker.id,
-                payload: {
-                  kind: "move-vertical-marker",
-                  markerId: marker.id,
-                  targetDate,
-                },
-              })),
-            },
-          ];
+        : contextMenuMovableMarkers.length > 1
+          ? [
+              {
+                id: "move-marker-here",
+                label: "Move marker here",
+                children: contextMenuMovableMarkers.map((marker) => ({
+                  id: `move-marker:${marker.id}`,
+                  label: marker.label && marker.label.trim().length > 0 ? marker.label : marker.id,
+                  payload: {
+                    kind: "move-vertical-marker",
+                    markerId: marker.id,
+                    targetDate,
+                  },
+                })),
+              },
+            ]
+          : [];
 
     const menuItems: CanvasContextMenuItem<ContextMenuActionPayload>[] = [
       ...markerMenuItems,
