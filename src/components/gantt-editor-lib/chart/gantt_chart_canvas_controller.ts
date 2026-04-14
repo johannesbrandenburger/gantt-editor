@@ -3880,6 +3880,7 @@ export class GanttChartCanvasController {
       }),
       getChartWidth: () => this.containerWidth - MARGIN.left - MARGIN.right,
       onTimeRangeChange: (start: Date, end: Date, wheelZoomAnchor?: WheelZoomAnchor) => {
+        if (!this.isFeatureEnabled("scroll-horizontal")) return;
         this.cancelSlotReflowAnimation();
         this.internalStartTime = start;
         this.internalEndTime = end;
@@ -3889,6 +3890,7 @@ export class GanttChartCanvasController {
         this.scheduleFrameRedraw(true);
       },
       onTimeRangeCommit: (start: Date, end: Date) => {
+        if (!this.isFeatureEnabled("scroll-horizontal")) return;
         this.cancelSlotReflowAnimation();
         this.internalStartTime = start;
         this.internalEndTime = end;
