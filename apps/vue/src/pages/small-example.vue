@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import GanttEditorComponent from '@/vue/GanttEditorComponent.vue';
+// import GanttEditorComponent from '@pf/gantt-editor-component-vue';
 </script>
 <template>
     <!--

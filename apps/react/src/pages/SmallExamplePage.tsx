@@ -4,6 +4,7 @@ import {
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorSlot,
+// } from '@pf/gantt-editor-component-react'
 } from '../../../../src/react'
 
 const pageStyle: React.CSSProperties = {

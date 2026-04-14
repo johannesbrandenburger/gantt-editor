@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@pf/gantt-editor-component-vue": "0.10.1",
     "vue": "^3.5.32",
     "vue-router": "^5.0.4"
   },
