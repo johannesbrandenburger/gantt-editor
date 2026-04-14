@@ -2,7 +2,22 @@
 
 Framework-agnostic canvas Gantt editor with Vue, React, and Angular wrappers.
 
-## Install
+## Install via GitLab Registry
+
+Create a GitLab personal access token with the following requirements:
+
+- Role: `Developer`
+- Scope: `read_api`
+
+Create a `.npmrc` file in your project root with the following content, replacing `<GITLAB_ACCESS_TOKEN>` with your token:
+
+```bash
+# .npmrc
+@pf:registry=https://code.oair.io/api/v4/projects/671/packages/npm/
+//code.oair.io/api/v4/projects/671/packages/npm/:_authToken=<GITLAB_ACCESS_TOKEN>
+```
+
+Then install the desired package(s):
 
 ```bash
 # Vue
@@ -13,16 +28,6 @@ npm install @pf/gantt-editor-component-react
 
 # Angular
 npm install @pf/gantt-editor-component-angular
-```
-
-### GitLab Registry
-
-> Needed for the package registry
-
-```bash
-# .npmrc
-@pf:registry=https://code.oair.io/api/v4/projects/671/packages/npm/
-//code.oair.io/api/v4/projects/671/packages/npm/:_authToken=${GITLAB_ACCESS_TOKEN}
 ```
 
 Token requirements:
