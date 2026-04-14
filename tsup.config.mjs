@@ -19,12 +19,4 @@ export default defineConfig([
     outDir: 'dist/react',
     external: ['react', 'react-dom'],
   },
-  {
-    ...base,
-    entry: {
-      index: 'src/angular/index.ts',
-    },
-    outDir: 'dist/angular',
-    external: ['@angular/core', '@angular/common'],
-  },
 ])

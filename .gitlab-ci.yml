@@ -74,6 +74,7 @@ publish:
         PACKAGE_NAME="$package_name" \
         PACKAGE_VERSION="$VERSION" \
         PACKAGE_DIR="$package_dir" \
+        FRAMEWORK="$framework" \
         node -e '
           const fs = require("fs");
           const path = require("path");
@@ -91,6 +92,40 @@ publish:
             if (rootPkg.peerDependenciesMeta?.[key]) {
               peerDependenciesMeta[key] = rootPkg.peerDependenciesMeta[key];
             }
+          }
+
+          const packagePath = path.join(process.env.PACKAGE_DIR, "package.json");
+          if (process.env.FRAMEWORK === "angular") {
+            const outPkg = {
+              name: process.env.PACKAGE_NAME,
+              version: process.env.PACKAGE_VERSION,
+              type: "module",
+              sideEffects: false,
+              main: "./angular/index.js",
+              module: "./angular/index.js",
+              types: "./angular/index.d.ts",
+              exports: {
+                ".": {
+                  types: "./angular/index.d.ts",
+                  import: "./angular/index.js"
+                }
+              },
+              files: [
+                "angular/**/*.js",
+                "angular/**/*.d.ts",
+                "components/**/*.js",
+                "components/**/*.d.ts",
+                "**/*.map"
+              ],
+              peerDependencies
+            };
+
+            if (Object.keys(peerDependenciesMeta).length > 0) {
+              outPkg.peerDependenciesMeta = peerDependenciesMeta;
+            }
+
+            fs.writeFileSync(packagePath, `${JSON.stringify(outPkg, null, 2)}\n`);
+            process.exit(0);
           }
 
           const outPkg = {
@@ -124,7 +159,7 @@ publish:
             outPkg.peerDependenciesMeta = peerDependenciesMeta;
           }
 
-          fs.writeFileSync(path.join(process.env.PACKAGE_DIR, "package.json"), `${JSON.stringify(outPkg, null, 2)}\n`);
+          fs.writeFileSync(packagePath, `${JSON.stringify(outPkg, null, 2)}\n`);
         '
 
         NPM_PACKAGE_NAME=$(node -p "require('./${package_dir}/package.json').name")

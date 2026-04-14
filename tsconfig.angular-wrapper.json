@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": false,
+    "declaration": true,
+    "declarationMap": false,
+    "sourceMap": true,
+    "noEmit": false,
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "dist/angular",
+    "rootDir": "src",
+    "types": ["node"]
+  },
+  "angularCompilerOptions": {
+    "compilationMode": "partial"
+  },
+  "include": [
+    "src/angular/**/*.ts",
+    "src/components/gantt-editor-lib/**/*.ts"
+  ],
+  "exclude": [
+    "tests/**/*"
+  ]
+}

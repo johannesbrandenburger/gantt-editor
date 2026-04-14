@@ -33,3 +33,4 @@ test-results/
 dist/
 .nyc_output/
 apps/angular/.angular/
+.npmrc

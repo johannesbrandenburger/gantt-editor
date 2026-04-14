@@ -5,7 +5,7 @@
     "apps/*"
   ],
   "type": "module",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "main": "./dist/vue/index.cjs",
   "module": "./dist/vue/index.js",
   "types": "./dist/vue/index.d.ts",
@@ -26,9 +26,8 @@
       "require": "./dist/react/index.cjs"
     },
     "./angular": {
-      "types": "./dist/angular/index.d.ts",
-      "import": "./dist/angular/index.js",
-      "require": "./dist/angular/index.cjs"
+      "types": "./dist/angular/angular/index.d.ts",
+      "import": "./dist/angular/angular/index.js"
     },
     "./style.css": "./dist/vue/style.css",
     "./vue/style.css": "./dist/vue/style.css"
@@ -46,7 +45,9 @@
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "build-only": "vite build",
     "build:types": "vue-tsc -p tsconfig.types.json --declaration --emitDeclarationOnly --outDir dist && node scripts/prepare-vue-types.mjs",
-    "build:wrappers": "tsup",
+    "build:wrappers:react": "tsup",
+    "build:wrapper:angular": "ngc -p tsconfig.angular-wrapper.json",
+    "build:wrappers": "npm run build:wrappers:react && npm run build:wrapper:angular",
     "lint": "eslint . --fix",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
@@ -78,6 +79,7 @@
   },
   "devDependencies": {
     "@angular/common": "21.2.8",
+    "@angular/compiler-cli": "21.2.8",
     "@angular/core": "21.2.8",
     "@playwright/test": "^1.59.1",
     "@tsconfig/node22": "^22.0.5",
