@@ -5,7 +5,7 @@
     "apps/*"
   ],
   "type": "module",
-  "version": "2.5.0",
+  "version": "0.10.0",
   "main": "./dist/vue/index.cjs",
   "module": "./dist/vue/index.js",
   "types": "./dist/vue/index.d.ts",
@@ -45,7 +45,7 @@
     "preview": "vite preview",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "build-only": "vite build",
-    "build:types": "vue-tsc -p tsconfig.types.json --declaration --emitDeclarationOnly --outDir dist",
+    "build:types": "vue-tsc -p tsconfig.types.json --declaration --emitDeclarationOnly --outDir dist && node scripts/prepare-vue-types.mjs",
     "build:wrappers": "tsup",
     "lint": "eslint . --fix",
     "test:e2e": "playwright test",

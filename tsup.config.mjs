@@ -1,17 +1,30 @@
 import { defineConfig } from 'tsup'
 
-export default defineConfig({
-  entry: {
-    'react/index': 'src/react/index.ts',
-    'angular/index': 'src/angular/index.ts',
-  },
+const base = {
   format: ['esm', 'cjs'],
   dts: true,
   tsconfig: 'tsconfig.wrappers.json',
-  outDir: 'dist',
   target: 'es2022',
   sourcemap: true,
   clean: false,
   splitting: false,
-  external: ['react', 'react-dom', '@angular/core', '@angular/common'],
-})
+}
+
+export default defineConfig([
+  {
+    ...base,
+    entry: {
+      index: 'src/react/index.ts',
+    },
+    outDir: 'dist/react',
+    external: ['react', 'react-dom'],
+  },
+  {
+    ...base,
+    entry: {
+      index: 'src/angular/index.ts',
+    },
+    outDir: 'dist/angular',
+    external: ['@angular/core', '@angular/common'],
+  },
+])
