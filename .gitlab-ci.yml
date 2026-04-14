@@ -29,9 +29,9 @@ publish:
   image: node:22
   stage: publish
   rules:
-  # TEMP: if on multi-framework-component branch, publish regardless of changes to package.json
-    - if: $CI_COMMIT_BRANCH == "multi-framework-component"
-      when: on_success
+    # TEMP: if on <skip> branch, publish regardless of changes to package.json
+    # - if: $CI_COMMIT_BRANCH == "<skip>"
+    #   when: on_success
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_REF_NAME =~ /^v\d+\.\d+\.\d+.*$/
       when: on_success
       changes:
