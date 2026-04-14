@@ -30,6 +30,11 @@ export interface PanZoomCallbacks {
   marginLeft: number;
   /** Returns whether time-axis zoom (modifier+wheel) is currently enabled. */
   isZoomEnabled: () => boolean;
+  /**
+   * Optional fixed time (ms) to use as zoom anchor instead of the mouse position.
+   * When provided, the chart zooms around this timestamp regardless of cursor location.
+   */
+  getFixedZoomAnchorTimeMs?: () => number | null;
 }
 
 export interface PanZoomCleanup {
@@ -134,12 +139,20 @@ export function handlePanZoomWheelEvent(
   const localX = event.clientX - rect.left;
   const localY = event.clientY - rect.top;
 
-  const rawMouseX = localX - callbacks.marginLeft;
-  const mouseX =
-    chartWidth > 0 ? Math.max(0, Math.min(chartWidth, rawMouseX)) : rawMouseX;
-
-  const mouseOffset = chartWidth > 0 ? mouseX / chartWidth : 0;
-  const mouseTimeMs = startMs + timeRangeMs * mouseOffset;
+  const fixedAnchorMs = callbacks.getFixedZoomAnchorTimeMs?.() ?? null;
+  let mouseOffset: number;
+  let mouseTimeMs: number;
+  if (fixedAnchorMs !== null) {
+    mouseTimeMs = fixedAnchorMs;
+    mouseOffset = timeRangeMs > 0 ? (mouseTimeMs - startMs) / timeRangeMs : 0.5;
+    mouseOffset = Math.max(0, Math.min(1, mouseOffset));
+  } else {
+    const rawMouseX = localX - callbacks.marginLeft;
+    const mouseX =
+      chartWidth > 0 ? Math.max(0, Math.min(chartWidth, rawMouseX)) : rawMouseX;
+    mouseOffset = chartWidth > 0 ? mouseX / chartWidth : 0;
+    mouseTimeMs = startMs + timeRangeMs * mouseOffset;
+  }
 
   const timeZoomFactor =
     event.deltaY > 0 ? ZOOM_WHEEL_STEP : 1 / ZOOM_WHEEL_STEP;

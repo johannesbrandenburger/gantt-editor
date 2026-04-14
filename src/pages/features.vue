@@ -260,27 +260,13 @@ const activeFeatures = computed<GanttEditorFeature[] | undefined>(() => {
     return ALL_FEATURES.map((f) => f.id).filter((id) => enabledFeatureSet.value.has(id));
 });
 
-const LOCKED_DAY_START_OFFSET_MS = -3 * 60 * 60 * 1000; // -3 hours
-const LOCKED_DAY_END_HOUR = 3; // 03:00 next day
-
-const getLockedTimeRange = (): { start: Date; end: Date } => {
-    const now = new Date();
-    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const start = new Date(dayStart.getTime() + LOCKED_DAY_START_OFFSET_MS);
-    const end = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000 + LOCKED_DAY_END_HOUR * 60 * 60 * 1000);
-    return { start, end };
-};
-
 const toggleFeature = (id: GanttEditorFeature) => {
     const next = new Set(enabledFeatureSet.value);
     if (next.has(id)) next.delete(id); else next.add(id);
     enabledFeatureSet.value = next;
     if (id === 'scroll-horizontal') {
         if (!next.has('scroll-horizontal')) {
-            const { start, end } = getLockedTimeRange();
-            startTime.value = start;
-            endTime.value = end;
-            showEventMessage('🔒 Horizontal scroll locked — view fixed to one day');
+            showEventMessage('🔒 Horizontal scroll locked');
         } else {
             showEventMessage('🔓 Horizontal scroll unlocked');
         }

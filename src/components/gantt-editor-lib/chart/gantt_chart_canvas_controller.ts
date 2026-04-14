@@ -3880,7 +3880,8 @@ export class GanttChartCanvasController {
       }),
       getChartWidth: () => this.containerWidth - MARGIN.left - MARGIN.right,
       onTimeRangeChange: (start: Date, end: Date, wheelZoomAnchor?: WheelZoomAnchor) => {
-        if (!this.isFeatureEnabled("scroll-horizontal")) return;
+        const isZoom = !!wheelZoomAnchor;
+        if (!this.isFeatureEnabled("scroll-horizontal") && !isZoom) return;
         this.cancelSlotReflowAnimation();
         this.internalStartTime = start;
         this.internalEndTime = end;
@@ -3890,8 +3891,24 @@ export class GanttChartCanvasController {
         this.scheduleFrameRedraw(true);
       },
       isZoomEnabled: () => this.isFeatureEnabled("zoom-time-axis"),
+      getFixedZoomAnchorTimeMs: () => {
+        if (!this.isFeatureEnabled("scroll-horizontal")) {
+          // Zoom around the center of the currently visible range so the view stays stable.
+          return (this.internalStartTime.getTime() + this.internalEndTime.getTime()) / 2;
+        }
+        return null;
+      },
       onTimeRangeCommit: (start: Date, end: Date) => {
-        if (!this.isFeatureEnabled("scroll-horizontal")) return;
+        // Allow commit when zoom changed the range (internal times differ from locked range).
+        const scrollEnabled = this.isFeatureEnabled("scroll-horizontal");
+        if (!scrollEnabled) {
+          // Only commit if the new range differs from the last parent-committed range,
+          // meaning a zoom (not a blocked pan) caused the change.
+          const rangeChanged =
+            start.getTime() !== this.lastSeenParentStartMs ||
+            end.getTime() !== this.lastSeenParentEndMs;
+          if (!rangeChanged) return;
+        }
         this.cancelSlotReflowAnimation();
         this.internalStartTime = start;
         this.internalEndTime = end;
