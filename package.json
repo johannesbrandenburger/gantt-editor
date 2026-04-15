@@ -22,10 +22,6 @@
       },
       "angular": {
         "import": "./dist/angular/angular/index.js"
-      },
-      "default": {
-        "import": "./dist/vue/index.js",
-        "require": "./dist/vue/index.cjs"
       }
     },
     "./vue": {
