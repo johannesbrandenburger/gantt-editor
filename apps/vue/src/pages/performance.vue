@@ -158,7 +158,7 @@ const generateSlots = (count: number, rangeStart: Date, rangeEnd: Date, destCoun
             openTime: new Date(slotStartMs),
             closeTime: new Date(slotEndMs),
             destinationId: `dest-${destIndex}`,
-            deadlines: [{ id: 'std', timestamp: slotEndMs + 60 * 60 * 1000 }],
+            deadlines: [{ id: 'std', timestamp: slotEndMs + 60 * 60 * 1000, color: '#1f1f1f' }],
             hoverData: `🛫 Departure`,
         };
     }).sort((a, b) => a.openTime.getTime() - b.openTime.getTime());

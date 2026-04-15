@@ -190,7 +190,7 @@ test.describe("canvas rewrite rendering and display", () => {
         slot.id === slotId
           ? {
               ...slot,
-              deadlines: [{ id: "std", timestamp: markerMs }],
+              deadlines: [{ id: "std", timestamp: markerMs, color: "#1f1f1f" }],
             }
           : slot,
       ),
@@ -262,7 +262,7 @@ test.describe("canvas rewrite rendering and display", () => {
         slot.id === slotId
           ? {
               ...slot,
-              deadlines: [{ id: "std", timestamp: markerMs }],
+              deadlines: [{ id: "std", timestamp: markerMs, color: "#1f1f1f" }],
             }
           : slot,
       ),

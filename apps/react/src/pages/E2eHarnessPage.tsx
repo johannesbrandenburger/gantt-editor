@@ -155,12 +155,18 @@ function normalizeSlotDeadlines(
 ): GanttEditorSlotDeadline[] | undefined {
   if (!deadlines?.length) return undefined
   const normalized = deadlines
-    .map((deadline, index) => ({
-      id: String(deadline.id ?? `deadline-${index}`),
-      timestamp: Number(deadline.timestamp),
-      color: deadline.color,
-    }))
-    .filter((deadline) => Number.isFinite(deadline.timestamp))
+    .map((deadline, index) => {
+      const timestamp = Number(deadline.timestamp)
+      if (!Number.isFinite(timestamp) || typeof deadline.color !== 'string' || deadline.color.length === 0) {
+        return null
+      }
+      return {
+        id: String(deadline.id ?? `deadline-${index}`),
+        timestamp,
+        color: deadline.color,
+      }
+    })
+    .filter((deadline): deadline is GanttEditorSlotDeadline => deadline !== null)
   return normalized.length > 0 ? normalized : undefined
 }
 
@@ -235,8 +241,8 @@ function coreSlots(): GanttEditorSlotWithUiAttributes[] {
       closeTime: new Date(`${isoDay}T12:00:00Z`),
       destinationId: 'chute-1',
       deadlines: [
-        { id: 'std', timestamp: new Date(`${isoDay}T13:00:00Z`).getTime() },
-        { id: 'etd', timestamp: new Date(`${isoDay}T13:25:00Z`).getTime() },
+        { id: 'std', timestamp: new Date(`${isoDay}T13:00:00Z`).getTime(), color: '#9e9e9e' },
+        { id: 'etd', timestamp: new Date(`${isoDay}T13:25:00Z`).getTime(), color: '#1f1f1f' },
       ],
       color: '#3498db',
       hoverData: 'Core slot for e2e interactions',

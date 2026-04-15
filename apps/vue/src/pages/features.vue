@@ -282,7 +282,7 @@ const generateSlots = (count: number) => {
         // - deadlines[1] is ETD (estimated departure)
         // - ETD can be before or after STD
         // - every 7th slot uses the same timestamp to verify overlap behavior
-        // - every 8th slot uses custom deadline colors (optional API)
+        // - every 8th slot uses custom deadline colors
         const stdTimestamp = departureTime.getTime();
         let etdTimestamp = departureTime.getTime() + 20 * 60 * 1000; // ETD after STD (default)
         let scenario = "ETD after STD";
@@ -303,8 +303,8 @@ const generateSlots = (count: number) => {
         }
 
         const hoverData = `Flight ${flightNumber}: 🛫 Departure: ${new Date(etdTimestamp).toLocaleString()}`;
-        const stdColor = index % 8 === 0 ? '#e67e22' : undefined;
-        const etdColor = index % 8 === 0 ? '#27ae60' : undefined;
+        const stdColor = index % 8 === 0 ? '#e67e22' : '#9e9e9e';
+        const etdColor = index % 8 === 0 ? '#27ae60' : '#1f1f1f';
 
         return {
             id: `${flightNumber}-${index}`,

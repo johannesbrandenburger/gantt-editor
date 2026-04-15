@@ -17,7 +17,7 @@ export type GanttEditorSlot = {
 export type GanttEditorSlotDeadline = {
     id: string,
     timestamp: number,
-    color?: string,
+    color: string,
 };
 export type GanttEditorDestination = {
     id: string,

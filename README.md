@@ -252,7 +252,7 @@ All wrappers expose the same core model and behavior.
 - `isReadOnly: boolean`
 
 `GanttEditorSlot` supports generic slot deadlines:
-- `deadlines?: Array<{ id: string; timestamp: number; color?: string }>`
+- `deadlines?: Array<{ id: string; timestamp: number; color: string }>`
 
 ### Common Optional Inputs
 

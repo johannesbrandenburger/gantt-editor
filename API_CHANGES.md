@@ -6,7 +6,7 @@
   - Before: `tickFormat?: (Date | d3.NumberValue) => string`, `ticks?: d3.TimeInterval`
   - Now: `tickFormat?: (TimeDomainValue) => string`, `ticks?: TimeTickSpec`
 - Package no longer depends on d3.
-- `GanttEditorSlot` deadlines API changed from fixed fields (`deadline`, `secondaryDeadline`, and color overrides) to `deadlines: Array<{ id, timestamp, color? }>`.
+- `GanttEditorSlot` deadlines API changed from fixed fields (`deadline`, `secondaryDeadline`, and color overrides) to `deadlines: Array<{ id, timestamp, color }>` (deadline color is required).
 
 ## Added
 - New emits:

@@ -14,14 +14,6 @@ const SLOT_ID = "LH123-20250101-F";
 const STD_COLOR = { r: 155, g: 89, b: 182 };
 const ETD_COLOR = { r: 231, g: 76, b: 60 };
 
-function blendOnWhite(color: { r: number; g: number; b: number }, alpha: number): { r: number; g: number; b: number } {
-  return {
-    r: Math.round(color.r * alpha + 255 * (1 - alpha)),
-    g: Math.round(color.g * alpha + 255 * (1 - alpha)),
-    b: Math.round(color.b * alpha + 255 * (1 - alpha)),
-  };
-}
-
 function colorDistance(actual: Rgba, expected: { r: number; g: number; b: number }): number {
   const dr = actual.r - expected.r;
   const dg = actual.g - expected.g;
@@ -114,13 +106,12 @@ test.describe("canvas rewrite deadline marker coloring", () => {
     const stdX = markerCanvasX(state, Date.parse("2025-01-01T13:00:00Z"));
     const etdX = markerCanvasX(state, Date.parse("2025-01-01T13:25:00Z"));
 
-    const expectedStdBlended = blendOnWhite(STD_COLOR, 0.6);
     await expect
       .poll(async () => {
-        const stdPixel = await sampleCanvasPixelNearestTo(page, { x: stdX, y: slotCenter.y }, expectedStdBlended);
-        return colorDistance(stdPixel, expectedStdBlended);
+        const stdPixel = await sampleCanvasPixelNearestTo(page, { x: stdX, y: slotCenter.y }, STD_COLOR);
+        return colorDistance(stdPixel, STD_COLOR);
       }, { timeout: 2000 })
-      .toBeLessThan(45);
+      .toBeLessThan(35);
 
     await expect
       .poll(async () => {
@@ -130,7 +121,7 @@ test.describe("canvas rewrite deadline marker coloring", () => {
       .toBeLessThan(35);
   });
 
-  test("STD marker is visibly lighter than ETD marker due reduced opacity", async ({ page }) => {
+  test("STD marker keeps configured color without opacity blending", async ({ page }) => {
     await page.goto("/small-example");
     await waitForCanvasApi(page);
 
@@ -144,15 +135,10 @@ test.describe("canvas rewrite deadline marker coloring", () => {
     const stdX = markerCanvasX(state, Date.parse("2025-01-01T13:00:00Z"));
     const etdX = markerCanvasX(state, Date.parse("2025-01-01T13:25:00Z"));
 
-    const expectedStdBlended = blendOnWhite(STD_COLOR, 0.6);
-    const stdPixel = await sampleCanvasPixelNearestTo(page, { x: stdX, y: slotCenter.y }, expectedStdBlended);
+    const stdPixel = await sampleCanvasPixelNearestTo(page, { x: stdX, y: slotCenter.y }, STD_COLOR);
     const etdPixel = await sampleCanvasPixelNearestTo(page, { x: etdX, y: slotCenter.y }, ETD_COLOR);
 
-    const stdLuma = 0.2126 * stdPixel.r + 0.7152 * stdPixel.g + 0.0722 * stdPixel.b;
-    const etdLuma = 0.2126 * etdPixel.r + 0.7152 * etdPixel.g + 0.0722 * etdPixel.b;
-
-    expect(stdLuma).toBeGreaterThan(etdLuma);
     expect(colorDistance(etdPixel, ETD_COLOR)).toBeLessThan(35);
-    expect(colorDistance(stdPixel, STD_COLOR)).toBeGreaterThan(30);
+    expect(colorDistance(stdPixel, STD_COLOR)).toBeLessThan(35);
   });
 });

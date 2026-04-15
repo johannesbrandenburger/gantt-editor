@@ -13,7 +13,7 @@ interface DepartureMarkerDrawDefinition {
   x2: number;
   lineY: number;
   lineHeight: number;
-  lineColor?: string;
+  lineColor: string;
   markerOpacity?: number;
   layer?: number;
   markerVisible: boolean;
@@ -69,38 +69,19 @@ function firstSlotIndexCloseAfter(
 type SlotDeadlineMarker = {
   id: string;
   timestamp: number;
-  color?: string;
-  markerOpacity: number;
+  color: string;
   layer: number;
 };
 
 function slotDeadlines(slot: Topic["rows"][number]["slots"][number]): SlotDeadlineMarker[] {
-  const normalized = (slot.deadlines ?? [])
+  return (slot.deadlines ?? [])
     .filter((deadline) => Number.isFinite(deadline.timestamp))
     .map((deadline, index) => ({
       id: deadline.id || `deadline-${index}`,
       timestamp: deadline.timestamp,
       color: deadline.color,
-      markerOpacity: 1,
       layer: index,
     }));
-
-  if (normalized.length >= 2 && normalized[0]!.timestamp !== normalized[1]!.timestamp) {
-    normalized[0]!.markerOpacity = 0.6;
-    if (!normalized[0]!.color) {
-      normalized[0]!.color = "#9e9e9e";
-    }
-  }
-
-  if (normalized.length === 1 && !normalized[0]!.color) {
-    normalized[0]!.color = "#1f1f1f";
-  }
-
-  for (let i = 1; i < normalized.length; i++) {
-    if (!normalized[i]!.color) normalized[i]!.color = "#1f1f1f";
-  }
-
-  return normalized;
 }
 
 /**
@@ -209,8 +190,8 @@ export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
             lineColor: marker.color,
             markerOpacity:
               slot.isPreview && previewPulseAlpha !== undefined
-                ? Math.max(0.25, Math.min(1, (marker.markerOpacity ?? 1) * previewPulseAlpha))
-                : marker.markerOpacity,
+                ? Math.max(0.25, Math.min(1, previewPulseAlpha))
+                : 1,
             layer: marker.layer,
             markerVisible,
             connectorVisible: !markerInsideSlot && Math.abs(departureX - connectorAnchorX) > 1,
@@ -227,14 +208,14 @@ export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
   for (const marker of ordered) {
     if (!marker.markerVisible) continue;
     ctx.globalAlpha = marker.markerOpacity ?? 1;
-    ctx.fillStyle = marker.lineColor || "black";
+    ctx.fillStyle = marker.lineColor;
     ctx.fillRect(marker.x2 - 1, marker.lineY, 2, marker.lineHeight);
   }
 
   for (const marker of ordered) {
     if (!marker.connectorVisible) continue;
     ctx.globalAlpha = marker.markerOpacity ?? 1;
-    ctx.strokeStyle = marker.lineColor || "gray";
+    ctx.strokeStyle = marker.lineColor;
     ctx.lineWidth = 1;
     ctx.setLineDash([3, 3]);
     ctx.beginPath();
