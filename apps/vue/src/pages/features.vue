@@ -278,36 +278,33 @@ const generateSlots = (count: number) => {
         const departureTime = new Date(slotEnd.getTime() + 60 * 60 * 1000); // 1 hour after close time
 
         // Demo scenarios for departure anchors:
-        // - deadline is STD (scheduled departure)
-        // - secondaryDeadline is ETD (estimated departure)
+        // - deadlines[0] is STD (scheduled departure)
+        // - deadlines[1] is ETD (estimated departure)
         // - ETD can be before or after STD
         // - every 7th slot uses the same timestamp to verify overlap behavior
-        // - every 8th slot uses custom deadlineColor / secondaryDeadlineColor (optional API)
-        const deadline = new Date(departureTime); // STD
-        let secondaryDeadline = new Date(departureTime.getTime() + 20 * 60 * 1000); // ETD after STD (default)
+        // - every 8th slot uses custom deadline colors (optional API)
+        const stdTimestamp = departureTime.getTime();
+        let etdTimestamp = departureTime.getTime() + 20 * 60 * 1000; // ETD after STD (default)
         let scenario = "ETD after STD";
 
         if (index % 5 === 0) {
-            secondaryDeadline = new Date(departureTime.getTime() + 35 * 60 * 1000);
+            etdTimestamp = departureTime.getTime() + 35 * 60 * 1000;
             scenario = "ETD delayed (after STD)";
         }
 
         if (index % 6 === 0) {
-            secondaryDeadline = new Date(departureTime.getTime() - 15 * 60 * 1000);
+            etdTimestamp = departureTime.getTime() - 15 * 60 * 1000;
             scenario = "ETD advanced (before STD)";
         }
 
         if (index % 7 === 0) {
-            secondaryDeadline = new Date(departureTime);
+            etdTimestamp = departureTime.getTime();
             scenario = "ETD equals STD";
         }
 
-        const hoverData = `Flight ${flightNumber}: 🛫 Departure: ${secondaryDeadline.toLocaleString()}`;
-
-        const customDeadlineColors =
-            index % 8 === 0
-                ? { deadlineColor: '#e67e22' as const, secondaryDeadlineColor: '#27ae60' as const }
-                : {};
+        const hoverData = `Flight ${flightNumber}: 🛫 Departure: ${new Date(etdTimestamp).toLocaleString()}`;
+        const stdColor = index % 8 === 0 ? '#e67e22' : undefined;
+        const etdColor = index % 8 === 0 ? '#27ae60' : undefined;
 
         return {
             id: `${flightNumber}-${index}`,
@@ -316,9 +313,10 @@ const generateSlots = (count: number) => {
             openTime: slotStart,
             closeTime: slotEnd,
             hoverData,
-            deadline,
-            secondaryDeadline,
-            ...customDeadlineColors,
+            deadlines: [
+                { id: 'std', timestamp: stdTimestamp, color: stdColor },
+                { id: 'etd', timestamp: etdTimestamp, color: etdColor },
+            ],
             // color: mockColors[index % mockColors.length], // leave color generation to the component
         };
     });
@@ -535,9 +533,11 @@ const buildCopiedSlot = (slot: GanttEditorSlot, destinationId: string): GanttEdi
     };
 };
 
-const shiftDateByMs = (value: Date | undefined, timeDiffMs: number): Date | undefined => {
-    return value ? new Date(value.getTime() + timeDiffMs) : undefined;
-};
+const shiftDeadlinesByMs = (
+    deadlines: GanttEditorSlot["deadlines"] | undefined,
+    timeDiffMs: number,
+): GanttEditorSlot["deadlines"] | undefined =>
+    deadlines?.map((deadline) => ({ ...deadline, timestamp: deadline.timestamp + timeDiffMs }));
 
 const buildCopiedSlotOnTimeAxis = (slot: GanttEditorSlot, timeDiffMs: number): GanttEditorSlot => {
     let copyIndex = 1;
@@ -554,8 +554,7 @@ const buildCopiedSlotOnTimeAxis = (slot: GanttEditorSlot, timeDiffMs: number): G
         group: nextId,
         openTime: new Date(slot.openTime.getTime() + timeDiffMs),
         closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
-        deadline: shiftDateByMs(slot.deadline, timeDiffMs),
-        secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
+        deadlines: shiftDeadlinesByMs(slot.deadlines, timeDiffMs),
     };
 };
 
@@ -583,8 +582,7 @@ const handleMoveSlotOnTimeAxis = (slotId: string, timeDiffMs: number) => {
                 ...slot,
                 openTime: new Date(slot.openTime.getTime() + timeDiffMs),
                 closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
-                deadline: shiftDateByMs(slot.deadline, timeDiffMs),
-                secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
+                deadlines: shiftDeadlinesByMs(slot.deadlines, timeDiffMs),
             }
             : slot,
     );
@@ -604,8 +602,7 @@ const handleBulkMoveSlotsOnTimeAxis = (slotIds: string[], timeDiffMs: number) =>
             ...slot,
             openTime: new Date(slot.openTime.getTime() + timeDiffMs),
             closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
-            deadline: shiftDateByMs(slot.deadline, timeDiffMs),
-            secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
+            deadlines: shiftDeadlinesByMs(slot.deadlines, timeDiffMs),
         };
     });
     if (movedCount > 0) {

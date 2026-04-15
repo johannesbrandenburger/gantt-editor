@@ -388,8 +388,7 @@ test.describe("canvas rewrite slot destination change", () => {
       | {
           openTime: string;
           closeTime: string;
-          deadline?: string;
-          secondaryDeadline?: string;
+          deadlines?: Array<{ id: string; timestamp: number }>;
         }
       | undefined;
     expect(beforeSlot).toBeTruthy();
@@ -423,26 +422,25 @@ test.describe("canvas rewrite slot destination change", () => {
           | {
               openTime: string;
               closeTime: string;
-              deadline?: string;
-              secondaryDeadline?: string;
+              deadlines?: Array<{ id: string; timestamp: number }>;
             }
           | undefined;
         return {
           open: slot ? new Date(slot.openTime).getTime() : null,
           close: slot ? new Date(slot.closeTime).getTime() : null,
-          deadline: slot?.deadline ? new Date(slot.deadline).getTime() : null,
-          secondaryDeadline: slot?.secondaryDeadline
-            ? new Date(slot.secondaryDeadline).getTime()
-            : null,
+          deadlines: (slot?.deadlines ?? []).map((deadline) => ({
+            id: deadline.id,
+            timestamp: deadline.timestamp,
+          })),
         };
       })
       .toEqual({
         open: new Date(beforeSlot!.openTime).getTime() + DAY_IN_MS,
         close: new Date(beforeSlot!.closeTime).getTime() + DAY_IN_MS,
-        deadline: beforeSlot!.deadline ? new Date(beforeSlot!.deadline).getTime() + DAY_IN_MS : null,
-        secondaryDeadline: beforeSlot!.secondaryDeadline
-          ? new Date(beforeSlot!.secondaryDeadline).getTime() + DAY_IN_MS
-          : null,
+        deadlines: (beforeSlot!.deadlines ?? []).map((deadline) => ({
+          id: deadline.id,
+          timestamp: deadline.timestamp + DAY_IN_MS,
+        })),
       });
   });
 

@@ -155,7 +155,7 @@ const RESIZE_TIME_LABEL_OFFSET_X = 14;
 const RESIZE_TIME_LABEL_OFFSET_Y = -16;
 const HELP_OVERLAY_TRANSITION_MS = 180;
 
-type ResizeRulerSnapPointKind = "openTime" | "closeTime" | "deadline" | "secondaryDeadline";
+type ResizeRulerSnapPointKind = "openTime" | "closeTime" | "deadline";
 
 type ResizeRulerSnapPoint = {
   timeMs: number;
@@ -2586,8 +2586,7 @@ export class GanttChartCanvasController {
         destinationId: topicId,
         openTime,
         closeTime,
-        deadline: slot.deadline ? new Date(slot.deadline) : undefined,
-        secondaryDeadline: slot.secondaryDeadline ? new Date(slot.secondaryDeadline) : undefined,
+        deadlines: slot.deadlines?.map((deadline) => ({ ...deadline })),
         isCopied: false,
         isPreview: true,
         isCopyPreview: copyPreview,
@@ -2659,10 +2658,10 @@ export class GanttChartCanvasController {
         id: `__time_axis_preview__${index}__${slot.id}`,
         openTime,
         closeTime,
-        deadline: slot.deadline ? new Date(new Date(slot.deadline).getTime() + timeDiffMs) : undefined,
-        secondaryDeadline: slot.secondaryDeadline
-          ? new Date(new Date(slot.secondaryDeadline).getTime() + timeDiffMs)
-          : undefined,
+        deadlines: slot.deadlines?.map((deadline) => ({
+          ...deadline,
+          timestamp: deadline.timestamp + timeDiffMs,
+        })),
         isCopied: false,
         isPreview: true,
         isCopyPreview: copyPreview,
@@ -3336,15 +3335,9 @@ export class GanttChartCanvasController {
         points.push({ timeMs: slot.openTime.getTime(), kind: "openTime", slotId: slot.id });
         points.push({ timeMs: slot.closeTime.getTime(), kind: "closeTime", slotId: slot.id });
       }
-      if (slot.deadline) {
-        points.push({ timeMs: slot.deadline.getTime(), kind: "deadline", slotId: slot.id });
-      }
-      if (slot.secondaryDeadline) {
-        points.push({
-          timeMs: slot.secondaryDeadline.getTime(),
-          kind: "secondaryDeadline",
-          slotId: slot.id,
-        });
+      for (const deadline of slot.deadlines ?? []) {
+        if (!Number.isFinite(deadline.timestamp)) continue;
+        points.push({ timeMs: deadline.timestamp, kind: "deadline", slotId: slot.id });
       }
     }
     return points;

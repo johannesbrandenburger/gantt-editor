@@ -66,8 +66,45 @@ function firstSlotIndexCloseAfter(
   return lo;
 }
 
+type SlotDeadlineMarker = {
+  id: string;
+  timestamp: number;
+  color?: string;
+  markerOpacity: number;
+  layer: number;
+};
+
+function slotDeadlines(slot: Topic["rows"][number]["slots"][number]): SlotDeadlineMarker[] {
+  const normalized = (slot.deadlines ?? [])
+    .filter((deadline) => Number.isFinite(deadline.timestamp))
+    .map((deadline, index) => ({
+      id: deadline.id || `deadline-${index}`,
+      timestamp: deadline.timestamp,
+      color: deadline.color,
+      markerOpacity: 1,
+      layer: index,
+    }));
+
+  if (normalized.length >= 2 && normalized[0]!.timestamp !== normalized[1]!.timestamp) {
+    normalized[0]!.markerOpacity = 0.6;
+    if (!normalized[0]!.color) {
+      normalized[0]!.color = "#9e9e9e";
+    }
+  }
+
+  if (normalized.length === 1 && !normalized[0]!.color) {
+    normalized[0]!.color = "#1f1f1f";
+  }
+
+  for (let i = 1; i < normalized.length; i++) {
+    if (!normalized[i]!.color) normalized[i]!.color = "#1f1f1f";
+  }
+
+  return normalized;
+}
+
 /**
- * Draws slot-level departure markers (STD/ETD) on canvas with the same geometry and layering
+ * Draws slot-level departure markers on canvas with the same geometry and layering
  * semantics as the SVG implementation.
  */
 export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
@@ -147,34 +184,12 @@ export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
             ? baseLineY + shift * (1 - slotYTransition.progress)
             : baseLineY;
 
-        const hasEstimatedTime = !!slot.secondaryDeadline;
-        const deadlinesDiffer =
-          hasEstimatedTime
-          && new Date(slot.deadline || 0).getTime() !== new Date(slot.secondaryDeadline || 0).getTime();
-
-        const markers = [
-          {
-            id: `departure-${slot.id}-std`,
-            date: slot.deadline,
-            lineColor: slot.deadlineColor ?? (deadlinesDiffer ? "#9e9e9e" : "#1f1f1f"),
-            markerOpacity: deadlinesDiffer ? 0.6 : 1,
-            layer: 0,
-          },
-          {
-            id: `departure-${slot.id}-etd`,
-            date: slot.secondaryDeadline,
-            lineColor: slot.secondaryDeadlineColor ?? "#1f1f1f",
-            markerOpacity: 1,
-            layer: 1,
-          },
-        ];
+        const markers = slotDeadlines(slot);
 
         for (const marker of markers) {
-          if (!marker.date) continue;
-
-          const markerDate = new Date(marker.date);
-          const markerTimeMs = markerDate.getTime();
+          const markerTimeMs = marker.timestamp;
           if (Number.isNaN(markerTimeMs)) continue;
+          const markerDate = new Date(markerTimeMs);
           const markerVisible = markerDate >= startTime && markerDate <= endTime;
           const slotOpenMs = slotForGeom.openTime.getTime();
           const slotCloseMs = slotForGeom.closeTime.getTime();
@@ -186,12 +201,12 @@ export function drawDepartureMarkers(params: DrawDepartureMarkersParams): void {
           const connectorAnchorX = departureX < barStartX ? barStartX : barEndX;
 
           markerDefinitions.push({
-            id: marker.id,
+            id: `departure-${slot.id}-${marker.id}`,
             x1: connectorAnchorX,
             x2: departureX,
             lineY,
             lineHeight,
-            lineColor: marker.lineColor,
+            lineColor: marker.color,
             markerOpacity:
               slot.isPreview && previewPulseAlpha !== undefined
                 ? Math.max(0.25, Math.min(1, (marker.markerOpacity ?? 1) * previewPulseAlpha))
@@ -289,9 +304,9 @@ export function hitTestDepartureGap(params: HitTestDepartureGapParams): string |
         );
         if (!slotRect) continue;
 
-        const markerDates = [slot.deadline, slot.secondaryDeadline].filter(
-          (d): d is Date => !!d && d >= startTime && d <= endTime,
-        );
+        const markerDates = slotDeadlines(slot)
+          .map((marker) => new Date(marker.timestamp))
+          .filter((d) => d >= startTime && d <= endTime);
         if (markerDates.length === 0) continue;
 
         const barStartX = slotRect.x;

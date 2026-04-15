@@ -127,7 +127,10 @@ test.describe("canvas rewrite rendering and display", () => {
         };
         __ganttE2eHarness?: {
           getConfig: () => {
-            slots: Array<{ id: string; deadline?: string | Date; secondaryDeadline?: string | Date }>;
+            slots: Array<{
+              id: string;
+              deadlines?: Array<{ id: string; timestamp: number }>;
+            }>;
           };
         };
       };
@@ -152,9 +155,8 @@ test.describe("canvas rewrite rendering and display", () => {
         const center = api.findSlotPoint(slot.id, "center");
         if (!center) continue;
 
-        const markerCandidates = [slot.deadline, slot.secondaryDeadline]
-          .filter((d): d is string | Date => !!d)
-          .map((d) => new Date(d).getTime())
+        const markerCandidates = (slot.deadlines ?? [])
+          .map((d) => d.timestamp)
           .filter((timeMs) => Number.isFinite(timeMs) && timeMs >= minTime && timeMs <= maxTime);
 
         for (const markerTimeMs of markerCandidates) {
@@ -188,8 +190,7 @@ test.describe("canvas rewrite rendering and display", () => {
         slot.id === slotId
           ? {
               ...slot,
-              deadline: new Date(markerMs),
-              secondaryDeadline: undefined,
+              deadlines: [{ id: "std", timestamp: markerMs }],
             }
           : slot,
       ),
@@ -261,8 +262,7 @@ test.describe("canvas rewrite rendering and display", () => {
         slot.id === slotId
           ? {
               ...slot,
-              deadline: new Date(markerMs),
-              secondaryDeadline: undefined,
+              deadlines: [{ id: "std", timestamp: markerMs }],
             }
           : slot,
       ),

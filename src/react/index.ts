@@ -3,6 +3,7 @@ export type { GanttEditorReactProps, GanttEditorReactRef } from './GanttEditorRe
 
 export type {
   GanttEditorSlot,
+  GanttEditorSlotDeadline,
   GanttEditorDestination,
   GanttEditorDestinationGroup,
   GanttEditorMarkedRegion,

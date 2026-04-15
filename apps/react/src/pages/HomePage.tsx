@@ -48,8 +48,10 @@ const initialSlots: GanttEditorSlot[] = [
     openTime: new Date('2025-01-01T10:00:00Z'),
     closeTime: new Date('2025-01-01T12:00:00Z'),
     destinationId: 'chute-1',
-    deadline: new Date('2025-01-01T13:00:00Z'),
-    secondaryDeadline: new Date('2025-01-01T13:25:00Z'),
+    deadlines: [
+      { id: 'std', timestamp: new Date('2025-01-01T13:00:00Z').getTime() },
+      { id: 'etd', timestamp: new Date('2025-01-01T13:25:00Z').getTime() },
+    ],
     hoverData: 'Main demo slot',
     color: '#3498db',
   },

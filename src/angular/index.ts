@@ -5,6 +5,7 @@ export {
 
 export type {
   GanttEditorSlot,
+  GanttEditorSlotDeadline,
   GanttEditorDestination,
   GanttEditorDestinationGroup,
   GanttEditorMarkedRegion,

@@ -158,7 +158,7 @@ const generateSlots = (count: number, rangeStart: Date, rangeEnd: Date, destCoun
             openTime: new Date(slotStartMs),
             closeTime: new Date(slotEndMs),
             destinationId: `dest-${destIndex}`,
-            deadline: new Date(slotEndMs + 60 * 60 * 1000),
+            deadlines: [{ id: 'std', timestamp: slotEndMs + 60 * 60 * 1000 }],
             hoverData: `🛫 Departure`,
         };
     }).sort((a, b) => a.openTime.getTime() - b.openTime.getTime());
@@ -264,8 +264,11 @@ const handleChangeSlotTime = (slotId: string, openTime: Date, closeTime: Date) =
     slots.value = [...slots.value];
 };
 
-const shiftDateByMs = (value: Date | undefined, timeDiffMs: number): Date | undefined =>
-    value ? new Date(value.getTime() + timeDiffMs) : undefined;
+const shiftDeadlinesByMs = (
+    deadlines: GanttEditorSlot["deadlines"] | undefined,
+    timeDiffMs: number,
+): GanttEditorSlot["deadlines"] | undefined =>
+    deadlines?.map((deadline) => ({ ...deadline, timestamp: deadline.timestamp + timeDiffMs }));
 
 const handleMoveSlotOnTimeAxis = (slotId: string, timeDiffMs: number) => {
     if (timeDiffMs === 0) return;
@@ -275,8 +278,7 @@ const handleMoveSlotOnTimeAxis = (slotId: string, timeDiffMs: number) => {
                 ...slot,
                 openTime: new Date(slot.openTime.getTime() + timeDiffMs),
                 closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
-                deadline: shiftDateByMs(slot.deadline, timeDiffMs),
-                secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
+                deadlines: shiftDeadlinesByMs(slot.deadlines, timeDiffMs),
             }
             : slot
     );
@@ -291,8 +293,7 @@ const handleBulkMoveSlotsOnTimeAxis = (slotIds: string[], timeDiffMs: number) =>
                 ...slot,
                 openTime: new Date(slot.openTime.getTime() + timeDiffMs),
                 closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
-                deadline: shiftDateByMs(slot.deadline, timeDiffMs),
-                secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
+                deadlines: shiftDeadlinesByMs(slot.deadlines, timeDiffMs),
             }
             : slot
     );
@@ -309,8 +310,7 @@ const handleCopySlotOnTimeAxis = (slotId: string, timeDiffMs: number) => {
         buildCopiedSlot(source, nextId, {
             openTime: new Date(source.openTime.getTime() + timeDiffMs),
             closeTime: new Date(source.closeTime.getTime() + timeDiffMs),
-            deadline: shiftDateByMs(source.deadline, timeDiffMs),
-            secondaryDeadline: shiftDateByMs(source.secondaryDeadline, timeDiffMs),
+            deadlines: shiftDeadlinesByMs(source.deadlines, timeDiffMs),
         }),
     ];
 };
@@ -326,8 +326,7 @@ const handleBulkCopySlotsOnTimeAxis = (slotIds: string[], timeDiffMs: number) =>
             return buildCopiedSlot(slot, nextId, {
                 openTime: new Date(slot.openTime.getTime() + timeDiffMs),
                 closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
-                deadline: shiftDateByMs(slot.deadline, timeDiffMs),
-                secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
+                deadlines: shiftDeadlinesByMs(slot.deadlines, timeDiffMs),
             });
         });
     if (copiedSlots.length === 0) return;

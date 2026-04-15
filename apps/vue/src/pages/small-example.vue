@@ -25,10 +25,10 @@ import GanttEditorComponent from '@/vue/GanttEditorComponent.vue';
                     openTime: new Date('2025-01-01T10:00:00Z'), // start time of service window
                     closeTime: new Date('2025-01-01T12:00:00Z'), // end time of service window
                     destinationId: 'chute-1', // destination/chute id
-                    deadline: new Date('2025-01-01T13:00:00Z'), // STD marker
-                    secondaryDeadline: new Date('2025-01-01T13:25:00Z'), // ETD marker (optional)
-                    deadlineColor: '#9b59b6', // optional STD line color
-                    secondaryDeadlineColor: '#e74c3c', // optional ETD line color
+                    deadlines: [ // generic slot deadlines (supports any amount)
+                      { id: 'std', timestamp: new Date('2025-01-01T13:00:00Z').getTime(), color: '#9b59b6' },
+                      { id: 'etd', timestamp: new Date('2025-01-01T13:25:00Z').getTime(), color: '#e74c3c' }
+                    ],
                     hoverData: '🛫 Departure: ' + (new Date('2025-01-01T13:25:00Z')).toLocaleString(),
                     color: '#3498db', // color for the allocation bar
                 },

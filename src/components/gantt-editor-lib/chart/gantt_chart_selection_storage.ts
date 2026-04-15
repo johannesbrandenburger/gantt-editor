@@ -41,7 +41,6 @@ export function slotSnapshotForSelection(slot: GanttEditorSlotWithUiAttributes):
     ...slot,
     openTime: new Date(slot.openTime),
     closeTime: new Date(slot.closeTime),
-    deadline: slot.deadline ? new Date(slot.deadline) : undefined,
-    secondaryDeadline: slot.secondaryDeadline ? new Date(slot.secondaryDeadline) : undefined,
+    deadlines: slot.deadlines?.map((deadline) => ({ ...deadline })),
   };
 }

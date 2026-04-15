@@ -59,10 +59,10 @@ const slots = ref<GanttEditorSlot[]>([
     openTime: new Date("2025-01-01T10:00:00Z"),
     closeTime: new Date("2025-01-01T12:00:00Z"),
     destinationId: "chute-1",
-    deadline: new Date("2025-01-01T13:00:00Z"),
-    secondaryDeadline: new Date("2025-01-01T13:25:00Z"),
-    deadlineColor: "#9b59b6",
-    secondaryDeadlineColor: "#e74c3c",
+    deadlines: [
+      { id: "std", timestamp: new Date("2025-01-01T13:00:00Z").getTime(), color: "#9b59b6" },
+      { id: "etd", timestamp: new Date("2025-01-01T13:25:00Z").getTime(), color: "#e74c3c" },
+    ],
     color: "#3498db",
   },
 ]);
@@ -250,6 +250,9 @@ All wrappers expose the same core model and behavior.
 - `suggestions: GanttEditorSuggestion[]`
 - `markedRegion: GanttEditorMarkedRegion | null`
 - `isReadOnly: boolean`
+
+`GanttEditorSlot` supports generic slot deadlines:
+- `deadlines?: Array<{ id: string; timestamp: number; color?: string }>`
 
 ### Common Optional Inputs
 

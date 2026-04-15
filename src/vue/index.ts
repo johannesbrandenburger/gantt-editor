@@ -2,6 +2,7 @@ import GanttEditorComponent from './GanttEditorComponent.vue'
 
 export type {
     GanttEditorSlot,
+    GanttEditorSlotDeadline,
     GanttEditorDestination,
     GanttEditorDestinationGroup,
     GanttEditorMarkedRegion,

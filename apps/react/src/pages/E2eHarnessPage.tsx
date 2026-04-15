@@ -5,6 +5,7 @@ import {
   type GanttEditorFeature,
   type GanttEditorRulerMode,
   type GanttEditorCanvasContextMenuAction,
+  type GanttEditorSlotDeadline,
   type GanttEditorSlotContextMenuAction,
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
@@ -145,6 +146,24 @@ function parseDate(value: string | null | undefined, fallback: Date): Date {
   return Number.isNaN(parsed.getTime()) ? fallback : parsed
 }
 
+function cloneDeadlines(deadlines: GanttEditorSlotDeadline[] | undefined): GanttEditorSlotDeadline[] | undefined {
+  return deadlines?.map((deadline) => ({ ...deadline }))
+}
+
+function normalizeSlotDeadlines(
+  deadlines: Array<Partial<GanttEditorSlotDeadline>> | undefined,
+): GanttEditorSlotDeadline[] | undefined {
+  if (!deadlines?.length) return undefined
+  const normalized = deadlines
+    .map((deadline, index) => ({
+      id: String(deadline.id ?? `deadline-${index}`),
+      timestamp: Number(deadline.timestamp),
+      color: deadline.color,
+    }))
+    .filter((deadline) => Number.isFinite(deadline.timestamp))
+  return normalized.length > 0 ? normalized : undefined
+}
+
 function normalizeFixture(value: string | null | undefined): FixtureName {
   if (
     value === 'dense' ||
@@ -215,8 +234,10 @@ function coreSlots(): GanttEditorSlotWithUiAttributes[] {
       openTime: new Date(`${isoDay}T10:00:00Z`),
       closeTime: new Date(`${isoDay}T12:00:00Z`),
       destinationId: 'chute-1',
-      deadline: new Date(`${isoDay}T13:00:00Z`),
-      secondaryDeadline: new Date(`${isoDay}T13:25:00Z`),
+      deadlines: [
+        { id: 'std', timestamp: new Date(`${isoDay}T13:00:00Z`).getTime() },
+        { id: 'etd', timestamp: new Date(`${isoDay}T13:25:00Z`).getTime() },
+      ],
       color: '#3498db',
       hoverData: 'Core slot for e2e interactions',
     },
@@ -370,8 +391,7 @@ function cloneData(data: HarnessData): HarnessData {
       ...slot,
       openTime: new Date(slot.openTime),
       closeTime: new Date(slot.closeTime),
-      deadline: slot.deadline ? new Date(slot.deadline) : undefined,
-      secondaryDeadline: slot.secondaryDeadline ? new Date(slot.secondaryDeadline) : undefined,
+      deadlines: cloneDeadlines(normalizeSlotDeadlines(slot.deadlines)),
     })),
     destinations: data.destinations.map((destination) => ({ ...destination })),
     destinationGroups: data.destinationGroups.map((group) => ({ ...group })),
@@ -440,8 +460,7 @@ function fromQuery(query: QueryInput): HarnessData {
             ...slot,
             openTime: new Date(slot.openTime),
             closeTime: new Date(slot.closeTime),
-            deadline: slot.deadline ? new Date(slot.deadline) : undefined,
-            secondaryDeadline: slot.secondaryDeadline ? new Date(slot.secondaryDeadline) : undefined,
+            deadlines: cloneDeadlines(normalizeSlotDeadlines(slot.deadlines)),
           }))
         : data.slots,
       verticalMarkers: custom.verticalMarkers
@@ -492,8 +511,11 @@ function buildCopiedSlot(
   }
 }
 
-function shiftDateByMs(value: Date | undefined, timeDiffMs: number): Date | undefined {
-  return value ? new Date(value.getTime() + timeDiffMs) : undefined
+function shiftDeadlinesByMs(
+  deadlines: GanttEditorSlotDeadline[] | undefined,
+  timeDiffMs: number,
+): GanttEditorSlotDeadline[] | undefined {
+  return deadlines?.map((deadline) => ({ ...deadline, timestamp: deadline.timestamp + timeDiffMs }))
 }
 
 function buildCopiedSlotOnTimeAxis(
@@ -514,8 +536,7 @@ function buildCopiedSlotOnTimeAxis(
     group: nextId,
     openTime: new Date(source.openTime.getTime() + timeDiffMs),
     closeTime: new Date(source.closeTime.getTime() + timeDiffMs),
-    deadline: shiftDateByMs(source.deadline, timeDiffMs),
-    secondaryDeadline: shiftDateByMs(source.secondaryDeadline, timeDiffMs),
+    deadlines: shiftDeadlinesByMs(source.deadlines, timeDiffMs),
     isCopied: false,
   }
 }
@@ -691,8 +712,7 @@ export function E2eHarnessPage() {
                   ...slot,
                   openTime: new Date(slot.openTime.getTime() + timeDiffMs),
                   closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
-                  deadline: shiftDateByMs(slot.deadline, timeDiffMs),
-                  secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
+                  deadlines: shiftDeadlinesByMs(slot.deadlines, timeDiffMs),
                 }
               : slot,
           ),
@@ -715,8 +735,7 @@ export function E2eHarnessPage() {
                   ...slot,
                   openTime: new Date(slot.openTime.getTime() + timeDiffMs),
                   closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
-                  deadline: shiftDateByMs(slot.deadline, timeDiffMs),
-                  secondaryDeadline: shiftDateByMs(slot.secondaryDeadline, timeDiffMs),
+                  deadlines: shiftDeadlinesByMs(slot.deadlines, timeDiffMs),
                 }
               : slot,
           ),

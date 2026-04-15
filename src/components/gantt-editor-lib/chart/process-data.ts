@@ -174,23 +174,27 @@ class MinHeap<T> {
 
 function effectiveEndMs(slot: {
   closeTime: Date;
-  deadline?: Date;
-  secondaryDeadline?: Date;
+  deadlines?: { timestamp: number }[];
 }): number {
   let e = slot.closeTime.getTime();
-  if (slot.deadline) e = Math.max(e, slot.deadline.getTime());
-  if (slot.secondaryDeadline) e = Math.max(e, slot.secondaryDeadline.getTime());
+  for (const deadline of slot.deadlines ?? []) {
+    if (Number.isFinite(deadline.timestamp)) {
+      e = Math.max(e, deadline.timestamp);
+    }
+  }
   return e;
 }
 
 function effectiveStartMs(slot: {
   openTime: Date;
-  deadline?: Date;
-  secondaryDeadline?: Date;
+  deadlines?: { timestamp: number }[];
 }): number {
   let s = slot.openTime.getTime();
-  if (slot.deadline) s = Math.min(s, slot.deadline.getTime());
-  if (slot.secondaryDeadline) s = Math.min(s, slot.secondaryDeadline.getTime());
+  for (const deadline of slot.deadlines ?? []) {
+    if (Number.isFinite(deadline.timestamp)) {
+      s = Math.min(s, deadline.timestamp);
+    }
+  }
   return s;
 }
 
@@ -274,40 +278,28 @@ const doesSlotOverlapRowWithDeadline = (
   existingSlots: {
     openTime: Date;
     closeTime: Date;
-    deadline?: Date;
-    secondaryDeadline?: Date;
+    deadlines?: { timestamp: number }[];
   }[],
   candidate: {
     openTime: Date;
     closeTime: Date;
-    deadline?: Date;
-    secondaryDeadline?: Date;
+    deadlines?: { timestamp: number }[];
   },
 ): boolean => {
   let cOpen = candidate.openTime.getTime();
   let cClose = candidate.closeTime.getTime();
-  if (candidate.deadline) {
-    const deadlineTime = candidate.deadline.getTime();
-    cOpen = Math.min(cOpen, deadlineTime);
-    cClose = Math.max(cClose, deadlineTime);
-  }
-  if (candidate.secondaryDeadline) {
-    const secondaryDeadlineTime = candidate.secondaryDeadline.getTime();
-    cOpen = Math.min(cOpen, secondaryDeadlineTime);
-    cClose = Math.max(cClose, secondaryDeadlineTime);
+  for (const deadline of candidate.deadlines ?? []) {
+    if (!Number.isFinite(deadline.timestamp)) continue;
+    cOpen = Math.min(cOpen, deadline.timestamp);
+    cClose = Math.max(cClose, deadline.timestamp);
   }
   for (const s of existingSlots) {
     let sOpen = s.openTime.getTime();
     let sClose = s.closeTime.getTime();
-    if (s.deadline) {
-      const deadlineTime = s.deadline.getTime();
-      sOpen = Math.min(sOpen, deadlineTime);
-      sClose = Math.max(sClose, deadlineTime);
-    }
-    if (s.secondaryDeadline) {
-      const secondaryDeadlineTime = s.secondaryDeadline.getTime();
-      sOpen = Math.min(sOpen, secondaryDeadlineTime);
-      sClose = Math.max(sClose, secondaryDeadlineTime);
+    for (const deadline of s.deadlines ?? []) {
+      if (!Number.isFinite(deadline.timestamp)) continue;
+      sOpen = Math.min(sOpen, deadline.timestamp);
+      sClose = Math.max(sClose, deadline.timestamp);
     }
     if (sOpen < cClose && sClose > cOpen) {
       return true;
@@ -324,8 +316,7 @@ export const addSlotToRows = (
       closeTime: Date;
       destinationId: string;
       id: string;
-      deadline?: Date;
-      secondaryDeadline?: Date;
+      deadlines?: { timestamp: number }[];
     }[];
     id: string;
   }[],
@@ -334,8 +325,7 @@ export const addSlotToRows = (
     closeTime: Date;
     destinationId: string;
     id: string;
-    deadline?: Date;
-    secondaryDeadline?: Date;
+    deadlines?: { timestamp: number }[];
   },
   topicId: string,
   compactView: boolean,
