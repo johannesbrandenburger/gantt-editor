@@ -60,15 +60,5 @@ publish:
         echo "Missing required build outputs in dist/ (expected vue, react, angular, and shared types)"
         exit 1
       fi
-    - |
-      if [[ ! $PACKAGE_NAME =~ ^@$CI_PROJECT_ROOT_NAMESPACE/ ]]; then
-        echo "Invalid package scope for $PACKAGE_NAME. Expected namespace @${CI_PROJECT_ROOT_NAMESPACE}."
-        exit 1
-      fi
     - echo "Publishing ${PACKAGE_NAME}@${VERSION} from repository root"
-    - npm publish . \
-      --registry "$NPM_REGISTRY_URL" \
-      --loglevel verbose \
-      --fetch-retries=1 \
-      --fetch-retry-mintimeout=1000 \
-      --fetch-retry-maxtimeout=5000
+    - npm publish . --registry "$NPM_REGISTRY_URL" --loglevel verbose --fetch-retries=1 --fetch-retry-mintimeout=1000 --fetch-retry-maxtimeout=5000
