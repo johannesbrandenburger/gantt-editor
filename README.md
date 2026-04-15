@@ -17,17 +17,10 @@ Create a `.npmrc` file in your project root with the following content, replacin
 //code.oair.io/api/v4/projects/671/packages/npm/:_authToken=<GITLAB_ACCESS_TOKEN>
 ```
 
-Then install the desired package(s):
+Then install the package:
 
 ```bash
-# Vue
-npm install @pf/gantt-editor-component-vue
-
-# React
-npm install @pf/gantt-editor-component-react
-
-# Angular
-npm install @pf/gantt-editor-component-angular
+npm install @pf/gantt-editor-component
 ```
 
 Token requirements:
@@ -46,7 +39,7 @@ import GanttEditorComponent, {
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorSlot,
-} from "@pf/gantt-editor-component-vue";
+} from "@pf/gantt-editor-component/vue";
 
 const startTime = ref(new Date("2025-01-01T00:00:00Z"));
 const endTime = ref(new Date("2025-01-02T00:00:00Z"));
@@ -110,7 +103,7 @@ import {
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorSlot,
-} from "@pf/gantt-editor-component-react";
+} from "@pf/gantt-editor-component/react";
 
 export function App() {
   const [startTime] = useState(() => new Date("2025-01-01T00:00:00Z"));
@@ -173,7 +166,7 @@ import {
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorSlot,
-} from "@pf/gantt-editor-component-angular";
+} from "@pf/gantt-editor-component/angular";
 
 @Component({
   selector: "app-root",

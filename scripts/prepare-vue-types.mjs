@@ -4,6 +4,7 @@ import path from 'node:path'
 const distDir = path.resolve('dist')
 const srcTypesDir = path.join(distDir, 'src')
 const vuePkgDir = path.join(distDir, 'vue')
+const sharedTypesDir = path.join(distDir, 'types')
 
 const copyDir = (from, to) => {
   if (!fs.existsSync(from)) return
@@ -31,3 +32,15 @@ const vueTypeEntry = [
 
 fs.writeFileSync(path.join(vuePkgDir, 'index.d.ts'), vueTypeEntry)
 fs.writeFileSync(path.join(vuePkgDir, 'index.d.cts'), vueTypeEntry)
+
+fs.mkdirSync(sharedTypesDir, { recursive: true })
+
+const sharedTypesEntry = [
+  "export * from '../vue/index'",
+  "export { default } from '../vue/index'",
+  "export * from '../react/index'",
+  "export * from '../angular/angular/index'",
+  '',
+].join('\n')
+
+fs.writeFileSync(path.join(sharedTypesDir, 'index.d.ts'), sharedTypesEntry)

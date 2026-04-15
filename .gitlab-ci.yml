@@ -53,126 +53,22 @@ publish:
     - NPM_REGISTRY_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/npm/"
     - npm ping --registry "$NPM_REGISTRY_URL"
 
-    # Build package manifests for each framework wrapper and publish all three.
     - VERSION=$(node -p "require('./package.json').version")
+    - PACKAGE_NAME=$(node -p "require('./package.json').name")
     - |
-      declare -A PEER_DEP_KEYS
-      PEER_DEP_KEYS[vue]='["vue"]'
-      PEER_DEP_KEYS[react]='["react","react-dom"]'
-      PEER_DEP_KEYS[angular]='["@angular/common","@angular/core"]'
-
-      for framework in vue react angular; do
-        package_dir="dist/${framework}"
-        package_name="@${CI_PROJECT_ROOT_NAMESPACE}/gantt-editor-component-${framework}"
-
-        if [[ ! -d "$package_dir" ]]; then
-          echo "Missing build output directory: $package_dir"
-          exit 1
-        fi
-
-        PEER_KEYS_JSON="${PEER_DEP_KEYS[$framework]}" \
-        PACKAGE_NAME="$package_name" \
-        PACKAGE_VERSION="$VERSION" \
-        PACKAGE_DIR="$package_dir" \
-        FRAMEWORK="$framework" \
-        node -e '
-          const fs = require("fs");
-          const path = require("path");
-          const rootPkg = require("./package.json");
-
-          const peerKeys = JSON.parse(process.env.PEER_KEYS_JSON);
-          const peerDependencies = {};
-          const peerDependenciesMeta = {};
-          for (const key of peerKeys) {
-            const version = rootPkg.peerDependencies?.[key] || rootPkg.dependencies?.[key];
-            if (!version) {
-              throw new Error(`Missing dependency version for ${key}`);
-            }
-            peerDependencies[key] = version;
-            if (rootPkg.peerDependenciesMeta?.[key]) {
-              peerDependenciesMeta[key] = rootPkg.peerDependenciesMeta[key];
-            }
-          }
-
-          const packagePath = path.join(process.env.PACKAGE_DIR, "package.json");
-          if (process.env.FRAMEWORK === "angular") {
-            const outPkg = {
-              name: process.env.PACKAGE_NAME,
-              version: process.env.PACKAGE_VERSION,
-              type: "module",
-              sideEffects: false,
-              main: "./angular/index.js",
-              module: "./angular/index.js",
-              types: "./angular/index.d.ts",
-              exports: {
-                ".": {
-                  types: "./angular/index.d.ts",
-                  import: "./angular/index.js"
-                }
-              },
-              files: [
-                "angular/**/*.js",
-                "angular/**/*.d.ts",
-                "components/**/*.js",
-                "components/**/*.d.ts",
-                "**/*.map"
-              ],
-              peerDependencies
-            };
-
-            if (Object.keys(peerDependenciesMeta).length > 0) {
-              outPkg.peerDependenciesMeta = peerDependenciesMeta;
-            }
-
-            fs.writeFileSync(packagePath, `${JSON.stringify(outPkg, null, 2)}\n`);
-            process.exit(0);
-          }
-
-          const outPkg = {
-            name: process.env.PACKAGE_NAME,
-            version: process.env.PACKAGE_VERSION,
-            type: "module",
-            main: "./index.cjs",
-            module: "./index.js",
-            types: "./index.d.ts",
-            exports: {
-              ".": {
-                types: "./index.d.ts",
-                import: "./index.js",
-                require: "./index.cjs"
-              }
-            },
-            files: [
-              "*.js",
-              "*.cjs",
-              "*.d.ts",
-              "*.d.cts",
-              "**/*.d.ts",
-              "**/*.d.cts",
-              "*.css",
-              "*.map"
-            ],
-            peerDependencies
-          };
-
-          if (Object.keys(peerDependenciesMeta).length > 0) {
-            outPkg.peerDependenciesMeta = peerDependenciesMeta;
-          }
-
-          fs.writeFileSync(packagePath, `${JSON.stringify(outPkg, null, 2)}\n`);
-        '
-
-        NPM_PACKAGE_NAME=$(node -p "require('./${package_dir}/package.json').name")
-        if [[ ! $NPM_PACKAGE_NAME =~ ^@$CI_PROJECT_ROOT_NAMESPACE/ ]]; then
-          echo "Invalid package scope for $NPM_PACKAGE_NAME. Expected namespace @${CI_PROJECT_ROOT_NAMESPACE}."
-          exit 1
-        fi
-
-        echo "Publishing ${package_name}@${VERSION} from ${package_dir}"
-        npm publish "./$package_dir" \
-          --registry "$NPM_REGISTRY_URL" \
-          --loglevel verbose \
-          --fetch-retries=1 \
-          --fetch-retry-mintimeout=1000 \
-          --fetch-retry-maxtimeout=5000
-      done
+      if [[ ! -d "dist/vue" || ! -d "dist/react" || ! -d "dist/angular" || ! -f "dist/types/index.d.ts" ]]; then
+        echo "Missing required build outputs in dist/ (expected vue, react, angular, and shared types)"
+        exit 1
+      fi
+    - |
+      if [[ ! $PACKAGE_NAME =~ ^@$CI_PROJECT_ROOT_NAMESPACE/ ]]; then
+        echo "Invalid package scope for $PACKAGE_NAME. Expected namespace @${CI_PROJECT_ROOT_NAMESPACE}."
+        exit 1
+      fi
+    - echo "Publishing ${PACKAGE_NAME}@${VERSION} from repository root"
+    - npm publish . \
+      --registry "$NPM_REGISTRY_URL" \
+      --loglevel verbose \
+      --fetch-retries=1 \
+      --fetch-retry-mintimeout=1000 \
+      --fetch-retry-maxtimeout=5000
