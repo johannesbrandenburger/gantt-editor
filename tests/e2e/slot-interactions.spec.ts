@@ -12,6 +12,19 @@ import {
 } from "./helpers";
 
 const SLOT_ID = "LH123-20250101-F";
+const SLOT_C = "AA300-20250101-U";
+
+async function seedSelection(page: Parameters<typeof openE2eHarness>[0], slotIds: string[]) {
+  await page.evaluate((ids) => {
+    const harness = (window as Window & {
+      __ganttE2eHarness?: { getConfig: () => { slots: Array<Record<string, unknown>> } };
+    }).__ganttE2eHarness;
+    const config = harness?.getConfig();
+    const slots = config?.slots ?? [];
+    const selected = slots.filter((slot) => ids.includes(String(slot.id)));
+    localStorage.setItem("pointerSelection", JSON.stringify(selected));
+  }, slotIds);
+}
 
 test.describe("canvas rewrite slot interactions", () => {
   test("click on slot emits onClickOnSlot event", async ({ page }) => {
@@ -54,6 +67,60 @@ test.describe("canvas rewrite slot interactions", () => {
         return doubles.at(-1)?.slotId ?? null;
       })
       .toBe(SLOT_ID);
+  });
+
+  test("browser double-click suppresses second single-click event", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
+    await clearHarnessEvents(page);
+
+    const slotCenter = await findSlotPoint(page, SLOT_ID, "center");
+    const pagePoint = await canvasPointToPagePoint(canvas, slotCenter);
+    await page.mouse.dblclick(pagePoint.x, pagePoint.y);
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const clicks = (events.onClickOnSlot ?? []) as Array<{ slotId?: string }>;
+        return clicks.filter((event) => event.slotId === SLOT_ID).length;
+      })
+      .toBeLessThan(2);
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const doubles = (events.onDoubleClickOnSlot ?? []) as Array<{ slotId?: string }>;
+        return doubles.filter((event) => event.slotId === SLOT_ID).length;
+      })
+      .toBe(1);
+  });
+
+  test("double-click works for selected slot without destination move event", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
+    await seedSelection(page, [SLOT_ID, SLOT_C]);
+    await clearHarnessEvents(page);
+
+    const slotCenter = await findSlotPoint(page, SLOT_ID, "center");
+    const pagePoint = await canvasPointToPagePoint(canvas, slotCenter);
+    await page.mouse.dblclick(pagePoint.x, pagePoint.y);
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const doubles = (events.onDoubleClickOnSlot ?? []) as Array<{ slotId?: string }>;
+        return doubles.at(-1)?.slotId ?? null;
+      })
+      .toBe(SLOT_ID);
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const singleMoves = (events.onChangeDestinationId ?? []) as Array<{ preview?: boolean }>;
+        const bulkMoves = (events.onBulkChangeDestinationId ?? []) as Array<{ preview?: boolean }>;
+        const committedSingles = singleMoves.filter((event) => event.preview === false).length;
+        const committedBulks = bulkMoves.filter((event) => event.preview === false).length;
+        return committedSingles + committedBulks;
+      })
+      .toBe(0);
   });
 
   test("right-click on slot emits onContextClickOnSlot event", async ({ page }) => {

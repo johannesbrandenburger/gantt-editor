@@ -118,6 +118,7 @@ import type {
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const COLLAPSED_SYNC_MIN_INTERVAL_MS = 250;
+const SELECTED_SLOT_MOVE_DELAY_MS = 260;
 
 function rectContainsCanvasRect(
   rect: { x: number; y: number; w: number; h: number },
@@ -197,6 +198,7 @@ export class GanttChartCanvasController {
   private hoveredSlotId: string | null = null;
   private hoveredSuggestion: SuggestionButtonDefinition | null = null;
   private hoverTimeout: ReturnType<typeof setTimeout> | null = null;
+  private pendingSelectedSlotMoveTimeout: ReturnType<typeof setTimeout> | null = null;
   private suppressNextCanvasClick = false;
   private lastClickedSlotId: string | null = null;
   private lastDoubleClickedSlotId: string | null = null;
@@ -744,6 +746,7 @@ export class GanttChartCanvasController {
       clearTimeout(this.hoverTimeout);
       this.hoverTimeout = null;
     }
+    this.clearPendingSelectedSlotMove();
     this.slotResizeDrag = null;
     this.slotResizePreview = null;
     this.slotResizeRuler = null;
@@ -1310,6 +1313,12 @@ export class GanttChartCanvasController {
       return;
     }
     if (e.button !== 0) return;
+    // Browser double-click emits two click events (`detail` 1 then 2) plus one `dblclick`.
+    // Suppress the second click to avoid duplicate single-click behavior.
+    if (e.detail > 1) {
+      this.clearPendingSelectedSlotMove();
+      return;
+    }
     if (this.handleHelpOverlayClick(e.clientX, e.clientY)) {
       return;
     }
@@ -1397,6 +1406,7 @@ export class GanttChartCanvasController {
   }
 
   onCanvasDoubleClick(e: MouseEvent): void {
+    this.clearPendingSelectedSlotMove();
     if (!slotsAllowLabelsAndInteraction(this.rowHeight)) return;
     if (this.helpOverlayOpen || this.resolveHelpOverlayHitFromClientPoint(e.clientX, e.clientY) !== null) {
       return;
@@ -3007,11 +3017,33 @@ export class GanttChartCanvasController {
     if (!this.props.isReadOnly && !slot.readOnly) {
       const clipboard = this.readSelection();
       if ((clipboard.length === 0 || multiSelect) && this.canSelectSlots()) {
+        this.clearPendingSelectedSlotMove();
         this.toggleSlotSelection(slotId);
       } else if (clipboard.length > 0) {
-        this.moveSelectionToTopic(slot.destinationId, copyInsteadOfMove);
+        const clickedSelectedSlot = clipboard.some((selectedSlot) => selectedSlot.id === slotId);
+        if (clickedSelectedSlot) {
+          this.scheduleSelectedSlotMove(slot.destinationId, copyInsteadOfMove);
+        } else {
+          this.clearPendingSelectedSlotMove();
+          this.moveSelectionToTopic(slot.destinationId, copyInsteadOfMove);
+        }
       }
     }
+  }
+
+  private clearPendingSelectedSlotMove(): void {
+    if (this.pendingSelectedSlotMoveTimeout) {
+      clearTimeout(this.pendingSelectedSlotMoveTimeout);
+      this.pendingSelectedSlotMoveTimeout = null;
+    }
+  }
+
+  private scheduleSelectedSlotMove(topicId: string, copyInsteadOfMove: boolean): void {
+    this.clearPendingSelectedSlotMove();
+    this.pendingSelectedSlotMoveTimeout = setTimeout(() => {
+      this.pendingSelectedSlotMoveTimeout = null;
+      this.moveSelectionToTopic(topicId, copyInsteadOfMove);
+    }, SELECTED_SLOT_MOVE_DELAY_MS);
   }
 
   private toggleSlotSelection(slotId: string): void {
