@@ -1,5 +1,6 @@
 import { expect, test } from "./coverage-test";
 import {
+  clickCanvasContextMenuItem,
   canvasPointToPagePoint,
   clearHarnessEvents,
   dispatchCanvasMouseEvent,
@@ -9,6 +10,7 @@ import {
   getHarnessSlotCloseTimeMs,
   mouseDrag,
   openE2eHarness,
+  setHarnessConfig,
 } from "./helpers";
 
 const SLOT_ID = "LH123-20250101-F";
@@ -129,6 +131,52 @@ test.describe("canvas rewrite slot interactions", () => {
 
     const slotCenter = await findSlotPoint(page, SLOT_ID, "center");
     await dispatchCanvasMouseEvent(page, slotCenter, "contextmenu");
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const contexts = (events.onContextClickOnSlot ?? []) as Array<{ slotId?: string }>;
+        return contexts.at(-1)?.slotId ?? null;
+      })
+      .toBe(SLOT_ID);
+  });
+
+  test("right-click on slot opens slot context menu and emits action callback", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
+    await setHarnessConfig(page, {
+      slotContextMenuActions: [{ id: "focus-slot", label: "Focus slot details" }],
+    });
+    await expect
+      .poll(async () => await getCanvasStateField<number>(page, "slotContextMenuActionCount"))
+      .toBe(1);
+    await clearHarnessEvents(page);
+
+    const slotCenter = await findSlotPoint(page, SLOT_ID, "center");
+    await dispatchCanvasMouseEvent(page, slotCenter, "contextmenu");
+
+    await expect
+      .poll(async () => await getCanvasStateField<boolean>(page, "contextMenuOpen"))
+      .toBe(true);
+
+    await clickCanvasContextMenuItem(page, "Focus slot details");
+
+    await expect
+      .poll(async () => {
+        const events = await getHarnessEvents(page);
+        const actions = (events.onSlotContextMenuAction ?? []) as Array<{
+          actionId?: string;
+          slotId?: string;
+        }>;
+        const last = actions.at(-1);
+        return {
+          actionId: last?.actionId ?? null,
+          slotId: last?.slotId ?? null,
+        };
+      })
+      .toEqual({
+        actionId: "focus-slot",
+        slotId: SLOT_ID,
+      });
 
     await expect
       .poll(async () => {

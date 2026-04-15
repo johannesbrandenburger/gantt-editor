@@ -58,9 +58,14 @@ interface GanttEditorEmits {
   onChangeVerticalMarker: [string, Date],
   onClickVerticalMarker: [string],
   onContextMenuAction: [string, Date, string],
+  onSlotContextMenuAction: [string, string],
 }
 
-const props = defineProps<GanttEditorProps>();
+type GanttEditorComponentProps = GanttEditorProps & {
+  slotContextMenuActions?: GanttEditorProps["slotContextMenuActions"];
+};
+
+const props = defineProps<GanttEditorComponentProps>();
 const emit = defineEmits<GanttEditorEmits>();
 
 const chartContainerRef = ref<HTMLElement | null>(null);
@@ -122,6 +127,7 @@ function propsSnapshot(): GanttEditorProps {
     activateRulers: props.activateRulers,
     verticalMarkers: props.verticalMarkers,
     contextMenuActions: props.contextMenuActions,
+    slotContextMenuActions: props.slotContextMenuActions,
     markedRegion: props.markedRegion,
     isReadOnly: props.isReadOnly,
     topContentPortion: props.topContentPortion,
@@ -190,6 +196,9 @@ const controller = new GanttChartCanvasController(
     onContextMenuAction: (actionId, timestamp, destinationId) => {
       emit("onContextMenuAction", actionId, timestamp, destinationId);
     },
+    onSlotContextMenuAction: (actionId, slotId) => {
+      emit("onSlotContextMenuAction", actionId, slotId);
+    },
   },
   {
     onSelectionSlotIds: (slotIds) => {
@@ -224,6 +233,7 @@ watch(
     props.activateRulers,
     props.verticalMarkers,
     props.contextMenuActions,
+    props.slotContextMenuActions,
     props.isReadOnly,
     props.topContentPortion,
     props.xAxisOptions,

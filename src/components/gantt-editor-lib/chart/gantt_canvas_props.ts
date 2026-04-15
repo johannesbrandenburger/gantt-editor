@@ -6,6 +6,7 @@ import type {
   GanttEditorSlotWithUiAttributes,
   GanttEditorSuggestion,
   GanttEditorCanvasContextMenuAction,
+  GanttEditorSlotContextMenuAction,
   GanttEditorVerticalMarker,
   GanttEditorXAxisOptions,
 } from "./types";
@@ -51,6 +52,7 @@ export interface GanttEditorProps {
   activateRulers?: GanttEditorRulerMode;
   verticalMarkers?: Array<GanttEditorVerticalMarker>;
   contextMenuActions?: Array<GanttEditorCanvasContextMenuAction>;
+  slotContextMenuActions?: Array<GanttEditorSlotContextMenuAction>;
   markedRegion: GanttEditorMarkedRegion | null;
   isReadOnly: boolean;
   topContentPortion?: number;
@@ -87,6 +89,7 @@ export interface GanttEditorCallbacks {
   onVerticalMarkerChange?: (id: string, date: Date) => void;
   onVerticalMarkerClick?: (id: string) => void;
   onContextMenuAction?: (actionId: string, timestamp: Date, destinationId: string) => void;
+  onSlotContextMenuAction?: (actionId: string, slotId: string) => void;
 }
 
 /** Optional hooks for host UI state (Vue refs, Angular signals, etc.). */

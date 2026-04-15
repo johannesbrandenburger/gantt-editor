@@ -47,6 +47,7 @@ import {
 } from "./unified_chart_layout";
 import type {
   GanttEditorCanvasContextMenuAction,
+  GanttEditorSlotContextMenuAction,
   GanttEditorSlot,
   GanttEditorSlotWithUiAttributes,
   Topic,
@@ -141,6 +142,10 @@ type ContextMenuActionPayload = {
   actionId: string;
   targetDate: Date;
   destinationId: string;
+} | {
+  kind: "slot-custom-action";
+  actionId: string;
+  slotId: string;
 };
 
 const RULER_SNAP_CATCHMENT_PX = 3;
@@ -1485,6 +1490,10 @@ export class GanttChartCanvasController {
       if (slotHit) {
         this.lastContextClickedSlotId = slotHit.slotId;
         this.callbacks.onContextClickOnSlot?.(slotHit.slotId);
+        const slotMenuActions = this.getSlotContextMenuActions(slotHit.slotId);
+        if (slotMenuActions.length > 0) {
+          this.openContextMenu(ctx.point.x, ctx.point.y, slotMenuActions);
+        }
         return;
       }
 
@@ -1620,6 +1629,7 @@ export class GanttChartCanvasController {
     lastContextClickedSlotId: string | null;
     internalStartTimeMs: number;
     internalEndTimeMs: number;
+    slotContextMenuActionCount: number;
     contextMenuOpen: boolean;
     contextMenu: {
       rootItems: Array<{ id: string; label: string; center: { x: number; y: number } }>;
@@ -1671,6 +1681,7 @@ export class GanttChartCanvasController {
       lastContextClickedSlotId: this.lastContextClickedSlotId,
       internalStartTimeMs: this.internalStartTime.getTime(),
       internalEndTimeMs: this.internalEndTime.getTime(),
+      slotContextMenuActionCount: this.props.slotContextMenuActions?.length ?? 0,
       contextMenuOpen: this.contextMenuState.visible,
       contextMenu: contextMenuLayout
         ? {
@@ -4968,6 +4979,10 @@ export class GanttChartCanvasController {
         payload.targetDate,
         payload.destinationId,
       );
+      return;
+    }
+    if (payload.kind === "slot-custom-action") {
+      this.callbacks.onSlotContextMenuAction?.(payload.actionId, payload.slotId);
     }
   }
 
@@ -4996,6 +5011,24 @@ export class GanttChartCanvasController {
         actionId: action.id,
         targetDate,
         destinationId,
+      },
+    }));
+  }
+
+  private getSlotContextMenuActions(
+    slotId: string,
+  ): Array<CanvasContextMenuItem<ContextMenuActionPayload>> {
+    const actions = this.props.slotContextMenuActions ?? [];
+    if (actions.length === 0) return [];
+
+    return actions.map((action: GanttEditorSlotContextMenuAction) => ({
+      id: `slot-custom-action:${action.id}`,
+      label: action.label,
+      enabled: action.enabled,
+      payload: {
+        kind: "slot-custom-action",
+        actionId: action.id,
+        slotId,
       },
     }));
   }

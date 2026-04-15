@@ -8,6 +8,7 @@ export type {
   GanttEditorMarkedRegion,
   GanttEditorSuggestion,
   GanttEditorCanvasContextMenuAction,
+  GanttEditorSlotContextMenuAction,
   GanttEditorVerticalMarker,
   GanttEditorSlotWithUiAttributes,
   GanttEditorXAxisOptions,

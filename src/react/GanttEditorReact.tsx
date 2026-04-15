@@ -44,6 +44,7 @@ export interface GanttEditorReactProps extends GanttEditorProps {
   onChangeVerticalMarker?: (id: string, date: Date) => void
   onClickVerticalMarker?: (id: string) => void
   onContextMenuAction?: (actionId: string, timestamp: Date, destinationId: string) => void
+  onSlotContextMenuAction?: (actionId: string, slotId: string) => void
   topContent?: ReactNode
   className?: string
   style?: CSSProperties
@@ -95,6 +96,7 @@ function snapshotProps(props: GanttEditorReactProps): GanttEditorProps {
     activateRulers: props.activateRulers,
     verticalMarkers: props.verticalMarkers,
     contextMenuActions: props.contextMenuActions,
+    slotContextMenuActions: props.slotContextMenuActions,
     markedRegion: props.markedRegion,
     isReadOnly: props.isReadOnly,
     topContentPortion: props.topContentPortion,
@@ -155,6 +157,8 @@ export const GanttEditorReact = forwardRef<GanttEditorReactRef, GanttEditorReact
         onVerticalMarkerClick: (id) => propsRef.current.onClickVerticalMarker?.(id),
         onContextMenuAction: (actionId, timestamp, destinationId) =>
           propsRef.current.onContextMenuAction?.(actionId, timestamp, destinationId),
+        onSlotContextMenuAction: (actionId, slotId) =>
+          propsRef.current.onSlotContextMenuAction?.(actionId, slotId),
       }
 
       controllerRef.current = new GanttChartCanvasController(snapshotProps(props), callbacks, {
@@ -222,6 +226,7 @@ export const GanttEditorReact = forwardRef<GanttEditorReactRef, GanttEditorReact
       props.activateRulers,
       props.verticalMarkers,
       props.contextMenuActions,
+      props.slotContextMenuActions,
       props.isReadOnly,
       props.topContentPortion,
       props.xAxisOptions,

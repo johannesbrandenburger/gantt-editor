@@ -4,6 +4,7 @@ import { ActivatedRoute, ParamMap, Router } from '@angular/router'
 import {
   GanttEditorAngularComponent,
   type GanttEditorCanvasContextMenuAction,
+  type GanttEditorSlotContextMenuAction,
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorFeature,
@@ -19,6 +20,7 @@ type FixtureName =
   | 'dense'
   | 'readonly'
   | 'markers'
+  | 'slot-menu'
   | 'suggestions'
   | 'topic-collapse'
   | 'performance'
@@ -32,6 +34,7 @@ type HarnessData = {
   suggestions: GanttEditorSuggestion[]
   verticalMarkers: GanttEditorVerticalMarker[]
   contextMenuActions: GanttEditorCanvasContextMenuAction[]
+  slotContextMenuActions: GanttEditorSlotContextMenuAction[]
   markedRegion: GanttEditorMarkedRegion | null
   activateRulers: GanttEditorRulerMode
   isReadOnly: boolean
@@ -143,6 +146,7 @@ function normalizeFixture(value: string | null | undefined): FixtureName {
     value === 'dense' ||
     value === 'readonly' ||
     value === 'markers' ||
+    value === 'slot-menu' ||
     value === 'suggestions' ||
     value === 'topic-collapse' ||
     value === 'performance'
@@ -301,6 +305,7 @@ function baseData(fixture: FixtureName, slotCount: number): HarnessData {
     suggestions: [],
     verticalMarkers: [],
     contextMenuActions: [],
+    slotContextMenuActions: [],
     markedRegion: null,
     activateRulers: null,
     isReadOnly: fixture === 'readonly',
@@ -341,6 +346,10 @@ function baseData(fixture: FixtureName, slotCount: number): HarnessData {
     data.suggestions = [{ slotId: 'SUGGEST-100', alternativeDestinationId: 'chute-3' }]
   }
 
+  if (fixture === 'slot-menu') {
+    data.slotContextMenuActions = [{ id: 'focus-slot', label: 'Focus slot details' }]
+  }
+
   if (fixture === 'topic-collapse') {
     data.topContentPortion = 0
   }
@@ -365,6 +374,7 @@ function cloneData(data: HarnessData): HarnessData {
     suggestions: data.suggestions.map((suggestion) => ({ ...suggestion })),
     verticalMarkers: data.verticalMarkers.map((marker) => ({ ...marker, date: new Date(marker.date) })),
     contextMenuActions: data.contextMenuActions.map((action) => ({ ...action })),
+    slotContextMenuActions: data.slotContextMenuActions.map((action) => ({ ...action })),
     markedRegion: data.markedRegion
       ? {
           ...data.markedRegion,
@@ -532,6 +542,7 @@ function buildCopiedSlotOnTimeAxis(
         [suggestions]="harnessData.suggestions"
         [verticalMarkers]="harnessData.verticalMarkers"
         [contextMenuActions]="harnessData.contextMenuActions"
+        [slotContextMenuActions]="harnessData.slotContextMenuActions"
         [markedRegion]="harnessData.markedRegion"
         [topContentPortion]="harnessData.topContentPortion"
         [activateRulers]="harnessData.activateRulers"
@@ -554,6 +565,7 @@ function buildCopiedSlotOnTimeAxis(
         (onChangeVerticalMarker)="onChangeVerticalMarker($event)"
         (onClickVerticalMarker)="onClickVerticalMarker($event)"
         (onContextMenuAction)="onContextMenuAction($event)"
+        (onSlotContextMenuAction)="onSlotContextMenuAction($event)"
       />
     </div>
   `,
@@ -881,5 +893,9 @@ export class E2eHarnessPageComponent implements OnInit, OnDestroy {
 
   onContextMenuAction([actionId, timestamp, destinationId]: [string, Date, string]): void {
     this.logEvent('onContextMenuAction', { actionId, timestamp, destinationId })
+  }
+
+  onSlotContextMenuAction([actionId, slotId]: [string, string]): void {
+    this.logEvent('onSlotContextMenuAction', { actionId, slotId })
   }
 }

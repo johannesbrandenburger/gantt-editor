@@ -111,6 +111,7 @@ export class GanttEditorAngularComponent implements GanttEditorProps, AfterViewI
   @Input() activateRulers?: GanttEditorProps['activateRulers']
   @Input() verticalMarkers?: GanttEditorProps['verticalMarkers']
   @Input() contextMenuActions?: GanttEditorProps['contextMenuActions']
+  @Input() slotContextMenuActions?: GanttEditorProps['slotContextMenuActions']
   @Input({ required: true }) markedRegion!: GanttEditorProps['markedRegion']
   @Input({ required: true }) isReadOnly!: boolean
   @Input() topContentPortion?: number
@@ -139,6 +140,7 @@ export class GanttEditorAngularComponent implements GanttEditorProps, AfterViewI
   @Output() onChangeVerticalMarker = new EventEmitter<[string, Date]>()
   @Output() onClickVerticalMarker = new EventEmitter<string>()
   @Output() onContextMenuAction = new EventEmitter<[string, Date, string]>()
+  @Output() onSlotContextMenuAction = new EventEmitter<[string, string]>()
 
   @ViewChild('chartContainer', { static: true })
   private chartContainerRef!: ElementRef<HTMLElement>
@@ -202,6 +204,8 @@ export class GanttEditorAngularComponent implements GanttEditorProps, AfterViewI
       onVerticalMarkerClick: (id) => this.onClickVerticalMarker.emit(id),
       onContextMenuAction: (actionId, timestamp, destinationId) =>
         this.onContextMenuAction.emit([actionId, timestamp, destinationId]),
+      onSlotContextMenuAction: (actionId, slotId) =>
+        this.onSlotContextMenuAction.emit([actionId, slotId]),
     },
     {
       onSelectionSlotIds: (slotIds) => this.onSelectionChange.emit(slotIds),
@@ -332,6 +336,7 @@ export class GanttEditorAngularComponent implements GanttEditorProps, AfterViewI
       activateRulers: this.activateRulers,
       verticalMarkers: this.verticalMarkers,
       contextMenuActions: this.contextMenuActions,
+      slotContextMenuActions: this.slotContextMenuActions,
       markedRegion: this.markedRegion,
       isReadOnly: this.isReadOnly,
       topContentPortion: this.topContentPortion,

@@ -256,6 +256,7 @@ All wrappers expose the same core model and behavior.
 - `activateRulers: "ROW" | "GLOBAL" | null`
 - `verticalMarkers: GanttEditorVerticalMarker[]`
 - `contextMenuActions: GanttEditorCanvasContextMenuAction[]`
+- `slotContextMenuActions: GanttEditorSlotContextMenuAction[]`
 - `topContentPortion: number`
 - `xAxisOptions: GanttEditorXAxisOptions`
 - `helpOverlayTiles: HelpOverlayTileDefinition[]`
@@ -271,6 +272,7 @@ All wrappers expose the same core model and behavior.
 - Selection and click interactions: `onSelectionChange`, `onClickOnSlot`, `onHoverOnSlot`, `onDoubleClickOnSlot`, `onContextClickOnSlot`
 - Vertical markers: `onChangeVerticalMarker`, `onClickVerticalMarker`
 - Canvas context menu action: `onContextMenuAction(actionId, timestamp, destinationId)`
+- Slot context menu action: `onSlotContextMenuAction(actionId, slotId)`
 
 ## Feature Flags
 

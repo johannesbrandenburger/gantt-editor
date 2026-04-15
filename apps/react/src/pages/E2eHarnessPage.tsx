@@ -5,6 +5,7 @@ import {
   type GanttEditorFeature,
   type GanttEditorRulerMode,
   type GanttEditorCanvasContextMenuAction,
+  type GanttEditorSlotContextMenuAction,
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorMarkedRegion,
@@ -19,6 +20,7 @@ type FixtureName =
   | 'dense'
   | 'readonly'
   | 'markers'
+  | 'slot-menu'
   | 'suggestions'
   | 'topic-collapse'
   | 'performance'
@@ -32,6 +34,7 @@ type HarnessData = {
   suggestions: GanttEditorSuggestion[]
   verticalMarkers: GanttEditorVerticalMarker[]
   contextMenuActions: GanttEditorCanvasContextMenuAction[]
+  slotContextMenuActions: GanttEditorSlotContextMenuAction[]
   markedRegion: GanttEditorMarkedRegion | null
   activateRulers: GanttEditorRulerMode
   isReadOnly: boolean
@@ -147,6 +150,7 @@ function normalizeFixture(value: string | null | undefined): FixtureName {
     value === 'dense' ||
     value === 'readonly' ||
     value === 'markers' ||
+    value === 'slot-menu' ||
     value === 'suggestions' ||
     value === 'topic-collapse' ||
     value === 'performance'
@@ -305,6 +309,7 @@ function baseData(fixture: FixtureName, slotCount: number): HarnessData {
     suggestions: [],
     verticalMarkers: [],
     contextMenuActions: [],
+    slotContextMenuActions: [],
     markedRegion: null,
     activateRulers: null,
     isReadOnly: fixture === 'readonly',
@@ -341,6 +346,10 @@ function baseData(fixture: FixtureName, slotCount: number): HarnessData {
     data.contextMenuActions = [{ id: 'create-flight', label: 'Create a flight here' }]
   }
 
+  if (fixture === 'slot-menu') {
+    data.slotContextMenuActions = [{ id: 'focus-slot', label: 'Focus slot details' }]
+  }
+
   if (fixture === 'suggestions') {
     data.suggestions = [{ slotId: 'SUGGEST-100', alternativeDestinationId: 'chute-3' }]
   }
@@ -369,6 +378,7 @@ function cloneData(data: HarnessData): HarnessData {
     suggestions: data.suggestions.map((suggestion) => ({ ...suggestion })),
     verticalMarkers: data.verticalMarkers.map((marker) => ({ ...marker, date: new Date(marker.date) })),
     contextMenuActions: data.contextMenuActions.map((action) => ({ ...action })),
+    slotContextMenuActions: data.slotContextMenuActions.map((action) => ({ ...action })),
     markedRegion: data.markedRegion
       ? {
           ...data.markedRegion,
@@ -823,6 +833,13 @@ export function E2eHarnessPage() {
     [logEvent],
   )
 
+  const onSlotContextMenuAction = useCallback(
+    (actionId: string, slotId: string): void => {
+      logEvent('onSlotContextMenuAction', { actionId, slotId })
+    },
+    [logEvent],
+  )
+
   const testApi = useMemo<HarnessApi>(
     () => ({
       getConfig: () => cloneData(harnessDataRef.current),
@@ -943,6 +960,7 @@ export function E2eHarnessPage() {
           suggestions={harnessData.suggestions}
           verticalMarkers={harnessData.verticalMarkers}
           contextMenuActions={harnessData.contextMenuActions}
+          slotContextMenuActions={harnessData.slotContextMenuActions}
           markedRegion={harnessData.markedRegion}
           topContentPortion={harnessData.topContentPortion}
           activateRulers={harnessData.activateRulers}
@@ -965,6 +983,7 @@ export function E2eHarnessPage() {
           onChangeVerticalMarker={onChangeVerticalMarker}
           onClickVerticalMarker={onClickVerticalMarker}
           onContextMenuAction={onContextMenuAction}
+          onSlotContextMenuAction={onSlotContextMenuAction}
         />
       )}
     </div>

@@ -59,6 +59,12 @@ export type GanttEditorCanvasContextMenuAction = {
     enabled?: boolean,
 };
 
+export type GanttEditorSlotContextMenuAction = {
+    id: string,
+    label: string,
+    enabled?: boolean,
+};
+
 export type GanttEditorSlotWithUiAttributes = GanttEditorSlot & {
     isConflict?: boolean;
     isCopied?: boolean;

@@ -13,6 +13,7 @@ type OpenHarnessOptions = {
     | "dense"
     | "readonly"
     | "markers"
+    | "slot-menu"
     | "suggestions"
     | "topic-collapse"
     | "performance";
@@ -40,6 +41,11 @@ type HarnessConfig = {
     label?: string;
     draggable?: boolean;
     movableByContextMenu?: boolean;
+  }>;
+  slotContextMenuActions?: Array<{
+    id: string;
+    label: string;
+    enabled?: boolean;
   }>;
   destinations?: Array<{ id: string; displayName?: string; groupId?: string }>;
   markedRegion?: {
