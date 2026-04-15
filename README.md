@@ -59,6 +59,7 @@ const slots = ref<GanttEditorSlot[]>([
     openTime: new Date("2025-01-01T10:00:00Z"),
     closeTime: new Date("2025-01-01T12:00:00Z"),
     destinationId: "chute-1",
+    hoverData: "<strong>LH123</strong><br><em>Gate opens 10:00</em>",
     deadlines: [
       { id: "std", timestamp: new Date("2025-01-01T13:00:00Z").getTime(), color: "#9b59b6" },
       { id: "etd", timestamp: new Date("2025-01-01T13:25:00Z").getTime(), color: "#e74c3c" },
@@ -124,6 +125,7 @@ export function App() {
         openTime: new Date("2025-01-01T10:00:00Z"),
         closeTime: new Date("2025-01-01T12:00:00Z"),
         destinationId: "chute-1",
+        hoverData: "<strong>LH123</strong><br><em>Gate opens 10:00</em>",
       },
     ],
     [],
@@ -207,6 +209,7 @@ export class AppComponent {
       openTime: new Date("2025-01-01T10:00:00Z"),
       closeTime: new Date("2025-01-01T12:00:00Z"),
       destinationId: "chute-1",
+      hoverData: "<strong>LH123</strong><br><em>Gate opens 10:00</em>",
     },
   ];
 
@@ -253,6 +256,7 @@ All wrappers expose the same core model and behavior.
 
 `GanttEditorSlot` supports generic slot deadlines:
 - `deadlines?: Array<{ id: string; timestamp: number; color: string }>`
+- `hoverData?: string` (tooltip supports plain text and a limited HTML subset: `<strong>`, `<em>`, `<br>`)
 
 ### Common Optional Inputs
 

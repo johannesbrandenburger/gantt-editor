@@ -246,7 +246,7 @@ function coreSlots(): GanttEditorSlotWithUiAttributes[] {
         { id: "etd", timestamp: new Date(`${isoDay}T13:25:00Z`).getTime(), color: "#1f1f1f" },
       ],
       color: "#3498db",
-      hoverData: "Core slot for e2e interactions",
+      hoverData: "<strong>Core slot</strong><br><em>for e2e interactions</em>",
     },
     {
       id: "OS200-20250101-G",

@@ -154,6 +154,31 @@ const RESIZE_RULER_TICK_LENGTH_PX = 10;
 const RESIZE_TIME_LABEL_OFFSET_X = 14;
 const RESIZE_TIME_LABEL_OFFSET_Y = -16;
 const HELP_OVERLAY_TRANSITION_MS = 180;
+const SLOT_HOVER_TOOLTIP_FONT_FAMILY = "12px sans-serif";
+
+type HoverTooltipStyle = {
+  bold: boolean;
+  italic: boolean;
+};
+
+type HoverTooltipToken =
+  | {
+      kind: "line-break";
+    }
+  | {
+      kind: "text";
+      text: string;
+      style: HoverTooltipStyle;
+    };
+
+type HoverTooltipLineSegment = {
+  text: string;
+  style: HoverTooltipStyle;
+};
+
+type HoverTooltipLine = {
+  segments: HoverTooltipLineSegment[];
+};
 
 type ResizeRulerSnapPointKind = "openTime" | "closeTime" | "deadline";
 
@@ -4443,9 +4468,8 @@ export class GanttChartCanvasController {
     if (!tooltipText) return;
 
     ctx.save();
-    ctx.font = "12px sans-serif";
-
-    const lines = this.wrapTooltipText(ctx, tooltipText, 260);
+    const tokens = this.parseHoverTooltipTokens(tooltipText);
+    const lines = this.wrapHoverTooltipTokens(ctx, tokens, 260);
     if (lines.length === 0) {
       ctx.restore();
       return;
@@ -4455,7 +4479,10 @@ export class GanttChartCanvasController {
     const padX = 8;
     const padY = 8;
 
-    const textWidth = lines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
+    const textWidth = lines.reduce(
+      (max, line) => Math.max(max, this.measureHoverTooltipLineWidth(ctx, line)),
+      0,
+    );
     const boxWidth = Math.ceil(textWidth + padX * 2);
     const boxHeight = Math.ceil(lines.length * lineHeight + padY * 2);
 
@@ -4484,10 +4511,9 @@ export class GanttChartCanvasController {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    ctx.fillStyle = "#111111";
     lines.forEach((line, idx) => {
       const baseline = y + padY + idx * lineHeight + 11;
-      ctx.fillText(line, x + padX, baseline);
+      this.drawHoverTooltipLine(ctx, line, x + padX, baseline);
     });
 
     ctx.restore();
@@ -4615,6 +4641,191 @@ export class GanttChartCanvasController {
     }
 
     return result;
+  }
+
+  private parseHoverTooltipTokens(input: string): HoverTooltipToken[] {
+    if (!input) return [];
+    const tokens: HoverTooltipToken[] = [];
+    const normalized = input.replace(/\r\n?/g, "\n");
+    const matcher = /<\/?(strong|em)\s*>|<br\s*\/?\s*>|<[^>]+>|[^<]+/gi;
+    let boldDepth = 0;
+    let italicDepth = 0;
+
+    const appendText = (value: string): void => {
+      if (!value) return;
+      const chunks = value.split("\n");
+      for (let idx = 0; idx < chunks.length; idx++) {
+        const chunk = chunks[idx] ?? "";
+        if (chunk) {
+          tokens.push({
+            kind: "text",
+            text: chunk,
+            style: { bold: boldDepth > 0, italic: italicDepth > 0 },
+          });
+        }
+        if (idx < chunks.length - 1) {
+          tokens.push({ kind: "line-break" });
+        }
+      }
+    };
+
+    let match: RegExpExecArray | null;
+    while ((match = matcher.exec(normalized)) !== null) {
+      const token = match[0];
+      if (!token) continue;
+      const lowerToken = token.toLowerCase();
+      if (/^<br\s*\/?\s*>$/.test(lowerToken)) {
+        tokens.push({ kind: "line-break" });
+        continue;
+      }
+      if (lowerToken === "<strong>") {
+        boldDepth += 1;
+        continue;
+      }
+      if (lowerToken === "</strong>") {
+        boldDepth = Math.max(0, boldDepth - 1);
+        continue;
+      }
+      if (lowerToken === "<em>") {
+        italicDepth += 1;
+        continue;
+      }
+      if (lowerToken === "</em>") {
+        italicDepth = Math.max(0, italicDepth - 1);
+        continue;
+      }
+      if (token.startsWith("<")) {
+        continue;
+      }
+      appendText(token);
+    }
+    return tokens;
+  }
+
+  private wrapHoverTooltipTokens(
+    ctx: CanvasRenderingContext2D,
+    tokens: HoverTooltipToken[],
+    maxWidth: number,
+  ): HoverTooltipLine[] {
+    const lines: HoverTooltipLine[] = [];
+    let current: HoverTooltipLineSegment[] = [];
+    let currentWidth = 0;
+    const flushLine = (): void => {
+      if (current.length > 0) {
+        lines.push({ segments: current });
+        current = [];
+        currentWidth = 0;
+      }
+    };
+    const appendSegment = (segment: HoverTooltipLineSegment): void => {
+      const last = current[current.length - 1];
+      if (
+        last &&
+        last.style.bold === segment.style.bold &&
+        last.style.italic === segment.style.italic
+      ) {
+        last.text += segment.text;
+      } else {
+        current.push({ text: segment.text, style: segment.style });
+      }
+    };
+
+    for (const token of tokens) {
+      if (token.kind === "line-break") {
+        flushLine();
+        continue;
+      }
+      const parts = token.text.split(/(\s+)/).filter((part) => part.length > 0);
+      for (const part of parts) {
+        const isWhitespace = /^\s+$/.test(part);
+        if (isWhitespace && current.length === 0) continue;
+
+        const partWidth = this.measureHoverTooltipText(ctx, part, token.style);
+        const fitsCurrentLine = currentWidth + partWidth <= maxWidth;
+
+        if (fitsCurrentLine || current.length === 0) {
+          appendSegment({ text: part, style: token.style });
+          currentWidth += partWidth;
+          continue;
+        }
+
+        if (isWhitespace) {
+          continue;
+        }
+
+        flushLine();
+        if (partWidth <= maxWidth) {
+          appendSegment({ text: part, style: token.style });
+          currentWidth = partWidth;
+          continue;
+        }
+
+        let remaining = part;
+        while (remaining.length > 0) {
+          let splitIndex = 0;
+          for (let idx = 1; idx <= remaining.length; idx++) {
+            const candidate = remaining.slice(0, idx);
+            if (this.measureHoverTooltipText(ctx, candidate, token.style) <= maxWidth) {
+              splitIndex = idx;
+            } else {
+              break;
+            }
+          }
+          if (splitIndex <= 0) {
+            splitIndex = 1;
+          }
+          const chunk = remaining.slice(0, splitIndex);
+          appendSegment({ text: chunk, style: token.style });
+          currentWidth = this.measureHoverTooltipText(ctx, chunk, token.style);
+          remaining = remaining.slice(splitIndex);
+          if (remaining.length > 0) {
+            flushLine();
+          }
+        }
+      }
+    }
+    flushLine();
+    return lines;
+  }
+
+  private drawHoverTooltipLine(
+    ctx: CanvasRenderingContext2D,
+    line: HoverTooltipLine,
+    x: number,
+    baseline: number,
+  ): void {
+    let cursorX = x;
+    for (const segment of line.segments) {
+      ctx.font = this.hoverTooltipFont(segment.style);
+      ctx.fillStyle = "#111111";
+      ctx.fillText(segment.text, cursorX, baseline);
+      cursorX += ctx.measureText(segment.text).width;
+    }
+  }
+
+  private measureHoverTooltipLineWidth(
+    ctx: CanvasRenderingContext2D,
+    line: HoverTooltipLine,
+  ): number {
+    return line.segments.reduce(
+      (sum, segment) => sum + this.measureHoverTooltipText(ctx, segment.text, segment.style),
+      0,
+    );
+  }
+
+  private measureHoverTooltipText(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    style: HoverTooltipStyle,
+  ): number {
+    ctx.font = this.hoverTooltipFont(style);
+    return ctx.measureText(text).width;
+  }
+
+  private hoverTooltipFont(style: HoverTooltipStyle): string {
+    const stylePart = style.italic ? "italic " : "";
+    const weightPart = style.bold ? "700 " : "";
+    return `${stylePart}${weightPart}${SLOT_HOVER_TOOLTIP_FONT_FAMILY}`;
   }
 
   /**

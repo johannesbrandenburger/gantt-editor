@@ -8,6 +8,7 @@ export type GanttEditorSlot = {
     closeTime: Date,
     destinationId: string,
     additionalData?: string,
+    /** Supports plain text and a limited HTML subset: <strong>, <em>, <br>. */
     hoverData?: string,
     deadlines?: GanttEditorSlotDeadline[],
     readOnly?: boolean,

@@ -302,7 +302,7 @@ const generateSlots = (count: number) => {
             scenario = "ETD equals STD";
         }
 
-        const hoverData = `Flight ${flightNumber}: 🛫 Departure: ${new Date(etdTimestamp).toLocaleString()}`;
+        const hoverData = `<strong>Flight ${flightNumber}</strong>:<br> 🛫 Departure: ${new Date(etdTimestamp).toLocaleString()}`;
         const stdColor = index % 8 === 0 ? '#e67e22' : '#9e9e9e';
         const etdColor = index % 8 === 0 ? '#27ae60' : '#1f1f1f';
 
