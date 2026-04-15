@@ -22,6 +22,9 @@
             :contextMenuActions="contextMenuActions"
             :markedRegion="markedRegion"
             :activate-rulers="'GLOBAL'"
+            :slot-context-menu-actions="[
+                { id: 'delete', label: 'Delete Slot' },
+            ]"
             @onChangeStartAndEndTime="handleChangeStartAndEndTime"
             @onChangeDestinationId="handleChangeDestinationId"
             @onBulkChangeDestinationId="handleBulkChangeDestinationId"
@@ -695,6 +698,16 @@ const handleCanvasContextMenuAction = (actionId: string, timestamp: Date, destin
     ];
 
     showEventMessage(`➕ Created ${slotId} at ${destinationId}`);
+};
+
+const handleSlotContextMenuAction = (actionId: string, slotId: string) => {
+    if (actionId === 'delete') {
+        const slotToDelete = slots.value.find(slot => slot.id === slotId);
+        if (slotToDelete && !slotToDelete.readOnly) {
+            slots.value = slots.value.filter(slot => slot.id !== slotId);
+            showEventMessage(`❌ Deleted ${slotId}`);
+        }
+    }
 };
 </script>
 
