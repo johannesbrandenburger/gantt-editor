@@ -22,7 +22,7 @@
             :contextMenuActions="contextMenuActions"
             :markedRegion="markedRegion"
             :activate-rulers="'GLOBAL'"
-            :slot-context-menu-actions="[
+            :slotContextMenuActions="[
                 { id: 'delete', label: 'Delete Slot' },
             ]"
             @onChangeStartAndEndTime="handleChangeStartAndEndTime"
@@ -44,6 +44,7 @@
             @onClickVerticalMarker="handleClickVerticalMarker"
             @onContextMenuAction="handleCanvasContextMenuAction"
             :topContentPortion="topContentPortion"
+            @onSlotContextMenuAction="handleSlotContextMenuAction"
             @onTopContentPortionChange="(newPortion: number, newHeight: number) => topContentPortion = newPortion"
         >
             <template
