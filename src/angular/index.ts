@@ -1,7 +1,7 @@
 export {
-  GanttEditorAngularComponent,
+  GanttEditor,
   GanttEditorTopContentDirective,
-} from './GanttEditorAngular.component'
+} from './GanttEditor.component'
 
 export type {
   GanttEditorSlot,

@@ -1,6 +1,6 @@
 import type { Topic } from "./types";
 
-/** Matches default row height in GanttEditorComponent — fonts/padding scale from this baseline. */
+/** Matches default row height in GanttEditor — fonts/padding scale from this baseline. */
 export const TEXT_SCALE_BASE_ROW_HEIGHT = 40;
 const TOPIC_HEADER_MAX_FONT_PX = 10;
 const TOPIC_HEADER_MIN_FONT_PX = 3;

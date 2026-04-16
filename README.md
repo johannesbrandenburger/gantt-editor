@@ -35,7 +35,7 @@ Token requirements:
 ```vue
 <script setup lang="ts">
 import { ref } from "vue";
-import GanttEditorComponent, {
+import GanttEditor, {
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorSlot,
@@ -74,7 +74,7 @@ const destinationGroups = ref<GanttEditorDestinationGroup[]>([
 
 <template>
   <div style="height: 100vh; width: 100%;">
-    <GanttEditorComponent
+    <GanttEditor
       :isReadOnly="false"
       :startTime="startTime"
       :endTime="endTime"
@@ -99,7 +99,7 @@ const destinationGroups = ref<GanttEditorDestinationGroup[]>([
 ```tsx
 import { useMemo, useState } from "react";
 import {
-  GanttEditorReact,
+  GanttEditor,
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorSlot,
@@ -136,7 +136,7 @@ export function App() {
 
   return (
     <div style={{ height: "100vh", width: "100%" }}>
-      <GanttEditorReact
+      <GanttEditor
         isReadOnly={false}
         startTime={startTime}
         endTime={endTime}
@@ -162,7 +162,7 @@ export function App() {
 ```ts
 import { Component } from "@angular/core";
 import {
-  GanttEditorAngularComponent,
+  GanttEditor,
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorSlot,
@@ -171,10 +171,10 @@ import {
 @Component({
   selector: "app-root",
   standalone: true,
-  imports: [GanttEditorAngularComponent],
+  imports: [GanttEditor],
   template: `
     <div style="height: 100vh; width: 100%;">
-      <gantt-editor-angular
+      <gantt-editor
         [isReadOnly]="false"
         [startTime]="startTime"
         [endTime]="endTime"

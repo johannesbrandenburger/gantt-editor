@@ -53,7 +53,7 @@
 
         <!-- Gantt Editor -->
         <div style="flex: 1; overflow: hidden;">
-            <GanttEditorComponent
+            <GanttEditor
                 :isReadOnly="false"
                 :startTime="startTime"
                 :endTime="endTime"
@@ -84,7 +84,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
 import type { GanttEditorSlot } from '@/components/gantt-editor-lib/chart/types';
-import GanttEditorComponent from '@/vue/GanttEditorComponent.vue';
+import GanttEditor from '@/vue/GanttEditor.vue';
 
 const DEFAULT_SLOTS = 10_000;
 const DEFAULT_DAYS = 7;

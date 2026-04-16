@@ -1,4 +1,4 @@
-import GanttEditorComponent from './GanttEditorComponent.vue'
+import GanttEditor from './GanttEditor.vue'
 
 export type {
     GanttEditorSlot,
@@ -31,5 +31,5 @@ export {
 
 export { GanttChartCanvasController } from '../components/gantt-editor-lib/chart/gantt_chart_canvas_controller'
 
-export { GanttEditorComponent }
-export default GanttEditorComponent
+export { GanttEditor }
+export default GanttEditor

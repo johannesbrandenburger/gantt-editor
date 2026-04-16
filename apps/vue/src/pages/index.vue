@@ -9,7 +9,7 @@
         - slots can be resized at its ends and moved by pin and paste
     -->
     <div style="height: 100vh; width: 100%; margin: 0 auto;">
-        <GanttEditorComponent
+        <GanttEditor
             ref="ganttEditorRef"
             :isReadOnly="isReadOnly"
             :startTime="startTime"
@@ -146,7 +146,7 @@
                     </div>
                 </div>
             </template>
-        </GanttEditorComponent>
+        </GanttEditor>
     </div>
 </template>
 
@@ -157,7 +157,7 @@ import type {
     GanttEditorSlot,
     GanttEditorVerticalMarker,
 } from '@/components/gantt-editor-lib/chart/types';
-import GanttEditorComponent from '@/vue/GanttEditorComponent.vue';
+import GanttEditor from '@/vue/GanttEditor.vue';
 import { timeHour, type TimeDomainValue } from '@/components/gantt-editor-lib/chart/time_scale';
 
 const upperAxisFormatter = new Intl.DateTimeFormat(undefined, {
@@ -183,7 +183,7 @@ const formatLowerAxisTick = (domainValue: TimeDomainValue): string => {
 };
 
 // Ref to the Gantt Editor component for programmatic access
-const ganttEditorRef = ref<InstanceType<typeof GanttEditorComponent> | null>(null);
+const ganttEditorRef = ref<InstanceType<typeof GanttEditor> | null>(null);
 
 const topContentPortion = ref(0.1); // 20% of total height for top content
 const onWindowKeydown = (event: KeyboardEvent) => {

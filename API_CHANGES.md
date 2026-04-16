@@ -1,6 +1,10 @@
 # API changes: main -> canvas rewrite
 
 ## Breaking
+- Wrapper component names were unified to `GanttEditor` across all frameworks:
+  - React: `GanttEditorReact` -> `GanttEditor`
+  - Vue: `GanttEditorComponent` -> `GanttEditor`
+  - Angular: `GanttEditorAngularComponent` + `<gantt-editor-angular>` -> `GanttEditor` + `<gantt-editor>`
 - Removed prop: `lazyRendering`.
 - `GanttEditorXAxisOptions` no longer uses d3 types.
   - Before: `tickFormat?: (Date | d3.NumberValue) => string`, `ticks?: d3.TimeInterval`

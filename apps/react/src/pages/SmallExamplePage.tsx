@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
-  GanttEditorReact,
+  GanttEditor,
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorSlot,
@@ -57,7 +57,7 @@ export function SmallExamplePage() {
 
   return (
     <div style={pageStyle}>
-      <GanttEditorReact
+      <GanttEditor
         isReadOnly={false}
         startTime={startTime}
         endTime={endTime}

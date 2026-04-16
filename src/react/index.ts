@@ -1,5 +1,5 @@
-export { GanttEditorReact } from './GanttEditorReact'
-export type { GanttEditorReactProps, GanttEditorReactRef } from './GanttEditorReact'
+export { GanttEditor } from './GanttEditor'
+export type { GanttEditorWrapperProps, GanttEditorRef } from './GanttEditor'
 
 export type {
   GanttEditorSlot,

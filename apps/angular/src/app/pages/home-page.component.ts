@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common'
 import { Component, HostListener, ViewChild } from '@angular/core'
 import {
-  GanttEditorAngularComponent,
+  GanttEditor,
   GanttEditorTopContentDirective,
   type GanttEditorCanvasContextMenuAction,
   type GanttEditorDestination,
@@ -15,10 +15,10 @@ import {
 @Component({
   selector: 'app-home-page',
   standalone: true,
-  imports: [CommonModule, GanttEditorAngularComponent, GanttEditorTopContentDirective],
+  imports: [CommonModule, GanttEditor, GanttEditorTopContentDirective],
   template: `
     <div class="page">
-      <gantt-editor-angular
+      <gantt-editor
         #ganttEditorRef
         [isReadOnly]="isReadOnly"
         [startTime]="startTime"
@@ -74,7 +74,7 @@ import {
 
           <div *ngIf="eventMessage" class="event-message">{{ eventMessage }}</div>
         </div>
-      </gantt-editor-angular>
+      </gantt-editor>
     </div>
   `,
   styles: [
@@ -121,7 +121,7 @@ import {
 })
 export class HomePageComponent {
   @ViewChild('ganttEditorRef')
-  private ganttEditorRef?: GanttEditorAngularComponent
+  private ganttEditorRef?: GanttEditor
 
   readonly startTime = new Date('2025-01-01T00:00:00Z')
   readonly endTime = new Date('2025-01-01T23:59:59Z')

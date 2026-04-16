@@ -61,11 +61,11 @@ interface GanttEditorEmits {
   onSlotContextMenuAction: [string, string],
 }
 
-type GanttEditorComponentProps = GanttEditorProps & {
+type GanttEditorWrapperProps = GanttEditorProps & {
   slotContextMenuActions?: GanttEditorProps["slotContextMenuActions"];
 };
 
-const props = defineProps<GanttEditorComponentProps>();
+const props = defineProps<GanttEditorWrapperProps>();
 const emit = defineEmits<GanttEditorEmits>();
 
 const chartContainerRef = ref<HTMLElement | null>(null);

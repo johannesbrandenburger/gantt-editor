@@ -10,7 +10,7 @@ import {
 } from 'react'
 import type {
   GanttEditorCallbacks,
-  GanttEditorProps,
+  GanttEditorProps as GanttEditorCanvasProps,
 } from '../components/gantt-editor-lib/chart/gantt_canvas_props'
 import { GanttChartCanvasController } from '../components/gantt-editor-lib/chart/gantt_chart_canvas_controller'
 
@@ -24,7 +24,7 @@ type GanttCanvasTestApi = {
   findSlotPoint: (slotId: string, mode?: SlotPointMode) => ReturnType<GanttChartCanvasController['findSlotPoint']>
 }
 
-export interface GanttEditorReactProps extends GanttEditorProps {
+export interface GanttEditorWrapperProps extends GanttEditorCanvasProps {
   onChangeStartAndEndTime?: (start: Date, end: Date) => void
   onChangeDestinationId?: (slotId: string, destinationId: string, preview: boolean) => void
   onBulkChangeDestinationId?: (slotIds: string[], destinationId: string, preview: boolean) => void
@@ -50,7 +50,7 @@ export interface GanttEditorReactProps extends GanttEditorProps {
   style?: CSSProperties
 }
 
-export interface GanttEditorReactRef {
+export interface GanttEditorRef {
   clearSelection: () => void
   clearClipboard: () => void
   chartCanvas: HTMLCanvasElement | null
@@ -85,7 +85,7 @@ const chartCanvasStyle: CSSProperties = {
   display: 'block',
 }
 
-function snapshotProps(props: GanttEditorReactProps): GanttEditorProps {
+function snapshotProps(props: GanttEditorWrapperProps): GanttEditorCanvasProps {
   return {
     startTime: props.startTime,
     endTime: props.endTime,
@@ -108,12 +108,12 @@ function snapshotProps(props: GanttEditorReactProps): GanttEditorProps {
   }
 }
 
-function markedRegionKey(markedRegion: GanttEditorProps['markedRegion']): string {
+function markedRegionKey(markedRegion: GanttEditorCanvasProps['markedRegion']): string {
   if (!markedRegion) return 'null'
   return `${markedRegion.destinationId}|${markedRegion.startTime.getTime()}|${markedRegion.endTime.getTime()}`
 }
 
-export const GanttEditorReact = forwardRef<GanttEditorReactRef, GanttEditorReactProps>(
+export const GanttEditor = forwardRef<GanttEditorRef, GanttEditorWrapperProps>(
   (props, ref) => {
     const propsRef = useRef(props)
     propsRef.current = props
@@ -315,4 +315,4 @@ export const GanttEditorReact = forwardRef<GanttEditorReactRef, GanttEditorReact
   },
 )
 
-GanttEditorReact.displayName = 'GanttEditorReact'
+GanttEditor.displayName = 'GanttEditor'

@@ -35,7 +35,7 @@ type GanttCanvasTestApi = {
 export class GanttEditorTopContentDirective {}
 
 @Component({
-  selector: 'gantt-editor-angular',
+  selector: 'gantt-editor',
   standalone: true,
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -101,7 +101,7 @@ export class GanttEditorTopContentDirective {}
     </div>
   `,
 })
-export class GanttEditorAngularComponent implements GanttEditorProps, AfterViewInit, OnChanges, OnDestroy {
+export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, OnDestroy {
   @Input({ required: true }) startTime!: Date
   @Input({ required: true }) endTime!: Date
   @Input({ required: true }) slots!: GanttEditorProps['slots']
@@ -173,7 +173,7 @@ export class GanttEditorAngularComponent implements GanttEditorProps, AfterViewI
   }
 
   private readonly controller = new GanttChartCanvasController(
-    GanttEditorAngularComponent.INITIAL_CONTROLLER_PROPS,
+    GanttEditor.INITIAL_CONTROLLER_PROPS,
     {
       onChangeStartAndEndTime: (start, end) => this.onChangeStartAndEndTime.emit([start, end]),
       onTopContentPortionChange: (portion, heightPx) =>

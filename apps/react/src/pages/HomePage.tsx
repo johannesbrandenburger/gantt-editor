@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  GanttEditorReact,
+  GanttEditor,
   type GanttEditorCanvasContextMenuAction,
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorMarkedRegion,
-  type GanttEditorReactRef,
+  type GanttEditorRef,
   type GanttEditorSlot,
   type GanttEditorSuggestion,
   type GanttEditorVerticalMarker,
@@ -88,7 +88,7 @@ const destinationGroups: GanttEditorDestinationGroup[] = [
 ]
 
 export function HomePage() {
-  const ganttEditorRef = useRef<GanttEditorReactRef | null>(null)
+  const ganttEditorRef = useRef<GanttEditorRef | null>(null)
   const messageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [isReadOnly, setIsReadOnly] = useState(false)
@@ -155,7 +155,7 @@ export function HomePage() {
 
   return (
     <div style={pageStyle}>
-      <GanttEditorReact
+      <GanttEditor
         ref={ganttEditorRef}
         isReadOnly={isReadOnly}
         startTime={startTime}

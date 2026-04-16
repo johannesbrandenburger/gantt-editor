@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import GanttEditorComponent from '@/vue/GanttEditorComponent.vue';
-// import GanttEditorComponent from '@pf/gantt-editor-component-vue';
+import GanttEditor from '@/vue/GanttEditor.vue';
+// import GanttEditor from '@pf/gantt-editor-component-vue';
 </script>
 <template>
     <!--
@@ -13,7 +13,7 @@ import GanttEditorComponent from '@/vue/GanttEditorComponent.vue';
         - slots can be resized at its ends and moved by pin and paste
     -->
     <div style="height: 100vh; width: 100%; margin: 0 auto;">
-        <GanttEditorComponent
+        <GanttEditor
             :isReadOnly="false"
             :startTime="new Date('2025-01-01T00:00:00Z')"
             :endTime="new Date('2025-01-02T00:00:00Z')"

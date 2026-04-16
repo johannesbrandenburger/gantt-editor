@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  GanttEditorReact,
+  GanttEditor,
   type GanttEditorFeature,
   type GanttEditorRulerMode,
   type GanttEditorCanvasContextMenuAction,
@@ -10,7 +10,7 @@ import {
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorMarkedRegion,
-  type GanttEditorReactRef,
+  type GanttEditorRef,
   type GanttEditorSlotWithUiAttributes,
   type GanttEditorSuggestion,
   type GanttEditorVerticalMarker,
@@ -561,7 +561,7 @@ export function E2eHarnessPage() {
   const [harnessEvents, setHarnessEvents] = useState<Record<string, unknown[]>>({})
   const [ganttMounted, setGanttMounted] = useState(true)
 
-  const ganttEditorRef = useRef<GanttEditorReactRef | null>(null)
+  const ganttEditorRef = useRef<GanttEditorRef | null>(null)
   const harnessDataRef = useRef(harnessData)
   const harnessEventsRef = useRef(harnessEvents)
   const ganttMountedRef = useRef(ganttMounted)
@@ -974,7 +974,7 @@ export function E2eHarnessPage() {
   return (
     <div style={pageStyle}>
       {ganttMounted && (
-        <GanttEditorReact
+        <GanttEditor
           ref={ganttEditorRef}
           isReadOnly={harnessData.isReadOnly}
           startTime={harnessData.startTime}

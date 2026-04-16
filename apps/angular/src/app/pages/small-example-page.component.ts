@@ -1,6 +1,6 @@
 import { Component } from '@angular/core'
 import {
-  GanttEditorAngularComponent,
+  GanttEditor,
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorSlot,
@@ -10,10 +10,10 @@ import {
 @Component({
   selector: 'app-small-example-page',
   standalone: true,
-  imports: [GanttEditorAngularComponent],
+  imports: [GanttEditor],
   template: `
     <div class="page">
-      <gantt-editor-angular
+      <gantt-editor
         [isReadOnly]="false"
         [startTime]="startTime"
         [endTime]="endTime"

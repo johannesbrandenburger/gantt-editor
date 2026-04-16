@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common'
 import { ChangeDetectorRef, Component, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core'
 import { ActivatedRoute, ParamMap, Router } from '@angular/router'
 import {
-  GanttEditorAngularComponent,
+  GanttEditor,
   type GanttEditorCanvasContextMenuAction,
   type GanttEditorSlotContextMenuAction,
   type GanttEditorDestination,
@@ -554,10 +554,10 @@ function buildCopiedSlotOnTimeAxis(
 @Component({
   selector: 'app-e2e-harness-page',
   standalone: true,
-  imports: [CommonModule, GanttEditorAngularComponent],
+  imports: [CommonModule, GanttEditor],
   template: `
     <div class="page">
-      <gantt-editor-angular
+      <gantt-editor
         *ngIf="ganttMounted"
         #ganttEditorRef
         [isReadOnly]="harnessData.isReadOnly"
@@ -612,7 +612,7 @@ export class E2eHarnessPageComponent implements OnInit, OnDestroy {
   ganttMounted = true
 
   @ViewChild('ganttEditorRef')
-  ganttEditorRef?: GanttEditorAngularComponent
+  ganttEditorRef?: GanttEditor
 
   private readonly testApi: HarnessApi = {
     getConfig: () => cloneData(this.harnessData),

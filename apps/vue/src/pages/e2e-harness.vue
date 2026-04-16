@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import GanttEditorComponent from "@/vue/GanttEditorComponent.vue";
+import GanttEditor from "@/vue/GanttEditor.vue";
 import type {
   GanttEditorFeature,
   GanttEditorRulerMode,
@@ -494,7 +494,7 @@ function fromQuery(query: QueryInput): HarnessData {
 const harnessData = ref<HarnessData>(fromQuery(route.query as QueryInput));
 const harnessEvents = ref<Record<string, unknown[]>>({});
 const ganttMounted = ref(true);
-const ganttEditorRef = ref<InstanceType<typeof GanttEditorComponent> | null>(null);
+const ganttEditorRef = ref<InstanceType<typeof GanttEditor> | null>(null);
 
 function recordEvent(name: string, payload: unknown): void {
   const current = harnessEvents.value[name] ?? [];
@@ -829,7 +829,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div style="height: 100vh; width: 100%; margin: 0 auto">
-    <GanttEditorComponent
+    <GanttEditor
       v-if="ganttMounted"
       ref="ganttEditorRef"
       :isReadOnly="harnessData.isReadOnly"
