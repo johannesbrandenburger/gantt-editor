@@ -172,14 +172,12 @@ const lowerAxisFormatter = new Intl.DateTimeFormat(undefined, {
     minute: '2-digit',
 });
 
-const formatUpperAxisTick = (domainValue: TimeDomainValue): string => {
-    const dateValue = domainValue instanceof Date ? domainValue : new Date(domainValue as number);
-    return upperAxisFormatter.format(dateValue);
-};
-
-const formatLowerAxisTick = (domainValue: TimeDomainValue): string => {
-    const dateValue = domainValue instanceof Date ? domainValue : new Date(domainValue as number);
-    return lowerAxisFormatter.format(dateValue);
+const redTopLeftCornerOverlay: GanttEditorSlot['customOverlay'] = ({ ctx }) => {
+    // Slot-local coordinate system: slot top-left is (0,0), uniformly scaled by slot height.
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath();
+    ctx.arc(0, 0, 0.035, 0, Math.PI * 2);
+    ctx.fill();
 };
 
 // Ref to the Gantt Editor component for programmatic access
@@ -317,6 +315,7 @@ const generateSlots = (count: number) => {
                 { id: 'std', timestamp: stdTimestamp, color: stdColor },
                 { id: 'etd', timestamp: etdTimestamp, color: etdColor },
             ],
+            customOverlay: redTopLeftCornerOverlay,
             // color: mockColors[index % mockColors.length], // leave color generation to the component
         };
     });
@@ -346,6 +345,7 @@ const generateSlots = (count: number) => {
                 closeTime,
                 destinationId: 'UNALLOCATED',
                 hoverData: `${name} — unallocated demo`,
+                customOverlay: redTopLeftCornerOverlay,
             };
         });
 

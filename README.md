@@ -251,6 +251,7 @@ All wrappers expose the same core model and behavior.
 - `deadlines?: Array<{ id: string; timestamp: number; color: string }>`
 - `hoverData?: string` (tooltip supports plain text and a limited HTML subset: `<strong>`, `<em>`, `<br>`)
 - `labelColor?: string` (CSS color for slot text inside the bar)
+- `customOverlay?: ({ ctx, width, height, slot }) => void` (optional custom canvas painter with slot-local coordinates where top-left is `(0,0)`; `ctx` is uniformly scaled by slot height so overlay dimensions resize with the slot while preserving aspect ratio)
 
 ### Common Optional Inputs
 

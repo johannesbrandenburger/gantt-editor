@@ -222,6 +222,21 @@ export function drawSlots(params: DrawSlotsParams) {
           );
           ctx.restore();
         }
+
+        if (slotDef.slot.customOverlay) {
+          ctx.save();
+          ctx.translate(slotDef.x, slotDef.y);
+          const overlayUnitPx = Math.max(1, slotDef.height);
+          ctx.scale(overlayUnitPx, overlayUnitPx);
+          ctx.globalAlpha = drawAlpha;
+          slotDef.slot.customOverlay({
+            ctx,
+            width: slotDef.width,
+            height: slotDef.height,
+            slot: slotDef.slot,
+          });
+          ctx.restore();
+        }
       }
     });
   }

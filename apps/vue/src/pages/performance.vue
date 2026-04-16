@@ -138,6 +138,14 @@ const destinationGroups = reactive([
     { id: 'unallocated', displayName: 'UNALLOCATED', heightPortion: 0.1 },
 ]);
 
+const redTopLeftCornerOverlay: GanttEditorSlot['customOverlay'] = ({ ctx }) => {
+    // Slot-local coordinate system: slot top-left is (0,0), uniformly scaled by slot height.
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath();
+    ctx.arc(0, 0, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+};
+
 const generateSlots = (count: number, rangeStart: Date, rangeEnd: Date, destCount: number): GanttEditorSlot[] => {
     const rangeStartMs = rangeStart.getTime();
     const rangeEndMs = rangeEnd.getTime();
@@ -160,6 +168,7 @@ const generateSlots = (count: number, rangeStart: Date, rangeEnd: Date, destCoun
             destinationId: `dest-${destIndex}`,
             deadlines: [{ id: 'std', timestamp: slotEndMs + 60 * 60 * 1000, color: '#1f1f1f' }],
             hoverData: `🛫 Departure`,
+            customOverlay: redTopLeftCornerOverlay,
         };
     }).sort((a, b) => a.openTime.getTime() - b.openTime.getTime());
 };
@@ -332,4 +341,5 @@ const handleBulkCopySlotsOnTimeAxis = (slotIds: string[], timeDiffMs: number) =>
     if (copiedSlots.length === 0) return;
     slots.value = [...slots.value, ...copiedSlots];
 };
+
 </script>

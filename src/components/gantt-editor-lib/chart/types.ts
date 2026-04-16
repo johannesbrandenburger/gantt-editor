@@ -1,5 +1,14 @@
 import type { TimeDomainValue, TimeTickSpec } from "./time-scale";
 
+export type GanttEditorSlotCustomOverlay = (params: {
+    ctx: CanvasRenderingContext2D,
+    /** Actual slot width in CSS px. */
+    width: number,
+    /** Actual slot height in CSS px. */
+    height: number,
+    slot: GanttEditorSlot,
+}) => void;
+
 export type GanttEditorSlot = {
     id: string,
     group: string, // flightId
@@ -13,7 +22,14 @@ export type GanttEditorSlot = {
     deadlines?: GanttEditorSlotDeadline[],
     readOnly?: boolean,
     color?: string,
-    labelColor?: string
+    labelColor?: string,
+    /**
+     * Optional custom slot overlay painter.
+     * The drawing origin is the slot's top-left corner (0,0).
+     * The context is uniformly pre-scaled by slot height, so shapes keep their aspect ratio
+     * (e.g. circles stay circles) while still resizing with the slot.
+     */
+    customOverlay?: GanttEditorSlotCustomOverlay,
 };
 
 export type GanttEditorSlotDeadline = {
