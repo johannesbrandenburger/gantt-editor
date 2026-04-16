@@ -1,6 +1,6 @@
-import type { CanvasRect, HelpOverlayTileDefinition } from "./help_overlay_tile";
-import { drawHelpOverlayCursor } from "./help_overlay_cursor";
-import { easeInOut } from "./help_overlay_easing";
+import type { CanvasRect, HelpOverlayTileDefinition } from "./tile";
+import { drawHelpOverlayCursor } from "./cursor";
+import { easeInOut } from "./easing";
 
 const ANIMATION_CYCLE_MS = 3600;
 

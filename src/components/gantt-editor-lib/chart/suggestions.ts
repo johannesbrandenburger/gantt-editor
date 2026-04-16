@@ -3,8 +3,8 @@ import {
   computeTopicLayout,
   TOPIC_BAND_PADDING,
   type TopicLayout,
-} from "./canvas_topics";
-import { createTimeScale } from "./time_scale";
+} from "./topics";
+import { createTimeScale } from "./time-scale";
 
 const SUGGESTION_MIN_SIZE_PX = 4;
 const SUGGESTION_MAX_SIZE_PX = 16;

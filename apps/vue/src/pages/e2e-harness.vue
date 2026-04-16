@@ -5,7 +5,7 @@ import GanttEditor from "@/vue/GanttEditor.vue";
 import type {
   GanttEditorFeature,
   GanttEditorRulerMode,
-} from "@/components/gantt-editor-lib/chart/gantt_canvas_props";
+} from "@/components/gantt-editor-lib/chart/props";
 import type {
   GanttEditorDestination,
   GanttEditorDestinationGroup,

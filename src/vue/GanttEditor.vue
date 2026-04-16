@@ -33,8 +33,8 @@
 
 
 <script setup lang="ts">
-import type { GanttEditorProps } from "../components/gantt-editor-lib/chart/gantt_canvas_props";
-import { GanttChartCanvasController } from "../components/gantt-editor-lib/chart/gantt_chart_canvas_controller";
+import type { GanttEditorProps } from "../components/gantt-editor-lib/chart/props";
+import { GanttChartCanvasController } from "../components/gantt-editor-lib/chart/controller";
 import type { ComponentPublicInstance } from "vue";
 import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 

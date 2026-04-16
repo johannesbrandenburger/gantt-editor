@@ -158,7 +158,7 @@ import type {
     GanttEditorVerticalMarker,
 } from '@/components/gantt-editor-lib/chart/types';
 import GanttEditor from '@/vue/GanttEditor.vue';
-import { timeHour, type TimeDomainValue } from '@/components/gantt-editor-lib/chart/time_scale';
+import { timeHour, type TimeDomainValue } from '@/components/gantt-editor-lib/chart/time-scale';
 
 const upperAxisFormatter = new Intl.DateTimeFormat(undefined, {
     month: 'short',

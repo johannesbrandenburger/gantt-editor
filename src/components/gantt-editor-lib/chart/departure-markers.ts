@@ -1,11 +1,11 @@
 import type { Topic } from "./types";
-import { createTimeScale } from "./time_scale";
+import { createTimeScale } from "./time-scale";
 import {
   computeTopicLayout,
   TOPIC_BAND_PADDING,
   type TopicLayout,
-} from "./canvas_topics";
-import { computeSlotRect } from "./canvas_slots";
+} from "./topics";
+import { computeSlotRect } from "./slots";
 
 interface DepartureMarkerDrawDefinition {
   id: string;

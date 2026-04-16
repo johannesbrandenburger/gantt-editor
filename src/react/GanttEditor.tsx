@@ -11,8 +11,8 @@ import {
 import type {
   GanttEditorCallbacks,
   GanttEditorProps as GanttEditorCanvasProps,
-} from '../components/gantt-editor-lib/chart/gantt_canvas_props'
-import { GanttChartCanvasController } from '../components/gantt-editor-lib/chart/gantt_chart_canvas_controller'
+} from '../components/gantt-editor-lib/chart/props'
+import { GanttChartCanvasController } from '../components/gantt-editor-lib/chart/controller'
 
 type SlotPointMode = 'center' | 'left-edge' | 'right-edge'
 

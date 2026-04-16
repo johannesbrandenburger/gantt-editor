@@ -5,7 +5,7 @@ export const TEXT_SCALE_BASE_ROW_HEIGHT = 40;
 const TOPIC_HEADER_MAX_FONT_PX = 10;
 const TOPIC_HEADER_MIN_FONT_PX = 3;
 
-/** Band padding for topic rows (must match slot band geometry in canvas_slots). Lower = denser rows. */
+/** Band padding for topic rows (must match slot band geometry in slots). Lower = denser rows. */
 export const TOPIC_BAND_PADDING = 0.2;
 
 /** Bold label font for topic headers and slot names; scales with row height. */

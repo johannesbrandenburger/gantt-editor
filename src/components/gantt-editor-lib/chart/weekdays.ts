@@ -1,4 +1,4 @@
-import { createTimeScale, timeDay } from "./time_scale";
+import { createTimeScale, timeDay } from "./time-scale";
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 const WEEKDAY_NAMES = [

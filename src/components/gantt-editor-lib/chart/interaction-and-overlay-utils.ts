@@ -1,9 +1,9 @@
-import { hitTestVerticalMarker } from "./canvas_vertical_markers";
-import { hitTestSuggestionButton } from "./canvas_suggestions";
+import { hitTestVerticalMarker } from "./vertical-markers";
+import { hitTestSuggestionButton } from "./suggestions";
 import type { Topic, GanttEditorSuggestion } from "./types";
-import type { UnifiedChartLayout } from "./unified_chart_layout";
-import type { GanttEditorProps } from "./gantt_canvas_props";
-import { timeMsToCanvasX } from "./gantt_chart_time_utils";
+import type { UnifiedChartLayout } from "./unified-chart-layout";
+import type { GanttEditorProps } from "./props";
+import { timeMsToCanvasX } from "./time-utils";
 
 type ChartMargin = {
   left: number;

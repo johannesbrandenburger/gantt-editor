@@ -1,5 +1,5 @@
-import type { CanvasRect, HelpOverlayTileDefinition } from "./help_overlay_tile";
-import { drawHelpOverlayCursor } from "./help_overlay_cursor";
+import type { CanvasRect, HelpOverlayTileDefinition } from "./tile";
+import { drawHelpOverlayCursor } from "./cursor";
 
 type MiniSlot = {
   x: number;

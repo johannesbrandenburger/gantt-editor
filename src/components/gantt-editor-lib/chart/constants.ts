@@ -1,4 +1,4 @@
-import type { GanttEditorProps } from "./gantt_canvas_props";
+import type { GanttEditorProps } from "./props";
 
 export const X_AXIS_HEIGHT = 50;
 /** Fallback before layout; reconciled from visible time span and chart width. */

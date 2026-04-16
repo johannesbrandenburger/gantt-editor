@@ -6,9 +6,9 @@ import {
   TEXT_SCALE_BASE_ROW_HEIGHT,
   TOPIC_BAND_PADDING,
   type TopicLayout,
-} from "./canvas_topics";
-import { slotsAllowLabelsAndInteraction } from "./canvas_slot_scale";
-import { createTimeScale, type TimeScale } from "./time_scale";
+} from "./topics";
+import { slotsAllowLabelsAndInteraction } from "./slot-scale";
+import { createTimeScale, type TimeScale } from "./time-scale";
 
 function slotTextPaddingPx(rowHeight: number): number {
   return Math.round(Math.max(2, (5 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT));

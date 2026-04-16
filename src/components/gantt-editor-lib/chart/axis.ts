@@ -1,5 +1,5 @@
 import type { GanttEditorXAxisOptions } from "./types";
-import { createTimeScale, timeDay, type TimeDomainValue } from "./time_scale";
+import { createTimeScale, timeDay, type TimeDomainValue } from "./time-scale";
 
 const defaultUpperFormatter = new Intl.DateTimeFormat(undefined, {
   day: "2-digit",

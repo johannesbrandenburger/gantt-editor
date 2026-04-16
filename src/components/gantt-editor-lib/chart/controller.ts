@@ -1,4 +1,4 @@
-import { drawXAxisOnCanvas } from "./canvas_axis";
+import { drawXAxisOnCanvas } from "./axis";
 import {
   setupCanvasPanZoom,
   handlePanZoomWheelEvent,
@@ -6,7 +6,7 @@ import {
   type PanZoomCleanup,
   type PanZoomCallbacks,
   type WheelZoomAnchor,
-} from "./canvas_pan_zoom";
+} from "./pan-zoom";
 import {
   computeRowHeightForUnifiedZoom,
   SLOT_RENDER_RATIO,
@@ -14,7 +14,7 @@ import {
   departureMarkersVisible,
   suggestionsVisible,
   slotsAllowLabelsAndInteraction,
-} from "./canvas_slot_scale";
+} from "./slot-scale";
 import { processData } from "./process-data";
 import {
   drawTopicLines,
@@ -22,7 +22,7 @@ import {
   computeTopicLayout,
   TOPIC_BAND_PADDING,
   type TopicLayout,
-} from "./canvas_topics";
+} from "./topics";
 import {
   collectSlotsFromIndexInRect,
   buildSlotPositionIndex,
@@ -32,19 +32,19 @@ import {
   slotTimesForResizeDragStep,
   type SlotPositionEntry,
   type SlotResizeEdge,
-} from "./canvas_slots";
-import { drawDepartureMarkers, hitTestDepartureGap } from "./canvas_departure_markers";
-import { drawVerticalMarkers } from "./canvas_vertical_markers";
-import type { SuggestionButtonDefinition } from "./canvas_suggestions";
-import { drawSuggestionButtons } from "./canvas_suggestions";
-import { drawWeekdayOverlay } from "./canvas_weekdays";
+} from "./slots";
+import { drawDepartureMarkers, hitTestDepartureGap } from "./departure-markers";
+import { drawVerticalMarkers } from "./vertical-markers";
+import type { SuggestionButtonDefinition } from "./suggestions";
+import { drawSuggestionButtons } from "./suggestions";
+import { drawWeekdayOverlay } from "./weekdays";
 import {
   computeUnifiedChartLayout,
   hitTestChart,
   canvasLocalPoint,
   drawResizeBands,
   type UnifiedChartLayout,
-} from "./unified_chart_layout";
+} from "./unified-chart-layout";
 import type {
   GanttEditorCanvasContextMenuAction,
   GanttEditorSlotContextMenuAction,
@@ -58,7 +58,7 @@ import type {
   GanttEditorFeature,
   GanttEditorProps,
   GanttEditorRulerMode,
-} from "./gantt_canvas_props";
+} from "./props";
 import {
   X_AXIS_HEIGHT,
   DEFAULT_ROW_HEIGHT,
@@ -78,24 +78,24 @@ import {
   markedRegionSnapshot,
   type TopicLayoutSnapshot,
   type TopicLayoutShiftByGroup,
-} from "./gantt_chart_canvas_constants";
+} from "./constants";
 import {
   timeMsToCanvasX,
   clampVerticalMarkerCanvasX,
   verticalMarkerDateFromCanvasX,
-} from "./gantt_chart_time_utils";
+} from "./time-utils";
 import {
   readSelectionFromStorage,
   writeSelectionToStorage,
   applyCopiedFlagsFromSelection,
   slotSnapshotForSelection,
-} from "./gantt_chart_selection_storage";
+} from "./selection-storage";
 import {
   drawMarkedRegionOverlay,
   drawCurrentTimeIndicator,
   hitSuggestionForGroup,
   hitVerticalMarkerForGroup,
-} from "./gantt_chart_interaction_and_overlay_utils";
+} from "./interaction-and-overlay-utils";
 import {
   buildCanvasContextMenuLayout,
   drawCanvasContextMenu,
@@ -103,19 +103,19 @@ import {
   type CanvasContextMenuItem,
   type CanvasContextMenuLayout,
   type CanvasContextMenuState,
-} from "./canvas_context_menu";
+} from "./context-menu";
 import {
   drawHelpOverlay,
   buildHelpOverlayLayout,
   hitTestHelpOverlay,
   clampHelpOverlayTilesScrollY,
-} from "./help_overlay/help_overlay";
-import { DEFAULT_HELP_OVERLAY_TILES } from "./help_overlay/help_overlay_tiles";
+} from "./help-overlay/overlay";
+import { DEFAULT_HELP_OVERLAY_TILES } from "./help-overlay/tiles";
 import type {
   HelpOverlayHitTarget,
   HelpOverlayHoverTarget,
   HelpOverlayTileDefinition,
-} from "./help_overlay/help_overlay_tile";
+} from "./help-overlay/tile";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const COLLAPSED_SYNC_MIN_INTERVAL_MS = 250;

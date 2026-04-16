@@ -1,5 +1,5 @@
 import type { GanttEditorVerticalMarker } from "./types";
-import { createTimeScale } from "./time_scale";
+import { createTimeScale } from "./time-scale";
 
 const MARKER_HIT_HALF_WIDTH = 7;
 

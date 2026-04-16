@@ -16,8 +16,8 @@ import {
   ViewChild,
 } from '@angular/core'
 import { CommonModule } from '@angular/common'
-import type { GanttEditorProps } from '../components/gantt-editor-lib/chart/gantt_canvas_props'
-import { GanttChartCanvasController } from '../components/gantt-editor-lib/chart/gantt_chart_canvas_controller'
+import type { GanttEditorProps } from '../components/gantt-editor-lib/chart/props'
+import { GanttChartCanvasController } from '../components/gantt-editor-lib/chart/controller'
 
 type SlotPointMode = 'center' | 'left-edge' | 'right-edge'
 

@@ -1,6 +1,6 @@
-import type { CanvasRect, HelpOverlayTileDefinition } from "./help_overlay_tile";
-import { drawHelpOverlayCursor } from "./help_overlay_cursor";
-import { helpOverlayPrimaryModifierShortLabel } from "./help_overlay_platform";
+import type { CanvasRect, HelpOverlayTileDefinition } from "./tile";
+import { drawHelpOverlayCursor } from "./cursor";
+import { helpOverlayPrimaryModifierShortLabel } from "./platform";
 
 const ANIMATION_CYCLE_MS = 3200;
 

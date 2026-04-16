@@ -10,7 +10,7 @@ import type {
   GanttEditorVerticalMarker,
   GanttEditorXAxisOptions,
 } from "./types";
-import type { HelpOverlayTileDefinition } from "./help_overlay/help_overlay_tile";
+import type { HelpOverlayTileDefinition } from "./help-overlay/tile";
 
 export type GanttEditorRulerMode = "ROW" | "GLOBAL" | null;
 

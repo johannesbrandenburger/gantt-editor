@@ -1,4 +1,4 @@
-import type { TimeDomainValue, TimeTickSpec } from "./time_scale";
+import type { TimeDomainValue, TimeTickSpec } from "./time-scale";
 
 export type GanttEditorSlot = {
     id: string,

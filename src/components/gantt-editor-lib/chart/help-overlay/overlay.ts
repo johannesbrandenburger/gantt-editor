@@ -5,7 +5,7 @@ import type {
   HelpOverlayLayout,
   HelpOverlayTileDefinition,
   HelpOverlayTileLayout,
-} from "./help_overlay_tile";
+} from "./tile";
 
 const OUTER_PAD = 8;
 const BUTTON_SIZE = 24;

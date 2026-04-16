@@ -19,17 +19,17 @@ export type {
     GanttEditorCallbacks,
     GanttEditorHost,
     GanttEditorFeature,
-} from '../components/gantt-editor-lib/chart/gantt_canvas_props'
+} from '../components/gantt-editor-lib/chart/props'
 
-export type { GanttEditorRulerMode } from '../components/gantt-editor-lib/chart/gantt_canvas_props'
-export type { HelpOverlayTileDefinition } from '../components/gantt-editor-lib/chart/help_overlay/help_overlay_tile'
+export type { GanttEditorRulerMode } from '../components/gantt-editor-lib/chart/props'
+export type { HelpOverlayTileDefinition } from '../components/gantt-editor-lib/chart/help-overlay/tile'
 
 export {
     getSelectionItemDisplayName,
     getClipboardItemDisplayName,
-} from '../components/gantt-editor-lib/chart/gantt_canvas_props'
+} from '../components/gantt-editor-lib/chart/props'
 
-export { GanttChartCanvasController } from '../components/gantt-editor-lib/chart/gantt_chart_canvas_controller'
+export { GanttChartCanvasController } from '../components/gantt-editor-lib/chart/controller'
 
 export { GanttEditor }
 export default GanttEditor

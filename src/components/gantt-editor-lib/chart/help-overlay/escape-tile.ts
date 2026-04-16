@@ -1,5 +1,5 @@
-import type { CanvasRect, HelpOverlayTileDefinition } from "./help_overlay_tile";
-import { easeInOut } from "./help_overlay_easing";
+import type { CanvasRect, HelpOverlayTileDefinition } from "./tile";
+import { easeInOut } from "./easing";
 
 const ANIMATION_CYCLE_MS = 2600;
 

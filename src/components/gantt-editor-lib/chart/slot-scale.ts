@@ -1,4 +1,4 @@
-import { TOPIC_BAND_PADDING } from "./canvas_topics";
+import { TOPIC_BAND_PADDING } from "./topics";
 
 /**
  * Duration used to define slot aspect: a slot this long has width:height =

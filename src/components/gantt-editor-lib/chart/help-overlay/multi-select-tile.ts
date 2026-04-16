@@ -1,10 +1,10 @@
-import type { CanvasRect, HelpOverlayTileDefinition } from "./help_overlay_tile";
-import { drawHelpOverlayCursor } from "./help_overlay_cursor";
-import { easeInOut } from "./help_overlay_easing";
+import type { CanvasRect, HelpOverlayTileDefinition } from "./tile";
+import { drawHelpOverlayCursor } from "./cursor";
+import { easeInOut } from "./easing";
 import {
   helpOverlayIsApplePlatform,
   helpOverlayPrimaryModifierShortLabel,
-} from "./help_overlay_platform";
+} from "./platform";
 
 /** Longer cycle so hover → first click → travel → second click reads clearly. */
 const ANIMATION_CYCLE_MS = 5200;
