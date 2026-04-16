@@ -81,6 +81,8 @@ const FEATURE_IDS: readonly GanttEditorFeature[] = [
   "preview-slots-on-time-axis",
   "copy-modifier-alt",
   "time-axis-modifier-shift",
+  "scroll-horizontal",
+  "zoom-time-axis",
 ];
 
 const FEATURE_ID_SET = new Set<GanttEditorFeature>(FEATURE_IDS);

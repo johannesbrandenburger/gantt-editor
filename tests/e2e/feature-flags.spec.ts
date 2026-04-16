@@ -37,7 +37,9 @@ type Feature =
   | "preview-slots-to-destination"
   | "preview-slots-on-time-axis"
   | "copy-modifier-alt"
-  | "time-axis-modifier-shift";
+  | "time-axis-modifier-shift"
+  | "scroll-horizontal"
+  | "zoom-time-axis";
 
 type FeatureCase = {
   feature: Feature;
@@ -74,6 +76,8 @@ const ALL_FEATURES: Feature[] = [
   "preview-slots-on-time-axis",
   "copy-modifier-alt",
   "time-axis-modifier-shift",
+  "scroll-horizontal",
+  "zoom-time-axis",
 ];
 
 function toFeatureQuery(features: Feature[]): string {
@@ -110,6 +114,21 @@ async function getTimeAxisTargetPointInGroup(page: Page): Promise<{ x: number; y
   return {
     x: Math.max(20, width - rightMargin - 8),
     y: empty.y,
+  };
+}
+
+async function getTimeNavigationPoint(page: Page): Promise<{ x: number; y: number }> {
+  const state = (await getCanvasState<any>(page)) as
+    | {
+        margin?: { left?: number };
+        layout?: { groups?: Array<{ y: number; h: number }> };
+      }
+    | null;
+  const firstGroup = state?.layout?.groups?.[0];
+  expect(firstGroup).toBeTruthy();
+  return {
+    x: (state?.margin?.left ?? 0) + 20,
+    y: (firstGroup?.y ?? 0) + Math.max(8, Math.floor((firstGroup?.h ?? 0) * 0.2)),
   };
 }
 
@@ -152,7 +171,132 @@ async function performTimeAxisAction(
   });
 }
 
+async function dispatchCanvasWheelEvent(
+  page: Page,
+  canvasPoint: { x: number; y: number },
+  options: { deltaX?: number; deltaY?: number; shiftKey?: boolean; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean },
+): Promise<void> {
+  await page.evaluate(
+    ({ x, y, wheelOptions }) => {
+      const canvas = document.querySelector("canvas.chart-canvas") as HTMLCanvasElement | null;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const clientX = rect.left + x;
+      const clientY = rect.top + y;
+      canvas.dispatchEvent(
+        new WheelEvent("wheel", {
+          bubbles: true,
+          cancelable: true,
+          clientX,
+          clientY,
+          deltaX: wheelOptions.deltaX ?? 0,
+          deltaY: wheelOptions.deltaY ?? 0,
+          shiftKey: !!wheelOptions.shiftKey,
+          altKey: !!wheelOptions.altKey,
+          ctrlKey: !!wheelOptions.ctrlKey,
+          metaKey: !!wheelOptions.metaKey,
+        }),
+      );
+    },
+    { x: canvasPoint.x, y: canvasPoint.y, wheelOptions: options },
+  );
+}
+
 const featureCases: FeatureCase[] = [
+  {
+    feature: "scroll-horizontal",
+    minimalOnFeatures: ["scroll-horizontal"],
+    assertBehavior: async (page, enabled) => {
+      await clearHarnessEvents(page);
+      const navPoint = await getTimeNavigationPoint(page);
+      const startBefore = await getCanvasStateField<number>(page, "internalStartTimeMs");
+      expect(startBefore).not.toBeNull();
+
+      await dispatchCanvasWheelEvent(page, navPoint, { deltaX: 140, deltaY: 0 });
+
+      if (enabled) {
+        await expect
+          .poll(async () => await getCanvasStateField<number>(page, "internalStartTimeMs"), {
+            timeout: 2_000,
+          })
+          .not.toBe(startBefore);
+      } else {
+        await expect
+          .poll(async () => await getCanvasStateField<number>(page, "internalStartTimeMs"), {
+            timeout: 500,
+          })
+          .toBe(startBefore);
+      }
+
+      if (enabled) {
+        await expect
+          .poll(async () => {
+            const events = await getHarnessEvents(page);
+            return (events.onChangeStartAndEndTime ?? []).length;
+          })
+          .toBeGreaterThan(0);
+      } else {
+        await expect
+          .poll(async () => {
+            const events = await getHarnessEvents(page);
+            return (events.onChangeStartAndEndTime ?? []).length;
+          }, { timeout: 500 })
+          .toBe(0);
+      }
+    },
+  },
+  {
+    feature: "zoom-time-axis",
+    minimalOnFeatures: ["zoom-time-axis"],
+    assertBehavior: async (page, enabled) => {
+      await clearHarnessEvents(page);
+      const navPoint = await getTimeNavigationPoint(page);
+
+      const startBefore = await getCanvasStateField<number>(page, "internalStartTimeMs");
+      const endBefore = await getCanvasStateField<number>(page, "internalEndTimeMs");
+      expect(startBefore).not.toBeNull();
+      expect(endBefore).not.toBeNull();
+      const spanBefore = (endBefore as number) - (startBefore as number);
+
+      await dispatchCanvasWheelEvent(page, navPoint, { deltaX: 0, deltaY: -220, shiftKey: true });
+
+      if (enabled) {
+        await expect
+          .poll(async () => {
+            const start = await getCanvasStateField<number>(page, "internalStartTimeMs");
+            const end = await getCanvasStateField<number>(page, "internalEndTimeMs");
+            if (start == null || end == null) return null;
+            return end - start;
+          })
+          .toBeLessThan(spanBefore);
+      } else {
+        await expect
+          .poll(async () => {
+            const start = await getCanvasStateField<number>(page, "internalStartTimeMs");
+            const end = await getCanvasStateField<number>(page, "internalEndTimeMs");
+            if (start == null || end == null) return null;
+            return end - start;
+          }, { timeout: 500 })
+          .toBe(spanBefore);
+      }
+
+      if (enabled) {
+        await expect
+          .poll(async () => {
+            const events = await getHarnessEvents(page);
+            return (events.onChangeStartAndEndTime ?? []).length;
+          })
+          .toBeGreaterThan(0);
+      } else {
+        await expect
+          .poll(async () => {
+            const events = await getHarnessEvents(page);
+            return (events.onChangeStartAndEndTime ?? []).length;
+          }, { timeout: 500 })
+          .toBe(0);
+      }
+    },
+  },
   {
     feature: "select-slots",
     minimalOnFeatures: ["select-slots"],
