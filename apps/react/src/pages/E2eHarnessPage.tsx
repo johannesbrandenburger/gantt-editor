@@ -263,7 +263,7 @@ function coreSlots(): GanttEditorSlotWithUiAttributes[] {
       openTime: new Date(`${isoDay}T14:00:00Z`),
       closeTime: new Date(`${isoDay}T15:30:00Z`),
       destinationId: 'UNALLOCATED',
-      color: '#9b59b6',
+      color: '#9e9e9e',
     },
   ]
 }
@@ -345,7 +345,7 @@ function baseData(fixture: FixtureName, slotCount: number): HarnessData {
 
   if (fixture === 'markers') {
     data.verticalMarkers = [
-      { id: 'm-std', date: new Date(`${isoDay}T11:00:00Z`), color: '#e74c3c', label: 'STD' },
+      { id: 'm-std', date: new Date(`${isoDay}T11:00:00Z`), color: '#1f1f1f', label: 'STD' },
       { id: 'm-etd', date: new Date(`${isoDay}T11:30:00Z`), color: '#2ecc71', label: 'ETD' },
       {
         id: 'm-context-only',

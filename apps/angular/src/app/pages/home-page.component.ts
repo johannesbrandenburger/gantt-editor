@@ -39,7 +39,7 @@ import {
           <button
             type="button"
             (click)="toggleReadOnly()"
-            [style.background]="isReadOnly ? '#e74c3c' : '#27ae60'"
+            [style.background]="isReadOnly ? '#1f1f1f' : '#27ae60'"
           >
             {{ isReadOnly ? 'Read-Only Mode' : 'Editable Mode' }}
           </button>
@@ -162,7 +162,7 @@ export class HomePageComponent {
       openTime: new Date('2025-01-01T14:00:00Z'),
       closeTime: new Date('2025-01-01T15:30:00Z'),
       destinationId: 'UNALLOCATED',
-      color: '#9b59b6',
+      color: '#9e9e9e',
     },
   ]
 

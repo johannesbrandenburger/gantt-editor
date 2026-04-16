@@ -58,7 +58,7 @@
                             padding: '8px 16px',
                             borderRadius: '4px',
                             border: '1px solid #ccc',
-                            background: isReadOnly ? '#e74c3c' : '#27ae60',
+                            background: isReadOnly ? '#1f1f1f' : '#27ae60',
                             color: 'white',
                             cursor: 'pointer',
                             fontWeight: 'bold'
@@ -401,7 +401,7 @@ const verticalMarkers = ref<GanttEditorVerticalMarker[]>([
         id: 'demo-marker-cuttoff',
         label: 'Operational Cutoff',
         date: new Date(new Date().setHours(11, 0, 0, 0)),
-        color: '#e74c3c',
+        color: '#1f1f1f',
         draggable: false,
         movableByContextMenu: true,
     },

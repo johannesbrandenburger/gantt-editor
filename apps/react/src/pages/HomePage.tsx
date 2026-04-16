@@ -71,7 +71,7 @@ const initialSlots: GanttEditorSlot[] = [
     openTime: new Date('2025-01-01T14:00:00Z'),
     closeTime: new Date('2025-01-01T15:30:00Z'),
     destinationId: 'UNALLOCATED',
-    color: '#9b59b6',
+    color: '#9e9e9e',
   },
 ]
 
@@ -176,7 +176,7 @@ export function HomePage() {
             <div style={toolbarStyle}>
               <button
                 type='button'
-                style={{ ...buttonStyle, background: isReadOnly ? '#e74c3c' : '#27ae60' }}
+                style={{ ...buttonStyle, background: isReadOnly ? '#1f1f1f' : '#27ae60' }}
                 onClick={() => setIsReadOnly((current) => !current)}
               >
                 {isReadOnly ? 'Read-Only Mode' : 'Editable Mode'}

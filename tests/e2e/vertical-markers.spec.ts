@@ -33,7 +33,7 @@ test.describe("canvas rewrite vertical markers", () => {
     await openE2eHarness(page, { fixture: "markers" });
 
     const markers = (await getHarnessConfig(page)).verticalMarkers ?? [];
-    expect(markers.find((marker) => marker.id === MARKER_STD)?.color?.toLowerCase()).toBe("#e74c3c");
+    expect(markers.find((marker) => marker.id === MARKER_STD)?.color?.toLowerCase()).toBe("#1f1f1f");
     expect(markers.find((marker) => marker.id === MARKER_ETD)?.color?.toLowerCase()).toBe("#2ecc71");
   });
 
@@ -160,7 +160,7 @@ test.describe("canvas rewrite vertical markers", () => {
             id: "menu-only-marker",
             label: "Menu Only",
             date: "2025-01-01T11:00:00Z",
-            color: "#e74c3c",
+            color: "#1f1f1f",
             draggable: false,
             movableByContextMenu: true,
           },

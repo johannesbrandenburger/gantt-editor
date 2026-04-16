@@ -11,8 +11,8 @@ type CanvasState = {
 type Rgba = { r: number; g: number; b: number; a: number };
 
 const SLOT_ID = "LH123-20250101-F";
-const STD_COLOR = { r: 155, g: 89, b: 182 };
-const ETD_COLOR = { r: 231, g: 76, b: 60 };
+const STD_COLOR = { r: 158, g: 158, b: 158 };
+const ETD_COLOR = { r: 31, g: 31, b: 31 };
 
 function colorDistance(actual: Rgba, expected: { r: number; g: number; b: number }): number {
   const dr = actual.r - expected.r;

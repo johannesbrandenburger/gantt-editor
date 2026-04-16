@@ -26,8 +26,8 @@ import GanttEditor from '@/vue/GanttEditor.vue';
                     closeTime: new Date('2025-01-01T12:00:00Z'), // end time of service window
                     destinationId: 'chute-1', // destination/chute id
                     deadlines: [ // generic slot deadlines (supports any amount)
-                      { id: 'std', timestamp: new Date('2025-01-01T13:00:00Z').getTime(), color: '#9b59b6' },
-                      { id: 'etd', timestamp: new Date('2025-01-01T13:25:00Z').getTime(), color: '#e74c3c' }
+                      { id: 'std', timestamp: new Date('2025-01-01T13:00:00Z').getTime(), color: '#9e9e9e' },
+                      { id: 'etd', timestamp: new Date('2025-01-01T13:25:00Z').getTime(), color: '#1f1f1f' }
                     ],
                     hoverData: '🛫 Departure: ' + (new Date('2025-01-01T13:25:00Z')).toLocaleString(),
                     color: '#3498db', // color for the allocation bar

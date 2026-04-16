@@ -54,8 +54,8 @@ const slots = ref<GanttEditorSlot[]>([
     destinationId: "chute-1",
     hoverData: "<strong>LH123</strong><br><em>Gate opens 10:00</em>",
     deadlines: [
-      { id: "std", timestamp: new Date("2025-01-01T13:00:00Z").getTime(), color: "#9b59b6" },
-      { id: "etd", timestamp: new Date("2025-01-01T13:25:00Z").getTime(), color: "#e74c3c" },
+      { id: "std", timestamp: new Date("2025-01-01T13:00:00Z").getTime(), color: "#9e9e9e" },
+      { id: "etd", timestamp: new Date("2025-01-01T13:25:00Z").getTime(), color: "#1f1f1f" },
     ],
     color: "#3498db",
   },
