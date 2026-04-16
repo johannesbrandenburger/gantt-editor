@@ -20,7 +20,7 @@ Create a `.npmrc` file in your project root with the following content, replacin
 Then install the package:
 
 ```bash
-npm install @pf/gantt-editor
+npm install gantt-editor
 ```
 
 Token requirements:
@@ -39,7 +39,7 @@ import GanttEditor, {
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorSlot,
-} from "@pf/gantt-editor/vue";
+} from "gantt-editor/vue";
 
 const startTime = ref(new Date("2025-01-01T00:00:00Z"));
 const endTime = ref(new Date("2025-01-02T00:00:00Z"));
@@ -103,7 +103,7 @@ import {
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorSlot,
-} from "@pf/gantt-editor/react";
+} from "gantt-editor/react";
 
 export function App() {
   const [startTime] = useState(() => new Date("2025-01-01T00:00:00Z"));
@@ -166,7 +166,7 @@ import {
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorSlot,
-} from "@pf/gantt-editor/angular";
+} from "gantt-editor/angular";
 
 @Component({
   selector: "app-root",

@@ -1,5 +1,5 @@
 {
-  "name": "@pf/gantt-editor-demo-react",
+  "name": "gantt-editor-demo-react",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@pf/gantt-editor": "file:../..",
+    "gantt-editor": "file:../..",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.1"

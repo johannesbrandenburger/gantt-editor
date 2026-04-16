@@ -1,5 +1,5 @@
 {
-  "name": "@pf/gantt-editor-demo-angular",
+  "name": "gantt-editor-demo-angular",
   "private": true,
   "type": "module",
   "scripts": {
@@ -7,7 +7,7 @@
     "build": "ng build"
   },
   "dependencies": {
-    "@pf/gantt-editor": "file:../..",
+    "gantt-editor": "file:../..",
     "@angular/common": "^21.2.8",
     "@angular/compiler": "^21.2.8",
     "@angular/core": "^21.2.8",

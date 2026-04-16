@@ -53,6 +53,8 @@ publish:
     - NPM_REGISTRY_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/npm/"
     - npm ping --registry "$NPM_REGISTRY_URL"
 
+    # Restore the @pf/ scope for publishing to the internal GitLab registry
+    - npm pkg set name="@pf/gantt-editor"
     - VERSION=$(node -p "require('./package.json').version")
     - PACKAGE_NAME=$(node -p "require('./package.json').name")
     - |

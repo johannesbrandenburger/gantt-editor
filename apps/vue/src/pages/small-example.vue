@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import GanttEditor from '@pf/gantt-editor/vue';
+import GanttEditor from 'gantt-editor/vue';
 </script>
 <template>
     <!--
