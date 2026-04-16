@@ -1,5 +1,5 @@
 {
-  "name": "@pf/gantt-editor-component",
+  "name": "@pf/gantt-editor",
   "private": false,
   "workspaces": [
     "apps/*"

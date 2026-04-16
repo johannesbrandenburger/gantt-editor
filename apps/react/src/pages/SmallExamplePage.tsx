@@ -4,7 +4,7 @@ import {
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorSlot,
-} from '@pf/gantt-editor-component/react'
+} from '@pf/gantt-editor/react'
 
 const pageStyle: React.CSSProperties = {
   width: '100%',
