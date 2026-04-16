@@ -328,4 +328,54 @@ test.describe("canvas rewrite selection preview behavior", () => {
 
     await page.keyboard.up("Alt");
   });
+
+  test("hovering back to source destination keeps transition while preview slots disappear", async ({ page }) => {
+    await openE2eHarness(page);
+
+    const before = await getHarnessConfig(page);
+    const sourceDestination = before.slots.find((slot) => slot.id === SOURCE_SLOT_ID)?.destinationId;
+    const targetDestination = before.slots.find((slot) => slot.id === TARGET_SLOT_ID)?.destinationId;
+    expect(sourceDestination).toBeTruthy();
+    expect(targetDestination).toBeTruthy();
+    expect(sourceDestination).not.toBe(targetDestination);
+
+    const sourcePoint = await findSlotPoint(page, SOURCE_SLOT_ID, "center");
+    await dispatchCanvasMouseEvent(page, sourcePoint, "click");
+
+    const targetPoint = await findSlotPoint(page, TARGET_SLOT_ID, "center");
+    const canvas = page.locator("canvas.chart-canvas").first();
+    const targetPagePoint = await canvasPointToPagePoint(canvas, targetPoint);
+    await page.mouse.move(targetPagePoint.x, targetPagePoint.y);
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewTopicId"), {
+        timeout: 2_000,
+      })
+      .toBe(targetDestination ?? null);
+
+    const sourcePagePoint = await canvasPointToPagePoint(canvas, sourcePoint);
+    await page.mouse.move(sourcePagePoint.x, sourcePagePoint.y);
+
+    // No preview slots are eligible in this destination, but transition should still run briefly.
+    await expect
+      .poll(
+        async () => {
+          const topicId = await getCanvasStateField<string | null>(page, "destinationPreviewTopicId");
+          const sourceIds =
+            (await getCanvasStateField<string[]>(page, "destinationPreviewSourceSlotIds")) ?? [];
+          return { topicId, sourceCount: sourceIds.length };
+        },
+        { timeout: 2_000 },
+      )
+      .toEqual({
+        topicId: sourceDestination ?? null,
+        sourceCount: 0,
+      });
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewTopicId"), {
+        timeout: 2_000,
+      })
+      .toBeNull();
+  });
 });

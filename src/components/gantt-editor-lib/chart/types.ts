@@ -72,6 +72,7 @@ export type GanttEditorSlotWithUiAttributes = GanttEditorSlot & {
     isCopied?: boolean;
     isPreview?: boolean;
     isCopyPreview?: boolean;
+    previewSourceSlotId?: string;
 }
 
 export type GanttEditorXAxisOptions = {

@@ -281,6 +281,14 @@ export class GanttChartCanvasController {
     shiftsByGroupId: Map<string, TopicLayoutShiftByGroup>;
   } | null = null;
 
+  private destinationPreviewExitTransition: {
+    startedAtMs: number;
+    durationMs: number;
+    topicsByGroupId: Map<string, Topic[]>;
+    fromYByPreviewSlotId: Map<string, number>;
+    screenDeltaYByPreviewSlotId: Map<string, number>;
+  } | null = null;
+
   private brushSelection:
     | {
         mode: "group";
@@ -691,11 +699,13 @@ export class GanttChartCanvasController {
     if (!this.canPreviewSlotsToDestination(this.clipboardItems.length, this.altCopyModifierActive)) {
       this.hoveredClipboardTopicId = null;
       this.destinationPreviewTransition = null;
+      this.destinationPreviewExitTransition = null;
       this.destinationPreviewTopicsCache = null;
     }
     if (!this.canPreviewSlotsOnTimeAxis(this.clipboardItems.length, this.altCopyModifierActive)) {
       this.hoveredTimeAxisDiffMs = null;
       this.destinationPreviewTransition = null;
+      this.destinationPreviewExitTransition = null;
       this.destinationPreviewTopicsCache = null;
     }
     if (!this.canUseCanvasContextMenu()) {
@@ -789,6 +799,7 @@ export class GanttChartCanvasController {
     this.hoveredClipboardTopicId = null;
     this.destinationPreviewTopicsCache = null;
     this.destinationPreviewTransition = null;
+    this.destinationPreviewExitTransition = null;
     this.pointerInChart = false;
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
@@ -816,6 +827,7 @@ export class GanttChartCanvasController {
     if (parsedData.length === 0) {
       this.hoveredClipboardTopicId = null;
       this.destinationPreviewTransition = null;
+      this.destinationPreviewExitTransition = null;
     }
     this.destinationPreviewTopicsCache = null;
     this.applyCopiedFlagsFromClipboard(parsedData);
@@ -1033,6 +1045,7 @@ export class GanttChartCanvasController {
       this.startDestinationPreviewTransition(previousHoveredClipboardTopicId, this.hoveredClipboardTopicId);
     } else if (hoverTimeAxisDiffChanged) {
       this.destinationPreviewTransition = null;
+      this.destinationPreviewExitTransition = null;
     }
 
     if (hit.type === "topResize" || hit.type === "betweenResize") {
@@ -1078,6 +1091,7 @@ export class GanttChartCanvasController {
     this.hoveredClipboardTopicId = null;
     this.hoveredTimeAxisDiffMs = null;
     this.destinationPreviewTransition = null;
+    this.destinationPreviewExitTransition = null;
     this.resetHoverSlot();
     const canvas = this.canvas;
     if (canvas) canvas.style.cursor = "";
@@ -1101,6 +1115,7 @@ export class GanttChartCanvasController {
     this.hoveredClipboardTopicId = null;
     this.hoveredTimeAxisDiffMs = null;
     this.destinationPreviewTransition = null;
+    this.destinationPreviewExitTransition = null;
     this.resetHoverSlot();
     this.host.onSelectionVisibility?.(false);
     this.host.onClipboardVisibility?.(false);
@@ -1285,6 +1300,7 @@ export class GanttChartCanvasController {
         this.hoveredClipboardTopicId = null;
         this.hoveredTimeAxisDiffMs = null;
         this.destinationPreviewTransition = null;
+        this.destinationPreviewExitTransition = null;
         this.resetHoverSlot();
         const chartWidth = layout.canvasCssWidth - MARGIN.left - MARGIN.right;
         const rulerMode = this.resolveRulerMode();
@@ -2475,59 +2491,228 @@ export class GanttChartCanvasController {
     return rowsBySlotId;
   }
 
+  private captureSlotRowPositionByIdForTopics(
+    topicsByGroupId: ReadonlyMap<string, Topic[]>,
+  ): Map<string, { groupId: string; rowY: number }> {
+    const positionsBySlotId = new Map<string, { groupId: string; rowY: number }>();
+    topicsByGroupId.forEach((topics, groupId) => {
+      const layouts = this.getTopicLayouts(topics);
+      for (const layout of layouts) {
+        layout.topic.rows.forEach((row, rowIndex) => {
+          const rowTop = layout.rowYs[rowIndex];
+          if (rowTop === undefined) return;
+          for (const slot of row.slots) {
+            positionsBySlotId.set(slot.id, { groupId, rowY: rowTop });
+          }
+        });
+      }
+    });
+    return positionsBySlotId;
+  }
+
+  private captureGroupContentOffsetByGroupId(): Map<string, number> {
+    const offsetsByGroupId = new Map<string, number>();
+    const layout = this.getChartLayout();
+    if (!layout) return offsetsByGroupId;
+
+    for (const group of this.props.destinationGroups) {
+      const gr = layout.groupRects.get(group.id);
+      if (!gr) continue;
+      const scroll = this.verticalScrollOffsets.get(group.id) || 0;
+      offsetsByGroupId.set(group.id, gr.y - scroll);
+    }
+    return offsetsByGroupId;
+  }
+
+  private previewSourceSlotIdForPreviewSlot(
+    slot: Pick<GanttEditorSlotWithUiAttributes, "id" | "previewSourceSlotId">,
+  ): string | null {
+    if (slot.previewSourceSlotId) return slot.previewSourceSlotId;
+    if (slot.id.startsWith("__destination_preview__")) {
+      return slot.id.slice("__destination_preview__".length) || null;
+    }
+    if (slot.id.startsWith("__time_axis_preview__")) {
+      return slot.id.slice("__time_axis_preview__".length) || null;
+    }
+    return null;
+  }
+
+  private capturePreviewRowByPreviewSlotIdForTopics(
+    topicsByGroupId: ReadonlyMap<string, Topic[]>,
+  ): Map<string, { groupId: string; rowY: number; sourceSlotId: string }> {
+    const rowsByPreviewSlotId = new Map<string, { groupId: string; rowY: number; sourceSlotId: string }>();
+    topicsByGroupId.forEach((topics) => {
+      const groupId = topics[0]?.groupId;
+      if (!groupId) return;
+      const layouts = this.getTopicLayouts(topics);
+      for (const layout of layouts) {
+        layout.topic.rows.forEach((row, rowIndex) => {
+          const rowTop = layout.rowYs[rowIndex];
+          if (rowTop === undefined) return;
+          for (const slot of row.slots) {
+            if (!slot.isPreview) continue;
+            const sourceSlotId = this.previewSourceSlotIdForPreviewSlot(slot);
+            if (!sourceSlotId) continue;
+            rowsByPreviewSlotId.set(slot.id, { groupId, rowY: rowTop, sourceSlotId });
+          }
+        });
+      }
+    });
+    return rowsByPreviewSlotId;
+  }
+
+  private filterTopicsToPreviewSlotIds(
+    topicsByGroupId: ReadonlyMap<string, Topic[]>,
+    previewSlotIds: ReadonlySet<string>,
+  ): Map<string, Topic[]> {
+    const filtered = new Map<string, Topic[]>();
+    topicsByGroupId.forEach((topics, groupId) => {
+      const filteredTopics: Topic[] = [];
+      for (const topic of topics) {
+        const rows = topic.rows
+          .map((row) => ({
+            ...row,
+            slots: row.slots.filter((slot) => previewSlotIds.has(slot.id)),
+          }))
+          .filter((row) => row.slots.length > 0);
+        if (rows.length === 0) continue;
+        filteredTopics.push({
+          ...topic,
+          rows,
+        });
+      }
+      if (filteredTopics.length > 0) {
+        filtered.set(groupId, filteredTopics);
+      }
+    });
+    return filtered;
+  }
+
   private startDestinationPreviewTransition(
     previousTopicId: string | null,
     nextTopicId: string | null,
   ): void {
-    if (!previousTopicId || !nextTopicId || previousTopicId === nextTopicId) {
-      this.destinationPreviewTransition = null;
+    this.destinationPreviewTransition = null;
+    this.destinationPreviewExitTransition = null;
+
+    if (previousTopicId === nextTopicId) {
       return;
     }
     if (this.clipboardItems.length === 0) {
-      this.destinationPreviewTransition = null;
       return;
     }
 
-    const previousTopicsByGroupId = this.createDestinationPreviewTopics(previousTopicId);
-    const nextTopicsByGroupId = this.createDestinationPreviewTopics(nextTopicId);
-    const previousLayoutByGroupId = this.captureTopicLayoutSnapshotForGroups(previousTopicsByGroupId);
-    const nextLayoutByGroupId = this.captureTopicLayoutSnapshotForGroups(nextTopicsByGroupId);
+    this.getProcessedTopics();
+    const sourceRowsInBaseTopics = this.captureSlotRowYByIdForTopics(this.topicsByGroupId);
+    const sourcePositionsInBaseTopics = this.captureSlotRowPositionByIdForTopics(this.topicsByGroupId);
+    const groupContentOffsetByGroupId = this.captureGroupContentOffsetByGroupId();
 
-    const previousRows = this.captureSlotRowYByIdForTopics(previousTopicsByGroupId);
-    const nextRows = this.captureSlotRowYByIdForTopics(nextTopicsByGroupId);
+    const previousTopicsByGroupId = previousTopicId
+      ? this.createDestinationPreviewTopics(previousTopicId)
+      : null;
+    const nextTopicsByGroupId = nextTopicId ? this.createDestinationPreviewTopics(nextTopicId) : null;
 
-    const rawShiftsBySlotId = new Map<string, number>();
-    nextRows.forEach((toY, slotId) => {
-      const fromY = previousRows.get(slotId);
-      if (fromY === undefined) return;
-      const delta = fromY - toY;
-      if (Math.abs(delta) > 0.5) {
-        rawShiftsBySlotId.set(slotId, delta);
+    if (nextTopicId && nextTopicsByGroupId) {
+      const nextRowsBySlotId = this.captureSlotRowPositionByIdForTopics(nextTopicsByGroupId);
+      const previousRowsBySlotId = previousTopicsByGroupId
+        ? this.captureSlotRowPositionByIdForTopics(previousTopicsByGroupId)
+        : sourcePositionsInBaseTopics;
+      const rawShiftsBySlotId = new Map<string, number>();
+
+      nextRowsBySlotId.forEach((toPos, slotId) => {
+        const fromY =
+          previousRowsBySlotId.get(slotId) ??
+          (slotId.startsWith("__destination_preview__")
+            ? sourcePositionsInBaseTopics.get(slotId.slice("__destination_preview__".length))
+            : undefined);
+        if (fromY === undefined) return;
+
+        const fromOffset = groupContentOffsetByGroupId.get(fromY.groupId) ?? 0;
+        const toOffset = groupContentOffsetByGroupId.get(toPos.groupId) ?? 0;
+        const fromScreenY = fromOffset + fromY.rowY;
+        const toScreenY = toOffset + toPos.rowY;
+        const delta = fromScreenY - toScreenY;
+        if (Math.abs(delta) > 0.5) {
+          rawShiftsBySlotId.set(slotId, delta);
+        }
+      });
+
+      const previousLayoutByGroupId = previousTopicsByGroupId
+        ? this.captureTopicLayoutSnapshotForGroups(previousTopicsByGroupId)
+        : this.captureTopicLayoutSnapshotByGroupId();
+      const nextLayoutByGroupId = this.captureTopicLayoutSnapshotForGroups(nextTopicsByGroupId);
+      const shiftsByGroupId = this.buildTopicLayoutShiftByGroupId(
+        previousLayoutByGroupId,
+        nextLayoutByGroupId,
+      );
+      const shiftsBySlotId = this.subtractTopicShiftFromSlotShifts(
+        rawShiftsBySlotId,
+        shiftsByGroupId,
+        nextTopicsByGroupId,
+      );
+
+      if (shiftsBySlotId.size > 0 || shiftsByGroupId.size > 0) {
+        this.destinationPreviewTransition = {
+          toTopicId: nextTopicId,
+          startedAtMs: performance.now(),
+          durationMs: DESTINATION_PREVIEW_TRANSITION_MS,
+          shiftsBySlotId,
+          shiftsByGroupId,
+        };
       }
-    });
-
-    const shiftsByGroupId = this.buildTopicLayoutShiftByGroupId(
-      previousLayoutByGroupId,
-      nextLayoutByGroupId,
-    );
-    const shiftsBySlotId = this.subtractTopicShiftFromSlotShifts(
-      rawShiftsBySlotId,
-      shiftsByGroupId,
-      nextTopicsByGroupId,
-    );
-
-    if (shiftsBySlotId.size === 0 && shiftsByGroupId.size === 0) {
-      this.destinationPreviewTransition = null;
-      return;
     }
 
-    this.destinationPreviewTransition = {
-      toTopicId: nextTopicId,
-      startedAtMs: performance.now(),
-      durationMs: DESTINATION_PREVIEW_TRANSITION_MS,
-      shiftsBySlotId,
-      shiftsByGroupId,
-    };
+    if (previousTopicsByGroupId) {
+      const previousPreviewRowsBySlotId = this.capturePreviewRowByPreviewSlotIdForTopics(previousTopicsByGroupId);
+      if (previousPreviewRowsBySlotId.size === 0) {
+        return;
+      }
+
+      const nextPreviewRowsBySlotId = nextTopicsByGroupId
+        ? this.capturePreviewRowByPreviewSlotIdForTopics(nextTopicsByGroupId)
+        : new Map<string, { groupId: string; rowY: number; sourceSlotId: string }>();
+      const destinationRowsBySourceSlotId = this.captureSlotRowPositionByIdForTopics(
+        nextTopicsByGroupId ?? this.topicsByGroupId,
+      );
+
+      const leavingPreviewSlotIds = new Set<string>();
+      const fromYByPreviewSlotId = new Map<string, number>();
+      const screenDeltaYByPreviewSlotId = new Map<string, number>();
+
+      previousPreviewRowsBySlotId.forEach(({ groupId: fromGroupId, rowY: fromY, sourceSlotId }, previewSlotId) => {
+        if (nextPreviewRowsBySlotId.has(previewSlotId)) return;
+        const toY = destinationRowsBySourceSlotId.get(sourceSlotId);
+        if (toY === undefined) return;
+        const fromOffset = groupContentOffsetByGroupId.get(fromGroupId) ?? 0;
+        const toOffset = groupContentOffsetByGroupId.get(toY.groupId) ?? 0;
+        const fromScreenY = fromOffset + fromY;
+        const toScreenY = toOffset + toY.rowY;
+        const screenDeltaY = toScreenY - fromScreenY;
+        leavingPreviewSlotIds.add(previewSlotId);
+        fromYByPreviewSlotId.set(previewSlotId, fromY);
+        screenDeltaYByPreviewSlotId.set(previewSlotId, screenDeltaY);
+      });
+
+      if (leavingPreviewSlotIds.size === 0) {
+        return;
+      }
+
+      const topicsByGroupId = this.filterTopicsToPreviewSlotIds(
+        previousTopicsByGroupId,
+        leavingPreviewSlotIds,
+      );
+      if (topicsByGroupId.size === 0) {
+        return;
+      }
+
+      this.destinationPreviewExitTransition = {
+        startedAtMs: performance.now(),
+        durationMs: DESTINATION_PREVIEW_TRANSITION_MS,
+        topicsByGroupId,
+        fromYByPreviewSlotId,
+        screenDeltaYByPreviewSlotId,
+      };
+    }
   }
 
   private getActiveDestinationPreviewTransition(
@@ -2559,6 +2744,44 @@ export class GanttChartCanvasController {
       shiftsBySlotId: anim.shiftsBySlotId,
       shiftsByGroupId: anim.shiftsByGroupId,
       progress: this.easeOutCubic(rawProgress),
+    };
+  }
+
+  private getActiveDestinationPreviewExitTransition(nowMs: number): {
+    topicsByGroupId: ReadonlyMap<string, Topic[]>;
+    yOverrideBySlotId: ReadonlyMap<string, number>;
+    previewOpacityMultiplier: number;
+    pulseAlpha: number;
+  } | null {
+    const anim = this.destinationPreviewExitTransition;
+    if (!anim || anim.fromYByPreviewSlotId.size === 0) {
+      return null;
+    }
+
+    const rawProgress = (nowMs - anim.startedAtMs) / anim.durationMs;
+    if (rawProgress >= 1) {
+      this.destinationPreviewExitTransition = null;
+      return null;
+    }
+
+    const progress = this.easeOutCubic(rawProgress);
+    const yOverrideBySlotId = new Map<string, number>();
+    anim.fromYByPreviewSlotId.forEach((fromY, previewSlotId) => {
+      const screenDeltaY = anim.screenDeltaYByPreviewSlotId.get(previewSlotId);
+      if (screenDeltaY === undefined) return;
+      yOverrideBySlotId.set(previewSlotId, fromY + screenDeltaY * progress);
+    });
+
+    if (yOverrideBySlotId.size === 0) {
+      this.destinationPreviewExitTransition = null;
+      return null;
+    }
+
+    return {
+      topicsByGroupId: anim.topicsByGroupId,
+      yOverrideBySlotId,
+      previewOpacityMultiplier: Math.max(0, 1 - progress),
+      pulseAlpha: 0.58 + 0.2 * (0.5 + 0.5 * Math.sin(nowMs / 160)),
     };
   }
 
@@ -2601,7 +2824,7 @@ export class GanttChartCanvasController {
 
     const previewSlots: GanttEditorSlotWithUiAttributes[] = [];
     const copyPreview = this.altCopyModifierActive;
-    this.getPreviewEligibleClipboardItems(topicId).forEach((slot, index) => {
+    this.getPreviewEligibleClipboardItems(topicId).forEach((slot) => {
       const openTime = new Date(slot.openTime);
       const closeTime = new Date(slot.closeTime);
       if (!Number.isFinite(openTime.getTime()) || !Number.isFinite(closeTime.getTime())) {
@@ -2609,7 +2832,7 @@ export class GanttChartCanvasController {
       }
       previewSlots.push({
         ...slot,
-        id: `__destination_preview__${index}__${slot.id}`,
+        id: `__destination_preview__${slot.id}`,
         destinationId: topicId,
         openTime,
         closeTime,
@@ -2617,6 +2840,7 @@ export class GanttChartCanvasController {
         isCopied: false,
         isPreview: true,
         isCopyPreview: copyPreview,
+        previewSourceSlotId: slot.id,
         readOnly: true,
       });
     });
@@ -2674,7 +2898,7 @@ export class GanttChartCanvasController {
 
     const previewSlots: GanttEditorSlotWithUiAttributes[] = [];
     const copyPreview = this.altCopyModifierActive;
-    this.clipboardItems.forEach((slot, index) => {
+    this.clipboardItems.forEach((slot) => {
       const openTime = new Date(new Date(slot.openTime).getTime() + timeDiffMs);
       const closeTime = new Date(new Date(slot.closeTime).getTime() + timeDiffMs);
       if (!Number.isFinite(openTime.getTime()) || !Number.isFinite(closeTime.getTime())) {
@@ -2682,7 +2906,7 @@ export class GanttChartCanvasController {
       }
       previewSlots.push({
         ...slot,
-        id: `__time_axis_preview__${index}__${slot.id}`,
+        id: `__time_axis_preview__${slot.id}`,
         openTime,
         closeTime,
         deadlines: slot.deadlines?.map((deadline) => ({
@@ -2692,6 +2916,7 @@ export class GanttChartCanvasController {
         isCopied: false,
         isPreview: true,
         isCopyPreview: copyPreview,
+        previewSourceSlotId: slot.id,
         readOnly: true,
       });
     });
@@ -2783,11 +3008,11 @@ export class GanttChartCanvasController {
     // Skip the expensive processData call when the clipboard is very large.
     if (this.clipboardItems.length >= (this.props.hoverPreviewMaxClipboardSize ?? HOVER_PREVIEW_MAX_CLIPBOARD_SIZE)) return null;
     const sourceSlotIds = this.getPreviewEligibleClipboardItems(topicId).map((slot) => slot.id);
-    if (sourceSlotIds.length === 0) return null;
-    if (!this.canPreviewSlotsToDestination(sourceSlotIds.length, this.altCopyModifierActive)) {
+    const transition = this.getActiveDestinationPreviewTransition(nowMs, topicId);
+    if (sourceSlotIds.length === 0 && !transition) return null;
+    if (!this.canPreviewSlotsToDestination(this.clipboardItems.length, this.altCopyModifierActive)) {
       return null;
     }
-    const transition = this.getActiveDestinationPreviewTransition(nowMs, topicId);
 
     return {
       topicId,
@@ -3777,6 +4002,8 @@ export class GanttChartCanvasController {
     if (active && !this.canUseAltCopyModifier()) return false;
     if (this.altCopyModifierActive === active) return false;
     this.altCopyModifierActive = active;
+    this.destinationPreviewTransition = null;
+    this.destinationPreviewExitTransition = null;
     this.destinationPreviewTopicsCache = null;
     this.refreshCopyCursorIndicator();
     return true;
@@ -3792,6 +4019,7 @@ export class GanttChartCanvasController {
       this.hoveredTimeAxisDiffMs = null;
     }
     this.destinationPreviewTransition = null;
+    this.destinationPreviewExitTransition = null;
     this.destinationPreviewTopicsCache = null;
     return true;
   }
@@ -4016,6 +4244,7 @@ export class GanttChartCanvasController {
     const slotReflowTransition = this.getActiveSlotReflowTransition(nowMs);
     const collapseLayoutTransition = this.getActiveCollapseLayoutTransition(nowMs);
     const destinationPreview = this.getDestinationPreviewState(nowMs);
+    const destinationPreviewExit = this.getActiveDestinationPreviewExitTransition(nowMs);
 
     for (const group of this.props.destinationGroups) {
       const gr = layout.groupRects.get(group.id);
@@ -4153,6 +4382,31 @@ export class GanttChartCanvasController {
       ctx.restore();
     }
 
+    if (destinationPreviewExit) {
+      destinationPreviewExit.topicsByGroupId.forEach((exitPreviewTopics, groupId) => {
+        if (exitPreviewTopics.length === 0) return;
+        const gr = layout.groupRects.get(groupId);
+        if (!gr) return;
+        const scrollOffset = this.verticalScrollOffsets.get(groupId) || 0;
+        ctx.save();
+        ctx.translate(0, gr.y - scrollOffset);
+        drawSlots({
+          ctx,
+          width: layout.canvasCssWidth,
+          topics: exitPreviewTopics,
+          margin: MARGIN,
+          rowHeight: this.rowHeight,
+          startTime: this.internalStartTime,
+          endTime: this.internalEndTime,
+          topicLayouts: this.getTopicLayouts(exitPreviewTopics),
+          slotYOverrideBySlotId: destinationPreviewExit.yOverrideBySlotId,
+          previewPulseAlpha: destinationPreviewExit.pulseAlpha,
+          previewOpacityMultiplier: destinationPreviewExit.previewOpacityMultiplier,
+        });
+        ctx.restore();
+      });
+    }
+
     drawVerticalMarkers({
       ctx,
       width: layout.canvasCssWidth,
@@ -4195,6 +4449,7 @@ export class GanttChartCanvasController {
       slotReflowTransition ||
       collapseLayoutTransition ||
       destinationPreview ||
+      destinationPreviewExit ||
       this.helpOverlayTransition ||
       (helpOverlayProgress > 0 && this.isHelpOverlayTileActive())
     ) {
@@ -5034,6 +5289,7 @@ export class GanttChartCanvasController {
     this.hoveredClipboardTopicId = null;
     this.hoveredTimeAxisDiffMs = null;
     this.destinationPreviewTransition = null;
+    this.destinationPreviewExitTransition = null;
     this.resetHoverSlot();
   }
 

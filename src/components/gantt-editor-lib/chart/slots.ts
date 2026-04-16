@@ -57,8 +57,12 @@ export interface DrawSlotsParams {
   slotTimeOverride?: { slotId: string; openTime: Date; closeTime: Date } | null;
   /** Transitional Y-shift animation for slots after row arrangement changes. */
   slotYTransition?: { shiftsBySlotId: ReadonlyMap<string, number>; progress: number } | null;
+  /** Absolute Y override for specific slot IDs (used by custom cross-topic transitions). */
+  slotYOverrideBySlotId?: ReadonlyMap<string, number> | null;
   /** Optional alpha pulse applied to temporary destination preview slots. */
   previewPulseAlpha?: number;
+  /** Optional multiplier to fade preview slots in/out during transitions. */
+  previewOpacityMultiplier?: number;
 }
 
 /** First index of slot with closeTime > t (slots sorted by openTime ascending). */
@@ -95,7 +99,9 @@ export function drawSlots(params: DrawSlotsParams) {
     topicLayouts,
     slotTimeOverride,
     slotYTransition,
+    slotYOverrideBySlotId,
     previewPulseAlpha,
+    previewOpacityMultiplier,
   } = params;
 
   const hasViewport = viewportTop !== undefined && viewportHeight !== undefined;
@@ -148,11 +154,23 @@ export function drawSlots(params: DrawSlotsParams) {
           }
         }
 
+        if (slotYOverrideBySlotId) {
+          const yOverride = slotYOverrideBySlotId.get(slot.id);
+          if (yOverride !== undefined) {
+            slotDef.y = yOverride;
+          }
+        }
+
         // Draw the filled bar
-        ctx.globalAlpha =
-          slotDef.isPreview && previewPulseAlpha !== undefined
-            ? Math.max(0.25, Math.min(1, slotDef.opacity * previewPulseAlpha))
-            : slotDef.opacity;
+        let alpha = slotDef.opacity;
+        if (slotDef.isPreview && previewPulseAlpha !== undefined) {
+          alpha *= previewPulseAlpha;
+        }
+        if (slotDef.isPreview && previewOpacityMultiplier !== undefined) {
+          alpha *= previewOpacityMultiplier;
+        }
+        const drawAlpha = Math.max(0, Math.min(1, alpha));
+        ctx.globalAlpha = drawAlpha;
         ctx.fillStyle = slotDef.fill;
         ctx.fillRect(slotDef.x, slotDef.y, slotDef.width, slotDef.height);
 
@@ -192,8 +210,8 @@ export function drawSlots(params: DrawSlotsParams) {
           ctx.rect(slotDef.x, slotDef.y, slotDef.width, slotDef.height);
           ctx.clip();
 
-          ctx.globalAlpha = 1;
-          ctx.fillStyle = "#ffffff";
+          ctx.globalAlpha = slotDef.isPreview ? drawAlpha : 1;
+          ctx.fillStyle = slotDef.isPreview ? "#000000" : "#ffffff";
           ctx.font = scaledBoldSansFont(rowHeight);
           ctx.textBaseline = "middle";
           ctx.textAlign = "left";
