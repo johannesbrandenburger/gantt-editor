@@ -306,6 +306,23 @@ export class GanttChartCanvasController {
     | null = null;
 
   /**
+   * True only once the brush selection has actually moved beyond the drag
+   * threshold. Between mousedown and the first real drag the brush exists but
+   * the interaction is still indistinguishable from a plain click, so preview
+   * overlays and hover tracking should stay alive.
+   */
+  private isBrushSelectionActivelyDragging(): boolean {
+    const brush = this.brushSelection;
+    if (!brush) return false;
+    const dx = Math.abs(brush.currentX - brush.startX);
+    const dy =
+      brush.mode === "group"
+        ? Math.abs(brush.currentYContent - brush.startYContent)
+        : 0;
+    return dx > BRUSH_DRAG_THRESHOLD_PX || dy > BRUSH_DRAG_THRESHOLD_PX;
+  }
+
+  /**
    * Per-group cache of pre-computed slot pixel bounds.
    * Key: groupId → { cacheKey, entries }.
    * cacheKey encodes canvasWidth + timeRange + rowHeight + processDataFingerprint so the
@@ -934,7 +951,11 @@ export class GanttChartCanvasController {
       if (gr) {
         const scroll = this.verticalScrollOffsets.get(hit.groupId) || 0;
         const contentY = pt.y - gr.y + scroll;
-        if (!this.props.isReadOnly && this.clipboardItems.length > 0 && !this.brushSelection) {
+        if (
+          !this.props.isReadOnly &&
+          this.clipboardItems.length > 0 &&
+          !this.isBrushSelectionActivelyDragging()
+        ) {
           if (
             this.shiftTimeAxisModifierActive &&
             this.canPreviewSlotsOnTimeAxis(this.clipboardItems.length, this.altCopyModifierActive)
@@ -2537,6 +2558,35 @@ export class GanttChartCanvasController {
     return null;
   }
 
+  /**
+   * Map of source-slot-id → row Y in the preview layout. Used when committing a
+   * paste so the reflow animation treats the previewed destination row (where
+   * the user already sees the slot) as the slot's "previous" position, giving
+   * a seamless transition from preview to real slot instead of making the slot
+   * slide in from its source row at mouse-up.
+   */
+  private capturePreviewDestinationRowYBySourceSlotId(
+    previewTopicsByGroupId: ReadonlyMap<string, Topic[]>,
+  ): Map<string, number> {
+    const rowsBySourceSlotId = new Map<string, number>();
+    previewTopicsByGroupId.forEach((topics) => {
+      const layouts = this.getTopicLayouts(topics);
+      for (const layout of layouts) {
+        layout.topic.rows.forEach((row, rowIndex) => {
+          const rowTop = layout.rowYs[rowIndex];
+          if (rowTop === undefined) return;
+          for (const slot of row.slots) {
+            if (!slot.isPreview) continue;
+            const sourceSlotId = this.previewSourceSlotIdForPreviewSlot(slot);
+            if (!sourceSlotId) continue;
+            rowsBySourceSlotId.set(sourceSlotId, rowTop);
+          }
+        });
+      }
+    });
+    return rowsBySourceSlotId;
+  }
+
   private capturePreviewRowByPreviewSlotIdForTopics(
     topicsByGroupId: ReadonlyMap<string, Topic[]>,
   ): Map<string, { groupId: string; rowY: number; sourceSlotId: string }> {
@@ -2979,7 +3029,7 @@ export class GanttChartCanvasController {
     } | null;
   } | null {
     if (!this.pointerInChart) return null;
-    if (this.brushSelection) return null;
+    if (this.isBrushSelectionActivelyDragging()) return null;
     if (this.props.isReadOnly) return null;
     if (this.clipboardItems.length === 0) return null;
     const pulseAlpha = 0.58 + 0.2 * (0.5 + 0.5 * Math.sin(nowMs / 160));
@@ -3418,8 +3468,44 @@ export class GanttChartCanvasController {
       return;
     }
 
-    const previousRowYBySlotId = this.captureSlotRowYById();
-    const previousLayoutByGroupId = this.captureTopicLayoutSnapshotByGroupId();
+    // If the target topic was being previewed, base the reflow animation on
+    // the preview layout instead of the real layout. The user already saw:
+    //   - moved slots sitting at their destination row (via preview)
+    //   - pre-existing destination slots shifted down to make room
+    //   - topics/slots below the destination pushed down accordingly
+    // Using the preview layout as "previous" makes all of those zero-shift, so
+    // only the source topic's collapse (as the moved slot vacates it) animates.
+    const previewActiveForTarget =
+      this.hoveredClipboardTopicId === topicId &&
+      !this.shiftTimeAxisModifierActive &&
+      this.pointerInChart &&
+      this.clipboardItems.length > 0 &&
+      this.canPreviewSlotsToDestination(this.clipboardItems.length, this.altCopyModifierActive);
+    const previewTopicsByGroupId = previewActiveForTarget
+      ? this.createDestinationPreviewTopics(topicId)
+      : null;
+
+    let previousRowYBySlotId: Map<string, number>;
+    if (previewTopicsByGroupId) {
+      // Start from the preview layout so every real slot (including
+      // pre-existing destination slots that already shifted down for the
+      // preview) has its previewed position as its "previous" row.
+      previousRowYBySlotId = this.captureSlotRowYByIdForTopics(previewTopicsByGroupId);
+      // Moved slots don't appear under their real id in the preview (they're
+      // still in their source topic there), so overlay the destination row
+      // coming from the `__destination_preview__<id>` entries.
+      const previewRowBySourceSlotId = this.capturePreviewDestinationRowYBySourceSlotId(
+        previewTopicsByGroupId,
+      );
+      previewRowBySourceSlotId.forEach((rowY, slotId) => {
+        previousRowYBySlotId.set(slotId, rowY);
+      });
+    } else {
+      previousRowYBySlotId = this.captureSlotRowYById();
+    }
+    const previousLayoutByGroupId = previewTopicsByGroupId
+      ? this.captureTopicLayoutSnapshotForGroups(previewTopicsByGroupId)
+      : this.captureTopicLayoutSnapshotByGroupId();
 
     let movedSomething = false;
     const movedTargets = clipboard
@@ -4661,7 +4747,7 @@ export class GanttChartCanvasController {
     layout: UnifiedChartLayout,
   ): void {
     if (!this.pointerInChart) return;
-    if (this.brushSelection) return;
+    if (this.isBrushSelectionActivelyDragging()) return;
 
     const count = this.clipboardItems.length;
     if (count === 0) return;
