@@ -22,6 +22,7 @@
             :contextMenuActions="contextMenuActions"
             :markedRegion="markedRegion"
             :activate-rulers="'GLOBAL'"
+            :features="activeFeatures"
             @onChangeStartAndEndTime="handleChangeStartAndEndTime"
             @onChangeDestinationId="handleChangeDestinationId"
             @onBulkChangeDestinationId="handleBulkChangeDestinationId"
@@ -42,9 +43,7 @@
             @onContextMenuAction="handleCanvasContextMenuAction"
             :topContentPortion="topContentPortion"
             @onTopContentPortionChange="(newPortion: number, newHeight: number) => topContentPortion = newPortion"
-            :features="[
-                'select-slots',
-            ]"
+
         >
             <template
                 #top-content
@@ -144,6 +143,44 @@
                     >
                         {{ eventMessage }}
                     </div>
+                    <div style="margin-left: auto; position: relative;">
+                        <button
+                            ref="featuresButtonRef"
+                            @click.stop="toggleFeaturesDropdown"
+                            :style="{
+                                padding: '8px 16px',
+                                borderRadius: '4px',
+                                border: '1px solid #ccc',
+                                background: '#2c3e50',
+                                color: 'white',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                whiteSpace: 'nowrap',
+                            }"
+                        >
+                            ⚙️ Features ▾
+                        </button>
+                        <Teleport to="body">
+                            <div
+                                v-if="showFeaturesDropdown"
+                                ref="featuresDropdownRef"
+                                :style="featuresDropdownStyle"
+                            >
+                                <label
+                                    v-for="feature in ALL_FEATURES"
+                                    :key="feature.id"
+                                    style="display: flex; align-items: center; gap: 8px; padding: 5px 12px; cursor: pointer; font-size: 13px; user-select: none;"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        :checked="enabledFeatureSet.has(feature.id)"
+                                        @change="toggleFeature(feature.id)"
+                                    />
+                                    {{ feature.label }}
+                                </label>
+                            </div>
+                        </Teleport>
+                    </div>
                 </div>
             </template>
         </GanttEditor>
@@ -158,7 +195,8 @@ import type {
     GanttEditorVerticalMarker,
 } from '@/components/gantt-editor-lib/chart/types';
 import GanttEditor from '@/vue/GanttEditor.vue';
-import { timeHour, type TimeDomainValue } from '@/components/gantt-editor-lib/chart/time_scale';
+import { type TimeDomainValue } from '@/components/gantt-editor-lib/chart/time_scale';
+import { GanttEditorFeature } from '@/components/gantt-editor-lib/chart/gantt_canvas_props';
 
 const upperAxisFormatter = new Intl.DateTimeFormat(undefined, {
     month: 'short',
@@ -185,6 +223,87 @@ const formatLowerAxisTick = (domainValue: TimeDomainValue): string => {
 // Ref to the Gantt Editor component for programmatic access
 const ganttEditorRef = ref<InstanceType<typeof GanttEditor> | null>(null);
 
+// ── Feature flags dropdown ────────────────────────────────────────────────────
+const ALL_FEATURES: { id: GanttEditorFeature; label: string }[] = [
+    { id: 'select-slots',                            label: 'Select Slots' },
+    { id: 'brush-select-slots',                      label: 'Brush Select Slots' },
+    { id: 'resize-slot-time',                        label: 'Resize Slot Time' },
+    { id: 'apply-slot-suggestions',                  label: 'Apply Slot Suggestions' },
+    { id: 'collapse-topics',                         label: 'Collapse Topics' },
+    { id: 'canvas-context-menu',                     label: 'Canvas Context Menu' },
+    { id: 'move-vertical-markers',                   label: 'Move Vertical Markers' },
+    { id: 'move-vertical-markers-from-context-menu', label: 'Move Markers (Context Menu)' },
+    { id: 'move-slots-to-destination',               label: 'Move Slots to Destination' },
+    { id: 'bulk-move-slots-to-destination',          label: 'Bulk Move to Destination' },
+    { id: 'copy-slots-to-destination',               label: 'Copy Slots to Destination' },
+    { id: 'bulk-copy-slots-to-destination',          label: 'Bulk Copy to Destination' },
+    { id: 'move-slots-on-time-axis',                 label: 'Move Slots on Time Axis' },
+    { id: 'bulk-move-slots-on-time-axis',            label: 'Bulk Move on Time Axis' },
+    { id: 'copy-slots-on-time-axis',                 label: 'Copy Slots on Time Axis' },
+    { id: 'bulk-copy-slots-on-time-axis',            label: 'Bulk Copy on Time Axis' },
+    { id: 'preview-slots-to-destination',            label: 'Preview to Destination' },
+    { id: 'preview-slots-on-time-axis',              label: 'Preview on Time Axis' },
+    { id: 'copy-modifier-alt',                       label: 'Alt = Copy Modifier' },
+    { id: 'time-axis-modifier-shift',                label: 'Shift = Time Axis Modifier' },
+    { id: 'scroll-horizontal',                       label: 'Scroll Horizontal' },
+    { id: 'zoom-time-axis',                            label: 'Zoom Time Axis' },
+];
+
+const enabledFeatureSet = ref(new Set<GanttEditorFeature>(ALL_FEATURES.map((f) => f.id)));
+const showFeaturesDropdown = ref(false);
+const featuresButtonRef = ref<HTMLElement | null>(null);
+const featuresDropdownRef = ref<HTMLElement | null>(null);
+const featuresDropdownStyle = ref<Record<string, string>>({});
+
+const activeFeatures = computed<GanttEditorFeature[] | undefined>(() => {
+    if (enabledFeatureSet.value.size === ALL_FEATURES.length) return undefined;
+    return ALL_FEATURES.map((f) => f.id).filter((id) => enabledFeatureSet.value.has(id));
+});
+
+const toggleFeature = (id: GanttEditorFeature) => {
+    const next = new Set(enabledFeatureSet.value);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    enabledFeatureSet.value = next;
+    if (id === 'scroll-horizontal') {
+        if (!next.has('scroll-horizontal')) {
+            showEventMessage('🔒 Horizontal scroll locked');
+        } else {
+            showEventMessage('🔓 Horizontal scroll unlocked');
+        }
+    }
+};
+
+const toggleFeaturesDropdown = () => {
+    if (!showFeaturesDropdown.value && featuresButtonRef.value) {
+        const rect = featuresButtonRef.value.getBoundingClientRect();
+        featuresDropdownStyle.value = {
+            position: 'fixed',
+            top: `${rect.bottom + 4}px`,
+            right: `${window.innerWidth - rect.right}px`,
+            background: 'white',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            padding: '8px 4px',
+            minWidth: '280px',
+            zIndex: '9999',
+            maxHeight: '420px',
+            overflowY: 'auto',
+        };
+    }
+    showFeaturesDropdown.value = !showFeaturesDropdown.value;
+};
+
+const handleFeaturesClickOutside = (event: MouseEvent) => {
+    const target = event.target as Node;
+    const insideButton = featuresButtonRef.value?.contains(target) ?? false;
+    const insideDropdown = featuresDropdownRef.value?.contains(target) ?? false;
+    if (!insideButton && !insideDropdown) {
+        showFeaturesDropdown.value = false;
+    }
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 const topContentPortion = ref(0.1); // 20% of total height for top content
 const onWindowKeydown = (event: KeyboardEvent) => {
     if (event.key === 't') {
@@ -195,10 +314,12 @@ const onWindowKeydown = (event: KeyboardEvent) => {
 
 onMounted(() => {
     window.addEventListener('keydown', onWindowKeydown);
+    document.addEventListener('click', handleFeaturesClickOutside);
 });
 
 onBeforeUnmount(() => {
     window.removeEventListener('keydown', onWindowKeydown);
+    document.removeEventListener('click', handleFeaturesClickOutside);
     if (eventMessageTimeout !== null) {
         clearTimeout(eventMessageTimeout);
         eventMessageTimeout = null;
@@ -471,6 +592,7 @@ const toggleReadOnly = () => {
 };
 
 const handleChangeStartAndEndTime = (newStartTime: Date, newEndTime: Date) => {
+    if (!enabledFeatureSet.value.has('scroll-horizontal')) return;
     console.log('Callback: Navigated to new time window', newStartTime, newEndTime);
     startTime.value = newStartTime;
     endTime.value = newEndTime;

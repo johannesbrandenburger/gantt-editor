@@ -1586,21 +1586,23 @@ export class GanttChartCanvasController {
               },
             },
           ]
-        : [
-            {
-              id: "move-marker-here",
-              label: "Move marker here",
-              children: contextMenuMovableMarkers.map((marker) => ({
-                id: `move-marker:${marker.id}`,
-                label: marker.label && marker.label.trim().length > 0 ? marker.label : marker.id,
-                payload: {
-                  kind: "move-vertical-marker",
-                  markerId: marker.id,
-                  targetDate,
-                },
-              })),
-            },
-          ];
+        : contextMenuMovableMarkers.length > 1
+          ? [
+              {
+                id: "move-marker-here",
+                label: "Move marker here",
+                children: contextMenuMovableMarkers.map((marker) => ({
+                  id: `move-marker:${marker.id}`,
+                  label: marker.label && marker.label.trim().length > 0 ? marker.label : marker.id,
+                  payload: {
+                    kind: "move-vertical-marker",
+                    markerId: marker.id,
+                    targetDate,
+                  },
+                })),
+              },
+            ]
+          : [];
 
     const menuItems: CanvasContextMenuItem<ContextMenuActionPayload>[] = [
       ...markerMenuItems,
@@ -3939,6 +3941,8 @@ export class GanttChartCanvasController {
       }),
       getChartWidth: () => this.containerWidth - MARGIN.left - MARGIN.right,
       onTimeRangeChange: (start: Date, end: Date, wheelZoomAnchor?: WheelZoomAnchor) => {
+        const isZoom = !!wheelZoomAnchor;
+        if (!this.isFeatureEnabled("scroll-horizontal") && !isZoom) return;
         this.cancelSlotReflowAnimation();
         this.internalStartTime = start;
         this.internalEndTime = end;
@@ -3947,7 +3951,25 @@ export class GanttChartCanvasController {
         }
         this.scheduleFrameRedraw(true);
       },
+      isZoomEnabled: () => this.isFeatureEnabled("zoom-time-axis"),
+      getFixedZoomAnchorTimeMs: () => {
+        if (!this.isFeatureEnabled("scroll-horizontal")) {
+          // Zoom around the center of the currently visible range so the view stays stable.
+          return (this.internalStartTime.getTime() + this.internalEndTime.getTime()) / 2;
+        }
+        return null;
+      },
       onTimeRangeCommit: (start: Date, end: Date) => {
+        // Allow commit when zoom changed the range (internal times differ from locked range).
+        const scrollEnabled = this.isFeatureEnabled("scroll-horizontal");
+        if (!scrollEnabled) {
+          // Only commit if the new range differs from the last parent-committed range,
+          // meaning a zoom (not a blocked pan) caused the change.
+          const rangeChanged =
+            start.getTime() !== this.lastSeenParentStartMs ||
+            end.getTime() !== this.lastSeenParentEndMs;
+          if (!rangeChanged) return;
+        }
         this.cancelSlotReflowAnimation();
         this.internalStartTime = start;
         this.internalEndTime = end;
