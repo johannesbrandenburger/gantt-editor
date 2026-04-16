@@ -4,8 +4,7 @@ import {
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorSlot,
-// } from '@pf/gantt-editor-component-angular'
-} from '../../../../../src/angular'
+} from '@pf/gantt-editor-component/angular'
 
 @Component({
   selector: 'app-small-example-page',

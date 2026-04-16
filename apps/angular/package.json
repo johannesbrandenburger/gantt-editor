@@ -7,7 +7,7 @@
     "build": "ng build"
   },
   "dependencies": {
-    "@pf/gantt-editor-component-angular": "0.10.2",
+    "@pf/gantt-editor-component": "file:../..",
     "@angular/common": "^21.2.8",
     "@angular/compiler": "^21.2.8",
     "@angular/core": "^21.2.8",

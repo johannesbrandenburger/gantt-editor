@@ -4,8 +4,7 @@ import {
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
   type GanttEditorSlot,
-// } from '@pf/gantt-editor-component-react'
-} from '../../../../src/react'
+} from '@pf/gantt-editor-component/react'
 
 const pageStyle: React.CSSProperties = {
   width: '100%',
@@ -66,7 +65,7 @@ export function SmallExamplePage() {
         destinationGroups={destinationGroups}
         markedRegion={null}
         suggestions={[]}
-        onChangeStartAndEndTime={(newStartTime, newEndTime) =>
+        onChangeStartAndEndTime={(newStartTime: any, newEndTime: any) =>
           console.log(`onChangeStartAndEndTime(${newStartTime}, ${newEndTime})`)
         }
         onChangeDestinationId={(slotId, newDestinationId) =>

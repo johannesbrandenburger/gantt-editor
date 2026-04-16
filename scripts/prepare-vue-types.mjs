@@ -36,10 +36,7 @@ fs.writeFileSync(path.join(vuePkgDir, 'index.d.cts'), vueTypeEntry)
 fs.mkdirSync(sharedTypesDir, { recursive: true })
 
 const sharedTypesEntry = [
-  "export * from '../vue/index'",
-  "export { default } from '../vue/index'",
-  "export * from '../react/index'",
-  "export * from '../angular/angular/index'",
+  "export * from '../src/index'",
   '',
 ].join('\n')
 
