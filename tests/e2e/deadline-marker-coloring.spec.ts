@@ -93,7 +93,7 @@ function markerCanvasX(state: CanvasState, markerDateMs: number): number {
 
 test.describe("canvas rewrite deadline marker coloring", () => {
   test("STD and ETD endlines use configured deadline colors", async ({ page }) => {
-    await page.goto("/small-example");
+    await page.goto("/e2e-harness");
     await waitForCanvasApi(page);
 
     const state = await getCanvasState<CanvasState>(page);
@@ -122,7 +122,7 @@ test.describe("canvas rewrite deadline marker coloring", () => {
   });
 
   test("STD marker keeps configured color without opacity blending", async ({ page }) => {
-    await page.goto("/small-example");
+    await page.goto("/e2e-harness");
     await waitForCanvasApi(page);
 
     const state = await getCanvasState<CanvasState>(page);
