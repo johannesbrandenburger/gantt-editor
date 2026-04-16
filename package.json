@@ -5,7 +5,7 @@
     "apps/*"
   ],
   "type": "module",
-  "version": "0.11.2",
+  "version": "0.12.0",
   "main": "./dist/vue/index.cjs",
   "module": "./dist/vue/index.js",
   "types": "./dist/types/index.d.ts",
