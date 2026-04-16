@@ -127,7 +127,15 @@ export function handlePanZoomWheelEvent(
 
   const shouldZoom = event.ctrlKey || event.shiftKey || event.altKey;
   if (!shouldZoom) return false;
-  if (!callbacks.isZoomEnabled()) return false;
+  if (!callbacks.isZoomEnabled()) {
+    // On trackpads, pinch emits ctrl+wheel; consume it to avoid browser/page zoom.
+    if (event.ctrlKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
+    return false;
+  }
   if (timeRangeMs <= 0) return false;
 
   event.preventDefault();
