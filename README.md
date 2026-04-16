@@ -250,6 +250,7 @@ All wrappers expose the same core model and behavior.
 `GanttEditorSlot` supports generic slot deadlines:
 - `deadlines?: Array<{ id: string; timestamp: number; color: string }>`
 - `hoverData?: string` (tooltip supports plain text and a limited HTML subset: `<strong>`, `<em>`, `<br>`)
+- `labelColor?: string` (CSS color for slot text inside the bar)
 
 ### Common Optional Inputs
 

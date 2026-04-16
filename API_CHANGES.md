@@ -28,6 +28,7 @@
   - Class: `GanttChartCanvasController`
   - Helpers: `getSelectionItemDisplayName`, `getClipboardItemDisplayName`
 - `GanttEditorSlotWithUiAttributes` adds `isCopyPreview?: boolean`.
+- `GanttEditorSlot` adds `labelColor?: string` for customizing slot label text color.
 
 ## Compatibility notes
 - Existing emits remain: `onChangeStartAndEndTime`, `onChangeDestinationId`, `onChangeSlotTime`, `onClickOnSlot`, `onHoverOnSlot`, `onDoubleClickOnSlot`, `onContextClickOnSlot`, `onTopContentPortionChange`, `onChangeVerticalMarker`, `onClickVerticalMarker`.

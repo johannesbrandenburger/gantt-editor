@@ -12,7 +12,8 @@ export type GanttEditorSlot = {
     hoverData?: string,
     deadlines?: GanttEditorSlotDeadline[],
     readOnly?: boolean,
-    color?: string
+    color?: string,
+    labelColor?: string
 };
 
 export type GanttEditorSlotDeadline = {

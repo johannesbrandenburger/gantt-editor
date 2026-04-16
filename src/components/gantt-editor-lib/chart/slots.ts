@@ -211,7 +211,7 @@ export function drawSlots(params: DrawSlotsParams) {
           ctx.clip();
 
           ctx.globalAlpha = slotDef.isPreview ? drawAlpha : 1;
-          ctx.fillStyle = slotDef.isPreview ? "#000000" : "#ffffff";
+          ctx.fillStyle = slotDef.isPreview ? "#000000" : (slotDef.slot.labelColor ?? "#ffffff");
           ctx.font = scaledBoldSansFont(rowHeight);
           ctx.textBaseline = "middle";
           ctx.textAlign = "left";
