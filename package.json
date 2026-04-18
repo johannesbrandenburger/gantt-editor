@@ -2,7 +2,8 @@
   "name": "gantt-editor",
   "private": false,
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "gh-pages"
   ],
   "type": "module",
   "version": "0.12.1",
@@ -47,6 +48,8 @@
     "dev:vue": "npm run dev --workspace gantt-editor-demo-vue",
     "dev:react": "npm run dev --workspace gantt-editor-demo-react",
     "dev:angular": "npm run dev --workspace gantt-editor-demo-angular",
+    "dev:gh-pages": "npm run dev --workspace gantt-editor-gh-pages",
+    "build:gh-pages": "npm run build --workspace gantt-editor-gh-pages",
     "build": "npm run clean && npm run build-only && npm run build:types && npm run build:wrappers",
     "preview": "vite preview",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
