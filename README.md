@@ -1,6 +1,8 @@
 # Gantt Editor
 
-Framework-agnostic canvas Gantt editor with Vue, React, and Angular wrappers.
+Highly flexible, performant, framework-agnostic Gantt chart editor component for building applications that require resource allocation or task scheduling.
+
+![demo](assets/demo.gif)
 
 ## Install via GitLab Registry
 
