@@ -447,11 +447,15 @@ export function drawHelpOverlay(args: DrawHelpOverlayArgs): HelpOverlayLayout {
     ctx.clip();
     ctx.translate(0, layout.tilesContentTopY - scrollY);
     for (const tileLayout of layout.tileLayouts) {
+      const isActive = activeTileId === tileLayout.tile.id;
+      // Active tiles play forward from 0 (gesture restarts on hover-in). Idle
+      // tiles freeze at `nonHoverOffsetMs` so they show a recognizable
+      // mid-animation pose instead of the (often dull) first frame.
       const previewNowMs =
-        activeTileId === tileLayout.tile.id && activeTileAnimationStartMs !== null
+        isActive && activeTileAnimationStartMs !== null
           ? nowMs - activeTileAnimationStartMs
-          : 0;
-      drawHelpTile(ctx, tileLayout, previewNowMs, panelAlpha, activeTileId === tileLayout.tile.id);
+          : tileLayout.tile.nonHoverOffsetMs ?? 0;
+      drawHelpTile(ctx, tileLayout, previewNowMs, panelAlpha, isActive);
     }
     ctx.restore();
   }

@@ -33,6 +33,7 @@ export const brushSelectHelpOverlayTile: HelpOverlayTileDefinition = {
   shortcutLabel: ["Cursor drag"],
   detail: "",
   minHeight: 108,
+  nonHoverOffsetMs: ANIMATION_CYCLE_MS * 0.5,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {
     const cycle = (nowMs % ANIMATION_CYCLE_MS) / ANIMATION_CYCLE_MS;
     const dragProgress = cycle < 0.14 ? 0 : cycle < 0.72 ? easeInOut((cycle - 0.14) / 0.58) : 1;

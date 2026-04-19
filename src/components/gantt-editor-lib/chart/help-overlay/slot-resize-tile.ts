@@ -11,10 +11,31 @@ export const resizeSlotEdgesHelpOverlayTile: HelpOverlayTileDefinition = {
   shortcutLabel: ["Drag bar edge"],
   detail: "",
   minHeight: 118,
+  nonHoverOffsetMs: ANIMATION_CYCLE_MS * 0.4,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {
     const cycle = (nowMs % ANIMATION_CYCLE_MS) / ANIMATION_CYCLE_MS;
-    const edge = cycle < 0.5 ? "right" : "left";
-    const u = edge === "right" ? easeInOut(cycle / 0.5) : easeInOut((cycle - 0.5) / 0.5);
+    const rightEnd = 0.45;
+    const leftStart = 0.55;
+
+    let rightProgress: number;
+    let leftProgress: number;
+    let phase: "right" | "transition" | "left";
+    let transitionProgress = 0;
+    if (cycle < rightEnd) {
+      rightProgress = easeInOut(cycle / rightEnd);
+      leftProgress = 0;
+      phase = "right";
+    } else if (cycle < leftStart) {
+      rightProgress = 1;
+      leftProgress = 0;
+      phase = "transition";
+      transitionProgress = easeInOut((cycle - rightEnd) / (leftStart - rightEnd));
+    } else {
+      rightProgress = 1;
+      leftProgress = easeInOut((cycle - leftStart) / (1 - leftStart));
+      phase = "left";
+    }
+
     const previewPad = 8;
     const inner: CanvasRect = {
       x: rect.x + previewPad,
@@ -26,9 +47,14 @@ export const resizeSlotEdgesHelpOverlayTile: HelpOverlayTileDefinition = {
     const midY = inner.y + inner.h / 2 - 7;
     const baseX = inner.x + 40;
     const baseW = 58;
-    const dw = (edge === "right" ? 1 : -1) * 22 * u;
-    const x = edge === "right" ? baseX : baseX + dw;
-    const w = edge === "right" ? baseW + dw : baseW - dw;
+    const extend = 22;
+    const rightDelta = extend * rightProgress;
+    const leftDelta = extend * leftProgress;
+    const x = baseX - leftDelta;
+    const w = baseW + rightDelta + leftDelta;
+    const renderedW = Math.max(8, w);
+    const rightHandleX = x + renderedW;
+    const leftHandleX = x;
 
     ctx.save();
     ctx.globalAlpha *= alpha;
@@ -41,21 +67,33 @@ export const resizeSlotEdgesHelpOverlayTile: HelpOverlayTileDefinition = {
     ctx.fillStyle = "#5f6f88";
     ctx.strokeStyle = "#495b74";
     ctx.beginPath();
-    ctx.rect(x, midY, Math.max(8, w), 14);
+    ctx.rect(x, midY, renderedW, 14);
     ctx.fill();
     ctx.stroke();
 
-    const handleX = edge === "right" ? x + Math.max(8, w) : x;
+    const handleX = phase === "left" ? leftHandleX : rightHandleX;
     ctx.fillStyle = "rgba(37, 99, 235, 0.95)";
     ctx.fillRect(handleX - 2, midY - 1, 4, 16);
 
-    const cx = handleX;
+    let cursorX: number;
+    let pressed: boolean;
+    if (phase === "right") {
+      cursorX = rightHandleX;
+      pressed = rightProgress > 0.02 && rightProgress < 0.98;
+    } else if (phase === "transition") {
+      cursorX = rightHandleX + (leftHandleX - rightHandleX) * transitionProgress;
+      pressed = false;
+    } else {
+      cursorX = leftHandleX;
+      pressed = leftProgress > 0.02 && leftProgress < 0.98;
+    }
+
     const cy = midY + 7;
     drawHelpOverlayCursor({
       ctx,
-      x: cx,
+      x: cursorX,
       y: cy,
-      pressed: u > 0.02 && u < 0.98,
+      pressed,
     });
 
     ctx.restore();

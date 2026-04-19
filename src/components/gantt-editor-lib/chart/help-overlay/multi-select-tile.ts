@@ -29,6 +29,7 @@ export const multiSelectHelpOverlayTile: HelpOverlayTileDefinition = {
   shortcutLabel: [multiSelectShortcutLabel],
   detail: "",
   minHeight: 118,
+  nonHoverOffsetMs: ANIMATION_CYCLE_MS * 0.8,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {
     const cycle = (nowMs % ANIMATION_CYCLE_MS) / ANIMATION_CYCLE_MS;
 

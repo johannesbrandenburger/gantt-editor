@@ -24,6 +24,14 @@ export type HelpOverlayTileDefinition = {
   shortcutLabel: string[];
   detail: string;
   minHeight: number;
+  /**
+   * Frame (in ms into the preview animation) shown when the tile is NOT
+   * hovered. Pick a moment that reads as a recognizable mid-gesture pose so
+   * the idle tile is informative rather than showing a boring first frame.
+   * Defaults to 0 (the first frame). Once the tile is hovered the animation
+   * always restarts from 0 — this offset only affects the idle frame.
+   */
+  nonHoverOffsetMs?: number;
   drawPreview: (args: DrawHelpOverlayTilePreviewArgs) => void;
 };
 
