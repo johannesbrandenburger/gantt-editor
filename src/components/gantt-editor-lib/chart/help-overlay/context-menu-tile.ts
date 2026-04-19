@@ -11,6 +11,7 @@ export const canvasContextMenuHelpOverlayTile: HelpOverlayTileDefinition = {
   shortcutLabel: ["Right-click"],
   detail: "",
   minHeight: 124,
+  nonHoverOffsetMs: ANIMATION_CYCLE_MS * 0.5,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {
     const cycle = (nowMs % ANIMATION_CYCLE_MS) / ANIMATION_CYCLE_MS;
     const open = cycle >= 0.15 && cycle < 0.88;

@@ -20,6 +20,7 @@ export const copySelectedSlotsToDestinationHelpOverlayTile: HelpOverlayTileDefin
   shortcutLabel: ["Alt + Click"],
   detail: "",
   minHeight: 132,
+  nonHoverOffsetMs: ANIMATION_CYCLE_MS * 0.63,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {
     const cycle = (nowMs % ANIMATION_CYCLE_MS) / ANIMATION_CYCLE_MS;
 

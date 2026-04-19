@@ -11,6 +11,7 @@ export const resizeSlotEdgesHelpOverlayTile: HelpOverlayTileDefinition = {
   shortcutLabel: ["Drag bar edge"],
   detail: "",
   minHeight: 118,
+  nonHoverOffsetMs: ANIMATION_CYCLE_MS * 0.4,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {
     const cycle = (nowMs % ANIMATION_CYCLE_MS) / ANIMATION_CYCLE_MS;
     const edge = cycle < 0.5 ? "right" : "left";
