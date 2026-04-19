@@ -1,6 +1,9 @@
 {
   "name": "gantt-editor",
   "private": false,
+  "repository": {
+    "url": "https://github.com/johannesbrandenburger/gantt-editor"
+  },
   "workspaces": [
     "apps/*",
     "gh-pages"
