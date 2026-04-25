@@ -72,3 +72,16 @@ export function computeRowHeightForUnifiedZoom(
     (chartWidthPx * REFERENCE_SLOT_DURATION_MS) / (ratio * timeRangeMs);
   return bandwidth / (1 - TOPIC_BAND_PADDING);
 }
+
+export function computeSlotRenderRatioForUnifiedZoom(
+  chartWidthPx: number,
+  timeRangeMs: number,
+  rowHeightPx: number,
+): number {
+  if (chartWidthPx <= 0 || timeRangeMs <= 0 || rowHeightPx <= 0) {
+    return NaN;
+  }
+  const bandwidth = rowHeightPx * (1 - TOPIC_BAND_PADDING);
+  if (bandwidth <= 0) return NaN;
+  return (chartWidthPx * REFERENCE_SLOT_DURATION_MS) / (timeRangeMs * bandwidth);
+}
