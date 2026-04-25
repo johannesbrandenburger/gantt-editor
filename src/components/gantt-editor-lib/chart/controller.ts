@@ -6,6 +6,7 @@ import {
   type PanZoomCleanup,
   type PanZoomCallbacks,
   type WheelZoomAnchor,
+  type WheelZoomMode,
 } from "./pan-zoom";
 import {
   computeRowHeightForUnifiedZoom,
@@ -4246,6 +4247,14 @@ export class GanttChartCanvasController {
     }
   }
 
+  private getWheelZoomMode(localX: number, localY: number): WheelZoomMode {
+    const layout = this.getChartLayout();
+    if (!layout) return "preserve-aspect";
+    return hitTestChart(layout, localX, localY).type === "axis"
+      ? "time-only"
+      : "preserve-aspect";
+  }
+
   private buildPanZoomCallbacks() {
     return {
       marginLeft: MARGIN.left,
@@ -4260,12 +4269,14 @@ export class GanttChartCanvasController {
         this.cancelSlotReflowAnimation();
         this.internalStartTime = start;
         this.internalEndTime = end;
-        if (wheelZoomAnchor) {
+        if (wheelZoomAnchor?.mode === "preserve-aspect") {
           this.reconcileUnifiedZoomRowHeight(wheelZoomAnchor);
         }
         this.scheduleFrameRedraw(true);
       },
       isZoomEnabled: () => this.isFeatureEnabled("zoom-time-axis"),
+      getWheelZoomMode: (localX: number, localY: number) =>
+        this.getWheelZoomMode(localX, localY),
       getFixedZoomAnchorTimeMs: () => {
         if (!this.isFeatureEnabled("scroll-horizontal")) {
           // Zoom around the center of the currently visible range so the view stays stable.
@@ -4273,7 +4284,7 @@ export class GanttChartCanvasController {
         }
         return null;
       },
-      onTimeRangeCommit: (start: Date, end: Date) => {
+      onTimeRangeCommit: (start: Date, end: Date, wheelZoomAnchor?: WheelZoomAnchor) => {
         // Allow commit when zoom changed the range (internal times differ from locked range).
         const scrollEnabled = this.isFeatureEnabled("scroll-horizontal");
         if (!scrollEnabled) {
@@ -4287,7 +4298,9 @@ export class GanttChartCanvasController {
         this.cancelSlotReflowAnimation();
         this.internalStartTime = start;
         this.internalEndTime = end;
-        this.reconcileUnifiedZoomRowHeight();
+        if (wheelZoomAnchor?.mode !== "time-only") {
+          this.reconcileUnifiedZoomRowHeight(wheelZoomAnchor);
+        }
         // Parent will echo these props; mark seen now so refreshModel skips duplicate reconcile.
         this.lastSeenParentStartMs = start.getTime();
         this.lastSeenParentEndMs = end.getTime();
