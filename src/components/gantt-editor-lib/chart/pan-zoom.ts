@@ -1,3 +1,5 @@
+export type WheelZoomMode = "preserve-aspect" | "time-only";
+
 /** Passed on wheel zoom commit so the chart can keep content stable under the cursor while row height updates. */
 export type WheelZoomAnchor = {
   clientX: number;
@@ -5,6 +7,7 @@ export type WheelZoomAnchor = {
   /** Cursor position in chart-canvas local CSS pixels (avoids an extra layout read downstream). */
   localX?: number;
   localY?: number;
+  mode: WheelZoomMode;
 };
 
 export interface PanZoomCallbacks {
@@ -21,7 +24,7 @@ export interface PanZoomCallbacks {
    * Sync visible range to the parent after a gesture settles (debounced wheel, end of drag-pan).
    * Local time/row state is already applied via {@link onTimeRangeChange}.
    */
-  onTimeRangeCommit: (start: Date, end: Date) => void;
+  onTimeRangeCommit: (start: Date, end: Date, wheelZoomAnchor?: WheelZoomAnchor) => void;
   /** Returns the current visible time range. */
   getCurrentTimeRange: () => { start: Date; end: Date };
   /** Returns chart width excluding margins. */
@@ -35,6 +38,11 @@ export interface PanZoomCallbacks {
    * When provided, the chart zooms around this timestamp regardless of cursor location.
    */
   getFixedZoomAnchorTimeMs?: () => number | null;
+  /**
+   * Selects how modifier+wheel zoom should update chart geometry at a canvas-local point.
+   * Defaults to preserving slot aspect ratio for existing callers.
+   */
+  getWheelZoomMode?: (localX: number, localY: number) => WheelZoomMode;
 }
 
 export interface PanZoomCleanup {
@@ -83,11 +91,15 @@ function dragDeltaPxToMs(dxPx: number, chartWidth: number, startMs: number, endM
 
 let sharedScrollTimeout: ReturnType<typeof setTimeout> | null = null;
 
-function scheduleTimeRangeParentCommit(callbacks: PanZoomCallbacks, delayMs: number): void {
+function scheduleTimeRangeParentCommit(
+  callbacks: PanZoomCallbacks,
+  delayMs: number,
+  wheelZoomAnchor?: WheelZoomAnchor,
+): void {
   if (sharedScrollTimeout) clearTimeout(sharedScrollTimeout);
   sharedScrollTimeout = setTimeout(() => {
     const { start, end } = callbacks.getCurrentTimeRange();
-    callbacks.onTimeRangeCommit(start, end);
+    callbacks.onTimeRangeCommit(start, end, wheelZoomAnchor);
     sharedScrollTimeout = null;
   }, delayMs);
 }
@@ -171,13 +183,16 @@ export function handlePanZoomWheelEvent(
   const newStart = new Date(mouseTimeMs - constrainedTimeRange * mouseOffset);
   const newEnd = new Date(newStart.getTime() + constrainedTimeRange);
 
-  callbacks.onTimeRangeChange(newStart, newEnd, {
+  const wheelZoomAnchor: WheelZoomAnchor = {
     clientX: event.clientX,
     clientY: event.clientY,
     localX,
     localY,
-  });
-  scheduleTimeRangeParentCommit(callbacks, 150);
+    mode: callbacks.getWheelZoomMode?.(localX, localY) ?? "preserve-aspect",
+  };
+
+  callbacks.onTimeRangeChange(newStart, newEnd, wheelZoomAnchor);
+  scheduleTimeRangeParentCommit(callbacks, 150, wheelZoomAnchor);
   return true;
 }
 
