@@ -6,9 +6,11 @@ import {
   type PanZoomCleanup,
   type PanZoomCallbacks,
   type WheelZoomAnchor,
+  type WheelZoomMode,
 } from "./pan-zoom";
 import {
   computeRowHeightForUnifiedZoom,
+  computeSlotRenderRatioForUnifiedZoom,
   SLOT_RENDER_RATIO,
   DESTINATION_LABEL_MIN_ROW_HEIGHT_PX,
   departureMarkersVisible,
@@ -1693,6 +1695,7 @@ export class GanttChartCanvasController {
     lastContextClickedSlotId: string | null;
     internalStartTimeMs: number;
     internalEndTimeMs: number;
+    slotReferenceAspectRatio: number;
     slotContextMenuActionCount: number;
     contextMenuOpen: boolean;
     contextMenu: {
@@ -1745,6 +1748,7 @@ export class GanttChartCanvasController {
       lastContextClickedSlotId: this.lastContextClickedSlotId,
       internalStartTimeMs: this.internalStartTime.getTime(),
       internalEndTimeMs: this.internalEndTime.getTime(),
+      slotReferenceAspectRatio: this.getCurrentSlotRenderRatio(),
       slotContextMenuActionCount: this.props.slotContextMenuActions?.length ?? 0,
       contextMenuOpen: this.contextMenuState.visible,
       contextMenu: contextMenuLayout
@@ -4174,10 +4178,13 @@ export class GanttChartCanvasController {
    * Keeps row height locked to the time scale so slot aspect ratio is stable (see SLOT_RENDER_RATIO).
    * Optionally preserves vertical position under the cursor during wheel zoom.
    */
-  private reconcileUnifiedZoomRowHeight(wheelAnchor?: WheelZoomAnchor): void {
+  private reconcileUnifiedZoomRowHeight(
+    wheelAnchor?: WheelZoomAnchor,
+    ratio: number = SLOT_RENDER_RATIO,
+  ): void {
     const chartW = this.containerWidth - MARGIN.left - MARGIN.right;
     const timeRangeMs = this.internalEndTime.getTime() - this.internalStartTime.getTime();
-    const raw = computeRowHeightForUnifiedZoom(chartW, timeRangeMs, SLOT_RENDER_RATIO);
+    const raw = computeRowHeightForUnifiedZoom(chartW, timeRangeMs, ratio);
     if (!Number.isFinite(raw)) return;
 
     const prevRowHeight = this.rowHeight;
@@ -4246,6 +4253,21 @@ export class GanttChartCanvasController {
     }
   }
 
+  private getWheelZoomMode(localX: number, localY: number): WheelZoomMode {
+    const layout = this.getChartLayout();
+    if (!layout) return "preserve-aspect";
+    return hitTestChart(layout, localX, localY).type === "axis"
+      ? "time-only"
+      : "preserve-aspect";
+  }
+
+  private getCurrentSlotRenderRatio(): number {
+    const chartW = this.containerWidth - MARGIN.left - MARGIN.right;
+    const timeRangeMs = this.internalEndTime.getTime() - this.internalStartTime.getTime();
+    const ratio = computeSlotRenderRatioForUnifiedZoom(chartW, timeRangeMs, this.rowHeight);
+    return Number.isFinite(ratio) ? ratio : SLOT_RENDER_RATIO;
+  }
+
   private buildPanZoomCallbacks() {
     return {
       marginLeft: MARGIN.left,
@@ -4258,14 +4280,17 @@ export class GanttChartCanvasController {
         const isZoom = !!wheelZoomAnchor;
         if (!this.isFeatureEnabled("scroll-horizontal") && !isZoom) return;
         this.cancelSlotReflowAnimation();
+        const ratio = this.getCurrentSlotRenderRatio();
         this.internalStartTime = start;
         this.internalEndTime = end;
-        if (wheelZoomAnchor) {
-          this.reconcileUnifiedZoomRowHeight(wheelZoomAnchor);
+        if (wheelZoomAnchor?.mode === "preserve-aspect") {
+          this.reconcileUnifiedZoomRowHeight(wheelZoomAnchor, ratio);
         }
         this.scheduleFrameRedraw(true);
       },
       isZoomEnabled: () => this.isFeatureEnabled("zoom-time-axis"),
+      getWheelZoomMode: (localX: number, localY: number) =>
+        this.getWheelZoomMode(localX, localY),
       getFixedZoomAnchorTimeMs: () => {
         if (!this.isFeatureEnabled("scroll-horizontal")) {
           // Zoom around the center of the currently visible range so the view stays stable.
@@ -4273,7 +4298,7 @@ export class GanttChartCanvasController {
         }
         return null;
       },
-      onTimeRangeCommit: (start: Date, end: Date) => {
+      onTimeRangeCommit: (start: Date, end: Date, wheelZoomAnchor?: WheelZoomAnchor) => {
         // Allow commit when zoom changed the range (internal times differ from locked range).
         const scrollEnabled = this.isFeatureEnabled("scroll-horizontal");
         if (!scrollEnabled) {
@@ -4285,9 +4310,12 @@ export class GanttChartCanvasController {
           if (!rangeChanged) return;
         }
         this.cancelSlotReflowAnimation();
+        const ratio = this.getCurrentSlotRenderRatio();
         this.internalStartTime = start;
         this.internalEndTime = end;
-        this.reconcileUnifiedZoomRowHeight();
+        if (wheelZoomAnchor?.mode !== "time-only") {
+          this.reconcileUnifiedZoomRowHeight(wheelZoomAnchor, ratio);
+        }
         // Parent will echo these props; mark seen now so refreshModel skips duplicate reconcile.
         this.lastSeenParentStartMs = start.getTime();
         this.lastSeenParentEndMs = end.getTime();

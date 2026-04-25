@@ -9,8 +9,13 @@ import {
 } from "./helpers";
 
 type CanvasState = {
+  rowHeight: number;
+  internalStartTimeMs: number;
+  internalEndTimeMs: number;
   margin: { left: number; right: number };
+  slotReferenceAspectRatio: number;
   layout: {
+    axisRect: { y: number; h: number };
     groups: Array<{ id: string; y: number; h: number }>;
   } | null;
 };
@@ -147,6 +152,130 @@ test.describe("canvas rewrite time navigation", () => {
         return end - start;
       })
       .toBeLessThan(spanBefore);
+  });
+
+  test("zooming chart body preserves slot aspect ratio by changing row height", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
+    await clearHarnessEvents(page);
+
+    const before = await getCanvasState<CanvasState>(page);
+    expect(before).not.toBeNull();
+    expect(before?.layout).not.toBeNull();
+    const chartPoint = await getPanStartPoint(page);
+    const pagePoint = await canvasPointToPagePoint(canvas, chartPoint);
+    const spanBefore = before!.internalEndTimeMs - before!.internalStartTimeMs;
+
+    await page.mouse.move(pagePoint.x, pagePoint.y);
+    await page.keyboard.down("Shift");
+    await page.mouse.wheel(0, -220);
+    await page.keyboard.up("Shift");
+
+    await expect
+      .poll(async () => {
+        const start = await getCanvasStateField<number>(page, "internalStartTimeMs");
+        const end = await getCanvasStateField<number>(page, "internalEndTimeMs");
+        if (start == null || end == null) return null;
+        return end - start;
+      })
+      .toBeLessThan(spanBefore);
+
+    const rowHeightAfter = await getCanvasStateField<number>(page, "rowHeight");
+    expect(rowHeightAfter).not.toBeNull();
+    expect(rowHeightAfter).toBeGreaterThan(before!.rowHeight);
+  });
+
+  test("zooming x-axis changes time width without changing slot height", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
+    await clearHarnessEvents(page);
+
+    const before = await getCanvasState<CanvasState>(page);
+    expect(before).not.toBeNull();
+    expect(before?.layout).not.toBeNull();
+    if (!before?.layout) {
+      throw new Error("Expected chart layout to compute axis zoom point");
+    }
+    const axisCanvasPoint = {
+      x: before.margin.left + 20,
+      y: before.layout.axisRect.y + before.layout.axisRect.h / 2,
+    };
+    const axisPagePoint = await canvasPointToPagePoint(canvas, axisCanvasPoint);
+    const spanBefore = before.internalEndTimeMs - before.internalStartTimeMs;
+
+    await page.mouse.move(axisPagePoint.x, axisPagePoint.y);
+    await page.keyboard.down("Shift");
+    await page.mouse.wheel(0, -220);
+    await page.keyboard.up("Shift");
+
+    await expect
+      .poll(async () => {
+        const start = await getCanvasStateField<number>(page, "internalStartTimeMs");
+        const end = await getCanvasStateField<number>(page, "internalEndTimeMs");
+        if (start == null || end == null) return null;
+        return end - start;
+      })
+      .toBeLessThan(spanBefore);
+
+    const rowHeightAfter = await getCanvasStateField<number>(page, "rowHeight");
+    expect(rowHeightAfter).toBe(before.rowHeight);
+  });
+
+  test("chart body zoom preserves ratio established by prior x-axis zoom", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
+    await clearHarnessEvents(page);
+
+    const before = await getCanvasState<CanvasState>(page);
+    expect(before).not.toBeNull();
+    expect(before?.layout).not.toBeNull();
+    if (!before?.layout) {
+      throw new Error("Expected chart layout to compute zoom points");
+    }
+
+    const axisCanvasPoint = {
+      x: before.margin.left + 20,
+      y: before.layout.axisRect.y + before.layout.axisRect.h / 2,
+    };
+    const chartCanvasPoint = {
+      x: before.margin.left + 40,
+      y: before.layout.groups[0]!.y + Math.max(8, Math.floor(before.layout.groups[0]!.h * 0.2)),
+    };
+    const axisPagePoint = await canvasPointToPagePoint(canvas, axisCanvasPoint);
+    const chartPagePoint = await canvasPointToPagePoint(canvas, chartCanvasPoint);
+
+    await page.mouse.move(axisPagePoint.x, axisPagePoint.y);
+    await page.keyboard.down("Shift");
+    await page.mouse.wheel(0, -220);
+    await page.keyboard.up("Shift");
+
+    await expect
+      .poll(async () => {
+        const state = await getCanvasState<CanvasState>(page);
+        if (!state) return null;
+        return state.internalEndTimeMs - state.internalStartTimeMs;
+      })
+      .toBeLessThan(before.internalEndTimeMs - before.internalStartTimeMs);
+
+    const afterAxis = await getCanvasState<CanvasState>(page);
+    expect(afterAxis).not.toBeNull();
+    expect(afterAxis!.rowHeight).toBe(before.rowHeight);
+    const axisRatio = afterAxis!.slotReferenceAspectRatio;
+
+    await page.mouse.move(chartPagePoint.x, chartPagePoint.y);
+    await page.keyboard.down("Shift");
+    await page.mouse.wheel(0, -220);
+    await page.keyboard.up("Shift");
+
+    await expect
+      .poll(async () => {
+        const state = await getCanvasState<CanvasState>(page);
+        if (!state) return null;
+        return state.internalEndTimeMs - state.internalStartTimeMs;
+      })
+      .toBeLessThan(afterAxis!.internalEndTimeMs - afterAxis!.internalStartTimeMs);
+
+    const afterChart = await getCanvasState<CanvasState>(page);
+    expect(afterChart).not.toBeNull();
+    expect(afterChart!.rowHeight).toBeGreaterThan(afterAxis!.rowHeight);
+    expect(afterChart!.slotReferenceAspectRatio).toBeCloseTo(axisRatio, 3);
   });
 
   test("zoom out with Shift + wheel increases visible range", async ({ page }) => {
