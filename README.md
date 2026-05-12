@@ -264,7 +264,7 @@ All wrappers expose the same core model and behavior.
 - `topContentPortion: number`
 - `xAxisOptions: GanttEditorXAxisOptions`
 - `helpOverlayTiles: HelpOverlayTileDefinition[]`
-- `helpOverlayTileIds: string[]`
+- `helpOverlayTileIds: HelpOverlayTileId[]`
 - `features: GanttEditorFeature[]`
 
 ### Key Events
@@ -304,6 +304,24 @@ Supported ids:
 - `preview-slots-on-time-axis`
 - `copy-modifier-alt`
 - `time-axis-modifier-shift`
+
+## Help Overlay Tile IDs
+
+`helpOverlayTileIds` is an allow-list for the built-in help overlay tiles. Omit it to show all built-in tiles plus any custom `helpOverlayTiles`. Pass `[]` to disable the help UI entirely.
+
+Supported ids:
+
+- `multi-select`
+- `brush-select`
+- `move-to-destination`
+- `move-to-different-day`
+- `copy-to-destination`
+- `resize-slot-edges`
+- `unified-zoom`
+- `time-navigation`
+- `canvas-context-menu`
+- `open-slot-details`
+- `escape-key`
 
 ## Exposed Methods
 

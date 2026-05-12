@@ -11,7 +11,7 @@ function panelOpenProgress(cycle: number): number {
   return 1 - easeInOut((cycle - 0.86) / 0.14);
 }
 
-export const openSlotDetailsHelpOverlayTile: HelpOverlayTileDefinition = {
+export const openSlotDetailsHelpOverlayTile: HelpOverlayTileDefinition<"open-slot-details"> = {
   id: "open-slot-details",
   title: "Open slot details",
   description: "Right-click on a slot to open the details.",

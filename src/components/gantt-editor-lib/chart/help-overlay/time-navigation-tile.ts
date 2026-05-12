@@ -53,7 +53,7 @@ function drawTimeAxisTicksTop(
   }
 }
 
-export const timeNavigationHelpOverlayTile: HelpOverlayTileDefinition = {
+export const timeNavigationHelpOverlayTile: HelpOverlayTileDefinition<"time-navigation"> = {
   id: "time-navigation",
   title: "Move through the timeline",
   description:

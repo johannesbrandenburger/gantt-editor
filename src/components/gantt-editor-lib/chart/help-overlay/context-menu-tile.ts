@@ -4,7 +4,7 @@ import { easeInOut } from "./easing";
 
 const ANIMATION_CYCLE_MS = 3000;
 
-export const canvasContextMenuHelpOverlayTile: HelpOverlayTileDefinition = {
+export const canvasContextMenuHelpOverlayTile: HelpOverlayTileDefinition<"canvas-context-menu"> = {
   id: "canvas-context-menu",
   title: "Context menu",
   description: "Click on a free area to open the context menu",

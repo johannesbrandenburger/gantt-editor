@@ -4,7 +4,7 @@ import { easeInOut } from "./easing";
 
 const ANIMATION_CYCLE_MS = 3200;
 
-export const resizeSlotEdgesHelpOverlayTile: HelpOverlayTileDefinition = {
+export const resizeSlotEdgesHelpOverlayTile: HelpOverlayTileDefinition<"resize-slot-edges"> = {
   id: "resize-slot-edges",
   title: "Resize a slot",
   description: "Resize a slot by dragging its edges",

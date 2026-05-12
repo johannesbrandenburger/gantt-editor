@@ -22,7 +22,10 @@ export type {
 } from '../components/gantt-editor-lib/chart/props'
 
 export type { GanttEditorRulerMode } from '../components/gantt-editor-lib/chart/props'
-export type { HelpOverlayTileDefinition } from '../components/gantt-editor-lib/chart/help-overlay/tile'
+export type {
+    HelpOverlayTileDefinition,
+    HelpOverlayTileId,
+} from '../components/gantt-editor-lib/chart/help-overlay/tile'
 
 export {
     getSelectionItemDisplayName,

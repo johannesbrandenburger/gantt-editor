@@ -10,7 +10,7 @@ import type {
   GanttEditorVerticalMarker,
   GanttEditorXAxisOptions,
 } from "./types";
-import type { HelpOverlayTileDefinition } from "./help-overlay/tile";
+import type { HelpOverlayTileDefinition, HelpOverlayTileId } from "./help-overlay/tile";
 
 export type GanttEditorRulerMode = "ROW" | "GLOBAL" | null;
 
@@ -65,7 +65,7 @@ export interface GanttEditorProps {
   /** Custom help tiles appended to built-in defaults (same-id custom tiles override defaults). */
   helpOverlayTiles?: HelpOverlayTileDefinition[];
   /** Help tile ids to include; omit to include all, pass [] to disable help UI entirely. */
-  helpOverlayTileIds?: string[];
+  helpOverlayTileIds?: HelpOverlayTileId[];
 }
 
 /**

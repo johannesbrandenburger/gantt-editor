@@ -12,7 +12,7 @@ function segmentT(cycle: number, start: number, end: number): number {
   return (cycle - start) / (end - start);
 }
 
-export const moveSelectedSlotsToDifferentDayHelpOverlayTile: HelpOverlayTileDefinition = {
+export const moveSelectedSlotsToDifferentDayHelpOverlayTile: HelpOverlayTileDefinition<"move-to-different-day"> = {
   id: "move-to-different-day",
   title: "Move selected slots to different day",
   description:

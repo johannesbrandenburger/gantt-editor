@@ -5,6 +5,21 @@ export type CanvasRect = {
   h: number;
 };
 
+export type BuiltInHelpOverlayTileId =
+  | "multi-select"
+  | "brush-select"
+  | "move-to-destination"
+  | "move-to-different-day"
+  | "copy-to-destination"
+  | "resize-slot-edges"
+  | "unified-zoom"
+  | "time-navigation"
+  | "canvas-context-menu"
+  | "open-slot-details"
+  | "escape-key";
+
+export type HelpOverlayTileId = BuiltInHelpOverlayTileId | (string & {});
+
 export type HelpOverlayTileHit = { kind: "tile"; id: string };
 
 export type HelpOverlayHoverTarget = "button" | "close" | HelpOverlayTileHit | null;
@@ -17,8 +32,8 @@ export type DrawHelpOverlayTilePreviewArgs = {
   alpha: number;
 };
 
-export type HelpOverlayTileDefinition = {
-  id: string;
+export type HelpOverlayTileDefinition<TId extends string = string> = {
+  id: TId;
   title: string;
   description: string;
   shortcutLabel: string[];
