@@ -250,6 +250,7 @@ export class GanttChartCanvasController {
   private pointerCanvasY = 0;
   private altCopyModifierActive = false;
   private shiftTimeAxisModifierActive = false;
+  private selectionModifierActive = false;
   private secondaryPointerContextMenuCandidate: {
     startX: number;
     startY: number;
@@ -687,6 +688,10 @@ export class GanttChartCanvasController {
     return this.isFeatureEnabled("time-axis-modifier-shift");
   }
 
+  private hasSelectionModifier(event: MouseEvent | KeyboardEvent): boolean {
+    return event.metaKey || event.ctrlKey;
+  }
+
   private canPreviewSlotsToDestination(
     selectionCount: number,
     copyInsteadOfMove: boolean,
@@ -810,6 +815,7 @@ export class GanttChartCanvasController {
     this.slotResizePreview = null;
     this.slotResizeRuler = null;
     this.verticalMarkerDrag = null;
+    this.selectionModifierActive = false;
     this.pendingSlotReflowFromResize = null;
     this.slotReflowAnimation = null;
     this.brushSelection = null;
@@ -931,6 +937,7 @@ export class GanttChartCanvasController {
 
     const altCopyChanged = this.syncAltCopyModifier(e.altKey);
     const shiftTimeAxisChanged = this.syncShiftTimeAxisModifier(e.shiftKey);
+    const selectionModifierChanged = this.syncSelectionModifier(this.hasSelectionModifier(e));
     this.pointerInChart = true;
     const nextHover = this.resizeHoverKey(layout, e.clientX, e.clientY);
     const hoverChanged = nextHover !== this.hoverResizeBand;
@@ -956,6 +963,7 @@ export class GanttChartCanvasController {
         if (
           !this.props.isReadOnly &&
           this.clipboardItems.length > 0 &&
+          !this.selectionModifierActive &&
           !this.isBrushSelectionActivelyDragging()
         ) {
           if (
@@ -1093,6 +1101,7 @@ export class GanttChartCanvasController {
       hoverTimeAxisDiffChanged ||
       altCopyChanged ||
       shiftTimeAxisChanged ||
+      selectionModifierChanged ||
       this.clipboardItems.length > 0 ||
       this.brushSelection ||
       this.hoveredSlotId
@@ -3035,6 +3044,7 @@ export class GanttChartCanvasController {
     if (!this.pointerInChart) return null;
     if (this.isBrushSelectionActivelyDragging()) return null;
     if (this.props.isReadOnly) return null;
+    if (this.selectionModifierActive) return null;
     if (this.clipboardItems.length === 0) return null;
     const pulseAlpha = 0.58 + 0.2 * (0.5 + 0.5 * Math.sin(nowMs / 160));
     if (this.shiftTimeAxisModifierActive) {
@@ -4042,6 +4052,12 @@ export class GanttChartCanvasController {
   }
 
   private onDocumentKeyDown(e: KeyboardEvent): void {
+    if (this.hasSelectionModifier(e)) {
+      if (this.syncSelectionModifier(true)) {
+        this.scheduleFrameRedraw(true);
+      }
+    }
+
     if (e.key === "Alt") {
       if (this.canUseAltCopyModifier() && this.syncAltCopyModifier(true)) {
         this.scheduleFrameRedraw(true);
@@ -4076,6 +4092,12 @@ export class GanttChartCanvasController {
   }
 
   private onDocumentKeyUp(e: KeyboardEvent): void {
+    if (!this.hasSelectionModifier(e) && (e.key === "Meta" || e.key === "Control")) {
+      if (this.syncSelectionModifier(false)) {
+        this.scheduleFrameRedraw(true);
+      }
+    }
+
     if (e.key === "Alt") {
       if (this.syncAltCopyModifier(false)) {
         this.scheduleFrameRedraw(true);
@@ -4096,6 +4118,19 @@ export class GanttChartCanvasController {
     this.destinationPreviewExitTransition = null;
     this.destinationPreviewTopicsCache = null;
     this.refreshCopyCursorIndicator();
+    return true;
+  }
+
+  private syncSelectionModifier(active: boolean): boolean {
+    if (this.selectionModifierActive === active) return false;
+    this.selectionModifierActive = active;
+    if (active) {
+      this.hoveredClipboardTopicId = null;
+      this.hoveredTimeAxisDiffMs = null;
+    }
+    this.destinationPreviewTransition = null;
+    this.destinationPreviewExitTransition = null;
+    this.destinationPreviewTopicsCache = null;
     return true;
   }
 

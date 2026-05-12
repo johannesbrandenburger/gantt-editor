@@ -253,6 +253,37 @@ test.describe("canvas rewrite selection preview behavior", () => {
     await attachScreenshot(page, testInfo, "destination-preview-cleared");
   });
 
+  test("holding Meta/Ctrl suppresses selection hover preview", async ({ page }) => {
+    const selectedSlotIds = await brushSelectDenseFixture(page);
+    expect(selectedSlotIds.length).toBeGreaterThan(2);
+
+    const before = await getHarnessConfig(page);
+    const targetDestination = before.slots.find((slot) => slot.id === DENSE_HOVER_SLOT_ID)?.destinationId;
+    expect(targetDestination).toBeTruthy();
+
+    const targetPoint = await findSlotPoint(page, DENSE_HOVER_SLOT_ID, "center");
+    const canvas = page.locator("canvas.chart-canvas").first();
+    const targetPagePoint = await canvasPointToPagePoint(canvas, targetPoint);
+    await page.mouse.move(targetPagePoint.x, targetPagePoint.y);
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewTopicId"), {
+        timeout: 2_000,
+      })
+      .toBe(targetDestination ?? null);
+
+    await page.keyboard.down("ControlOrMeta");
+    await page.mouse.move(targetPagePoint.x + 1, targetPagePoint.y);
+
+    await expect
+      .poll(async () => await getCanvasStateField<string | null>(page, "destinationPreviewTopicId"), {
+        timeout: 2_000,
+      })
+      .toBeNull();
+
+    await page.keyboard.up("ControlOrMeta");
+  });
+
   test("Alt copy preview includes selected slots already in hovered destination", async ({ page }) => {
     const selectedSlotIds = await brushSelectDenseFixture(page);
     expect(selectedSlotIds.length).toBeGreaterThan(2);
