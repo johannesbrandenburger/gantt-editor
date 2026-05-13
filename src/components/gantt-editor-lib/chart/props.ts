@@ -58,6 +58,8 @@ export interface GanttEditorProps {
   markedRegion: GanttEditorMarkedRegion | null;
   isReadOnly: boolean;
   topContentPortion?: number;
+  /** Locale used by built-in date/time formatters. Does not translate user-provided text. */
+  locale?: string | string[];
   xAxisOptions?: GanttEditorXAxisOptions;
   hoverPreviewMaxClipboardSize?: number;
   /** Optional allow-list of enabled interaction features. Omit to enable all features. */

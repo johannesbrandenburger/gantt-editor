@@ -115,6 +115,7 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
   @Input({ required: true }) markedRegion!: GanttEditorProps['markedRegion']
   @Input({ required: true }) isReadOnly!: boolean
   @Input() topContentPortion?: number
+  @Input() locale?: GanttEditorProps['locale']
   @Input() xAxisOptions?: GanttEditorProps['xAxisOptions']
   @Input() hoverPreviewMaxClipboardSize?: number
   @Input() features?: GanttEditorProps['features']
@@ -340,6 +341,7 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
       markedRegion: this.markedRegion,
       isReadOnly: this.isReadOnly,
       topContentPortion: this.topContentPortion,
+      locale: this.locale,
       xAxisOptions: this.xAxisOptions,
       hoverPreviewMaxClipboardSize: this.hoverPreviewMaxClipboardSize,
       features: this.features,

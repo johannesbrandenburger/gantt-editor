@@ -485,6 +485,7 @@ export class GanttChartCanvasController {
       previousProps.markedRegion === next.markedRegion &&
       previousProps.isReadOnly === next.isReadOnly &&
       previousProps.topContentPortion === next.topContentPortion &&
+      previousProps.locale === next.locale &&
       previousProps.xAxisOptions === next.xAxisOptions;
     const isTimeRangeOnlyUpdate = parentTimeRangeChanged && nonTimePropsUnchangedByRef;
 
@@ -526,6 +527,13 @@ export class GanttChartCanvasController {
 
     if (featureFlagsChanged) {
       this.enforceFeatureStateAfterToggle();
+      shouldRedraw = true;
+    }
+
+    if (
+      previousProps.locale !== next.locale ||
+      previousProps.xAxisOptions !== next.xAxisOptions
+    ) {
       shouldRedraw = true;
     }
 
@@ -4385,6 +4393,7 @@ export class GanttChartCanvasController {
       startTime: this.internalStartTime,
       endTime: this.internalEndTime,
       margin: MARGIN,
+      locale: this.props.locale,
       xAxisOptions: this.props.xAxisOptions,
       offsetY: layout.axisRect.y,
     });
@@ -5718,6 +5727,7 @@ export class GanttChartCanvasController {
       this.internalStartTime,
       this.internalEndTime,
       MARGIN,
+      this.props.locale,
     );
   }
 

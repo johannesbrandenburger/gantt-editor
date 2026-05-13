@@ -39,13 +39,13 @@ export const unifiedZoomHelpOverlayTile: HelpOverlayTileDefinition<"unified-zoom
   id: "unified-zoom",
   title: "Zoom",
   description:
-    "Hold Ctrl, Shift, or Alt and scroll with the mouse wheel to zoom in or out.",
+    "Hold Ctrl, Shift, or Alt and scroll with the mouse wheel to zoom in or out. Scroll over the time axis to zoom the timeline only.",
   shortcutLabel: [
     `${helpOverlayPrimaryModifierShortLabel()} + wheel`,
     "Shift + wheel",
     "Alt + wheel",
   ],
-  detail: "",
+  detail: "Scroll over the chart body to keep time scale and row height in sync.",
   minHeight: 108,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {
     const cycle = (nowMs % ANIMATION_CYCLE_MS) / ANIMATION_CYCLE_MS;

@@ -21,6 +21,7 @@
             :verticalMarkers="verticalMarkers"
             :contextMenuActions="contextMenuActions"
             :markedRegion="markedRegion"
+            :locale="selectedLocale"
             :activate-rulers="'GLOBAL'"
             :slotContextMenuActions="[
                 { id: 'delete', label: 'Delete Slot' },
@@ -66,6 +67,21 @@
                         }"
                     >
                         {{ isReadOnly ? '🔒 Read-Only Mode' : '✏️ Editable Mode' }}
+                    </button>
+                    <button
+                        @click="toggleLocale"
+                        data-testid="toggle-locale-button"
+                        :style="{
+                            padding: '8px 16px',
+                            borderRadius: '4px',
+                            border: '1px solid #ccc',
+                            background: selectedLocale === 'de' ? '#34495e' : '#16a085',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontWeight: 'bold'
+                        }"
+                    >
+                        Locale: {{ selectedLocale }}
                     </button>
                     <button
                         @click="toggleMarkedRegion"
@@ -159,19 +175,6 @@ import type {
     GanttEditorVerticalMarker,
 } from '@/components/gantt-editor-lib/chart/types';
 import GanttEditor from '@/vue/GanttEditor.vue';
-import { timeHour, type TimeDomainValue } from '@/components/gantt-editor-lib/chart/time-scale';
-
-const upperAxisFormatter = new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-});
-const lowerAxisFormatter = new Intl.DateTimeFormat(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-});
 
 const redTopLeftCornerOverlay: GanttEditorSlot['customOverlay'] = ({ ctx }) => {
     // Slot-local coordinate system: slot top-left is (0,0), uniformly scaled by slot height.
@@ -212,6 +215,7 @@ const numberOfDestinations = ref(20);
 const startTime = ref(new Date(new Date().setHours(0, 0, 0, 0))); // today at 00:00
 const endTime = ref(new Date(new Date().setHours(23, 59, 59, 999))); // today at 23:59
 const isReadOnly = ref(false);
+const selectedLocale = ref<'en' | 'de'>('en');
 const eventMessage = ref('');
 const lastHoveredSlotId = ref<string | null>(null);
 const selectedSlotIds = ref<string[]>([]);
@@ -471,11 +475,16 @@ const toggleReadOnly = () => {
     showEventMessage(`🔄 Switched to ${isReadOnly.value ? 'Read-Only' : 'Editable'} mode`);
 };
 
+const toggleLocale = () => {
+    selectedLocale.value = selectedLocale.value === 'en' ? 'de' : 'en';
+    showEventMessage(`🌐 Locale: ${selectedLocale.value}`);
+};
+
 const handleChangeStartAndEndTime = (newStartTime: Date, newEndTime: Date) => {
     console.log('Callback: Navigated to new time window', newStartTime, newEndTime);
     startTime.value = newStartTime;
     endTime.value = newEndTime;
-    showEventMessage(`📅 Time window: ${newStartTime.toLocaleDateString()} - ${newEndTime.toLocaleDateString()}`);
+    showEventMessage(`📅 Time window: ${newStartTime.toLocaleDateString(selectedLocale.value)} - ${newEndTime.toLocaleDateString(selectedLocale.value)}`);
 };
 
 const handleChangeDestinationId = (slotId: string, destinationId: string, wasSuggestion?: boolean) => {
@@ -635,7 +644,7 @@ const handleChangeSlotTime = (slotId: string, openTime: Date, closeTime: Date) =
     if (slotToUpdate && !slotToUpdate.readOnly) {
         slotToUpdate.openTime = openTime;
         slotToUpdate.closeTime = closeTime;
-        showEventMessage(`⏰ Resized ${slotId} (${openTime.toLocaleTimeString()} - ${closeTime.toLocaleTimeString()})`);
+        showEventMessage(`⏰ Resized ${slotId} (${openTime.toLocaleTimeString(selectedLocale.value)} - ${closeTime.toLocaleTimeString(selectedLocale.value)})`);
     }
     slots.value = [...slots.value]; // Trigger reactivity
 };
@@ -668,7 +677,7 @@ const handleChangeVerticalMarker = (markerId: string, date: Date) => {
             ? { ...marker, date }
             : marker,
     );
-    showEventMessage(`📍 Moved marker ${markerId} to ${date.toLocaleTimeString()}`);
+    showEventMessage(`📍 Moved marker ${markerId} to ${date.toLocaleTimeString(selectedLocale.value)}`);
 };
 
 const handleClickVerticalMarker = (markerId: string) => {
