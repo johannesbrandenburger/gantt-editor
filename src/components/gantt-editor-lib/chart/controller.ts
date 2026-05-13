@@ -5728,6 +5728,7 @@ export class GanttChartCanvasController {
       this.internalEndTime,
       MARGIN,
       this.props.locale,
+      this.props.currentTimeIndicatorLabel,
     );
   }
 

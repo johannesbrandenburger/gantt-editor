@@ -116,6 +116,7 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
   @Input({ required: true }) isReadOnly!: boolean
   @Input() topContentPortion?: number
   @Input() locale?: GanttEditorProps['locale']
+  @Input() currentTimeIndicatorLabel?: GanttEditorProps['currentTimeIndicatorLabel']
   @Input() xAxisOptions?: GanttEditorProps['xAxisOptions']
   @Input() hoverPreviewMaxClipboardSize?: number
   @Input() features?: GanttEditorProps['features']
@@ -342,6 +343,7 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
       isReadOnly: this.isReadOnly,
       topContentPortion: this.topContentPortion,
       locale: this.locale,
+      currentTimeIndicatorLabel: this.currentTimeIndicatorLabel,
       xAxisOptions: this.xAxisOptions,
       hoverPreviewMaxClipboardSize: this.hoverPreviewMaxClipboardSize,
       features: this.features,

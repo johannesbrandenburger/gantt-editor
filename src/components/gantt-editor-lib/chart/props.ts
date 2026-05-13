@@ -60,6 +60,8 @@ export interface GanttEditorProps {
   topContentPortion?: number;
   /** Locale used by built-in date/time formatters. Does not translate user-provided text. */
   locale?: string | string[];
+  /** Formats the current-time indicator label. Omit to show the locale date and time. */
+  currentTimeIndicatorLabel?: (value: Date) => string;
   xAxisOptions?: GanttEditorXAxisOptions;
   hoverPreviewMaxClipboardSize?: number;
   /** Optional allow-list of enabled interaction features. Omit to enable all features. */

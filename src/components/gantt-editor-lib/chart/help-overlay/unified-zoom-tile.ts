@@ -45,7 +45,7 @@ export const unifiedZoomHelpOverlayTile: HelpOverlayTileDefinition<"unified-zoom
     "Shift + wheel",
     "Alt + wheel",
   ],
-  detail: "Scroll over the chart body to keep time scale and row height in sync.",
+  detail: "",
   minHeight: 108,
   drawPreview: ({ ctx, rect, nowMs, alpha }) => {
     const cycle = (nowMs % ANIMATION_CYCLE_MS) / ANIMATION_CYCLE_MS;

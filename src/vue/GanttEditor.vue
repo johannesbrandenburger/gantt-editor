@@ -132,6 +132,7 @@ function propsSnapshot(): GanttEditorProps {
     isReadOnly: props.isReadOnly,
     topContentPortion: props.topContentPortion,
     locale: props.locale,
+    currentTimeIndicatorLabel: props.currentTimeIndicatorLabel,
     xAxisOptions: props.xAxisOptions,
     hoverPreviewMaxClipboardSize: props.hoverPreviewMaxClipboardSize,
     features: props.features,

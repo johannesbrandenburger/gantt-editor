@@ -81,6 +81,8 @@ export function drawCurrentTimeIndicator(
   startTime: Date,
   endTime: Date,
   margin: ChartMargin,
+  locale?: string | string[],
+  currentTimeIndicatorLabel?: (value: Date) => string,
 ): void {
   const now = new Date();
   if (now < startTime || now > endTime) return;
@@ -88,7 +90,7 @@ export function drawCurrentTimeIndicator(
   const x = timeMsToCanvasX(now.getTime(), layout.canvasCssWidth, startTime, endTime, margin);
   const axisRowHeight = layout.axisRect.h / 4;
   const labelY = layout.axisRect.y + axisRowHeight * 3.5;
-  const labelText = formatCurrentTimeLabel(now);
+  const labelText = formatCurrentTimeLabel(now, locale, currentTimeIndicatorLabel);
   ctx.save();
 
   ctx.strokeStyle = "red";
@@ -119,10 +121,16 @@ export function drawCurrentTimeIndicator(
   ctx.restore();
 }
 
-function formatCurrentTimeLabel(value: Date): string {
-  const hh = `${value.getHours()}`.padStart(2, "0");
-  const mm = `${value.getMinutes()}`.padStart(2, "0");
-  return `${hh}:${mm}`;
+function formatCurrentTimeLabel(
+  value: Date,
+  locale?: string | string[],
+  currentTimeIndicatorLabel?: (value: Date) => string,
+): string {
+  if (currentTimeIndicatorLabel) return currentTimeIndicatorLabel(value);
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(value);
 }
 
 type HitSuggestionForGroupArgs = {
