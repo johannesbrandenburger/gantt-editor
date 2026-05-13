@@ -50,13 +50,13 @@ export interface GanttEditorProps {
   slots: Array<GanttEditorSlotWithUiAttributes>;
   destinations: Array<GanttEditorDestination>;
   destinationGroups: Array<GanttEditorDestinationGroup>;
-  suggestions: Array<GanttEditorSuggestion>;
+  suggestions?: Array<GanttEditorSuggestion>;
   /** Enable slot-edge snap rulers while resizing (`null` disables). */
   activateRulers?: GanttEditorRulerMode;
   verticalMarkers?: Array<GanttEditorVerticalMarker>;
   contextMenuActions?: Array<GanttEditorCanvasContextMenuAction>;
   slotContextMenuActions?: Array<GanttEditorSlotContextMenuAction>;
-  markedRegion: GanttEditorMarkedRegion | null;
+  markedRegion?: GanttEditorMarkedRegion | null;
   isReadOnly: boolean;
   topContentPortion?: number;
   /** Locale used by built-in date/time formatters. Does not translate user-provided text. */

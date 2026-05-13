@@ -4525,7 +4525,7 @@ export class GanttChartCanvasController {
           ctx,
           width: layout.canvasCssWidth,
           topics: groupTopics,
-          suggestions: this.props.suggestions,
+          suggestions: this.props.suggestions ?? [],
           margin: MARGIN,
           rowHeight: this.rowHeight,
           startTime: this.internalStartTime,
@@ -5750,7 +5750,7 @@ export class GanttChartCanvasController {
   private applySuggestionForSlot(slotId: string): void {
     if (!this.canApplySlotSuggestions()) return;
     if (!slotId || this.props.isReadOnly) return;
-    const suggestion = this.props.suggestions.find((s) => s.slotId === slotId);
+    const suggestion = this.props.suggestions?.find((s) => s.slotId === slotId);
     if (!suggestion) return;
 
     const slot = this.props.slots.find((s) => s.id === slotId);
@@ -5784,7 +5784,7 @@ export class GanttChartCanvasController {
       contentY,
       width,
       groupTopics,
-      suggestions: this.props.suggestions,
+      suggestions: this.props.suggestions ?? [],
       rowHeight: this.rowHeight,
       startTime: this.internalStartTime,
       endTime: this.internalEndTime,

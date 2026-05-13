@@ -245,11 +245,14 @@ All wrappers expose the same core model and behavior.
 - `slots: GanttEditorSlotWithUiAttributes[]`
 - `destinations: GanttEditorDestination[]`
 - `destinationGroups: GanttEditorDestinationGroup[]`
-- `suggestions: GanttEditorSuggestion[]`
-- `markedRegion: GanttEditorMarkedRegion | null`
 - `isReadOnly: boolean`
 
-`GanttEditorSlot` supports generic slot deadlines:
+### Optional Inputs
+
+- `suggestions?: GanttEditorSuggestion[]` (defaults to `[]`)
+- `markedRegion?: GanttEditorMarkedRegion | null` (defaults to `null`)
+
+`GanttEditorSlot` supports the following optional UI attributes:
 - `deadlines?: Array<{ id: string; timestamp: number; color: string }>`
 - `hoverData?: string` (tooltip supports plain text and a limited HTML subset: `<strong>`, `<em>`, `<br>`)
 - `labelColor?: string` (CSS color for slot text inside the bar)
