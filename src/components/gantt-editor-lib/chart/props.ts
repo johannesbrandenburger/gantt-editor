@@ -10,7 +10,7 @@ import type {
   GanttEditorVerticalMarker,
   GanttEditorXAxisOptions,
 } from "./types";
-import type { HelpOverlayTileDefinition } from "./help-overlay/tile";
+import type { HelpOverlayTileDefinition, HelpOverlayTileId } from "./help-overlay/tile";
 
 export type GanttEditorRulerMode = "ROW" | "GLOBAL" | null;
 
@@ -36,7 +36,8 @@ export type GanttEditorFeature =
   | "copy-modifier-alt"
   | "time-axis-modifier-shift"
   | "scroll-horizontal"
-  | "zoom-time-axis";
+  | "zoom-time-axis"
+  | "mouse-time-strip";
 
 /**
  * Framework-agnostic input model for the canvas Gantt chart.
@@ -49,15 +50,19 @@ export interface GanttEditorProps {
   slots: Array<GanttEditorSlotWithUiAttributes>;
   destinations: Array<GanttEditorDestination>;
   destinationGroups: Array<GanttEditorDestinationGroup>;
-  suggestions: Array<GanttEditorSuggestion>;
+  suggestions?: Array<GanttEditorSuggestion>;
   /** Enable slot-edge snap rulers while resizing (`null` disables). */
   activateRulers?: GanttEditorRulerMode;
   verticalMarkers?: Array<GanttEditorVerticalMarker>;
   contextMenuActions?: Array<GanttEditorCanvasContextMenuAction>;
   slotContextMenuActions?: Array<GanttEditorSlotContextMenuAction>;
-  markedRegion: GanttEditorMarkedRegion | null;
+  markedRegion?: GanttEditorMarkedRegion | null;
   isReadOnly: boolean;
   topContentPortion?: number;
+  /** Locale used by built-in date/time formatters. Does not translate user-provided text. */
+  locale?: string | string[];
+  /** Formats the current-time indicator label. Omit to show the locale date and time. */
+  currentTimeIndicatorLabel?: (value: Date) => string;
   xAxisOptions?: GanttEditorXAxisOptions;
   hoverPreviewMaxClipboardSize?: number;
   /** Optional allow-list of enabled interaction features. Omit to enable all features. */
@@ -65,7 +70,7 @@ export interface GanttEditorProps {
   /** Custom help tiles appended to built-in defaults (same-id custom tiles override defaults). */
   helpOverlayTiles?: HelpOverlayTileDefinition[];
   /** Help tile ids to include; omit to include all, pass [] to disable help UI entirely. */
-  helpOverlayTileIds?: string[];
+  helpOverlayTileIds?: HelpOverlayTileId[];
 }
 
 /**

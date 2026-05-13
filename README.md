@@ -224,11 +224,14 @@ All wrappers expose the same core model and behavior.
 - `slots: GanttEditorSlotWithUiAttributes[]`
 - `destinations: GanttEditorDestination[]`
 - `destinationGroups: GanttEditorDestinationGroup[]`
-- `suggestions: GanttEditorSuggestion[]`
-- `markedRegion: GanttEditorMarkedRegion | null`
 - `isReadOnly: boolean`
 
-`GanttEditorSlot` supports generic slot deadlines:
+### Optional Inputs
+
+- `suggestions?: GanttEditorSuggestion[]` (defaults to `[]`)
+- `markedRegion?: GanttEditorMarkedRegion | null` (defaults to `null`)
+
+`GanttEditorSlot` supports the following optional UI attributes:
 - `deadlines?: Array<{ id: string; timestamp: number; color: string }>`
 - `hoverData?: string` (tooltip supports plain text and a limited HTML subset: `<strong>`, `<em>`, `<br>`)
 - `labelColor?: string` (CSS color for slot text inside the bar)
@@ -241,9 +244,11 @@ All wrappers expose the same core model and behavior.
 - `contextMenuActions: GanttEditorCanvasContextMenuAction[]`
 - `slotContextMenuActions: GanttEditorSlotContextMenuAction[]`
 - `topContentPortion: number`
+- `locale: string | string[]` (used by built-in date/time formatting)
+- `currentTimeIndicatorLabel: (value: Date) => string` (custom text for the current-time indicator; defaults to date and time)
 - `xAxisOptions: GanttEditorXAxisOptions`
 - `helpOverlayTiles: HelpOverlayTileDefinition[]`
-- `helpOverlayTileIds: string[]`
+- `helpOverlayTileIds: HelpOverlayTileId[]`
 - `features: GanttEditorFeature[]`
 
 ### Key Events
@@ -283,6 +288,24 @@ Supported ids:
 - `preview-slots-on-time-axis`
 - `copy-modifier-alt`
 - `time-axis-modifier-shift`
+
+## Help Overlay Tile IDs
+
+`helpOverlayTileIds` is an allow-list for the built-in help overlay tiles. Omit it to show all built-in tiles plus any custom `helpOverlayTiles`. Pass `[]` to disable the help UI entirely.
+
+Supported ids:
+
+- `multi-select`
+- `brush-select`
+- `move-to-destination`
+- `move-to-different-day`
+- `copy-to-destination`
+- `resize-slot-edges`
+- `unified-zoom`
+- `time-navigation`
+- `canvas-context-menu`
+- `open-slot-details`
+- `escape-key`
 
 ## Exposed Methods
 

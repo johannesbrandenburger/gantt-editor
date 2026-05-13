@@ -3,7 +3,7 @@ import { hitTestSuggestionButton } from "./suggestions";
 import type { Topic, GanttEditorSuggestion } from "./types";
 import type { UnifiedChartLayout } from "./unified-chart-layout";
 import type { GanttEditorProps } from "./props";
-import { timeMsToCanvasX } from "./time-utils";
+import { timeMsToCanvasX, verticalMarkerDateFromCanvasX } from "./time-utils";
 
 type ChartMargin = {
   left: number;
@@ -81,6 +81,8 @@ export function drawCurrentTimeIndicator(
   startTime: Date,
   endTime: Date,
   margin: ChartMargin,
+  locale?: string | string[],
+  currentTimeIndicatorLabel?: (value: Date) => string,
 ): void {
   const now = new Date();
   if (now < startTime || now > endTime) return;
@@ -88,7 +90,7 @@ export function drawCurrentTimeIndicator(
   const x = timeMsToCanvasX(now.getTime(), layout.canvasCssWidth, startTime, endTime, margin);
   const axisRowHeight = layout.axisRect.h / 4;
   const labelY = layout.axisRect.y + axisRowHeight * 3.5;
-  const labelText = formatCurrentTimeLabel(now);
+  const labelText = formatCurrentTimeLabel(now, locale, currentTimeIndicatorLabel);
   ctx.save();
 
   ctx.strokeStyle = "red";
@@ -119,10 +121,79 @@ export function drawCurrentTimeIndicator(
   ctx.restore();
 }
 
-function formatCurrentTimeLabel(value: Date): string {
-  const hh = `${value.getHours()}`.padStart(2, "0");
-  const mm = `${value.getMinutes()}`.padStart(2, "0");
-  return `${hh}:${mm}`;
+export function drawMouseTimeStrip(
+  ctx: CanvasRenderingContext2D,
+  layout: UnifiedChartLayout,
+  startTime: Date,
+  endTime: Date,
+  margin: ChartMargin,
+  canvasX: number,
+  locale?: string | string[],
+): void {
+  const minX = margin.left;
+  const maxX = layout.canvasCssWidth - margin.right;
+  if (canvasX < minX || canvasX > maxX) return;
+
+  const value = verticalMarkerDateFromCanvasX(
+    canvasX,
+    layout.canvasCssWidth,
+    startTime,
+    endTime,
+    margin,
+  );
+  const axisRowHeight = layout.axisRect.h / 4;
+  const labelY = layout.axisRect.y + axisRowHeight * 2.5;
+  const labelText = formatMouseTimeLabel(value, locale);
+  ctx.save();
+
+  ctx.strokeStyle = "rgba(33, 150, 243, 0.9)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(canvasX, layout.axisRect.y);
+  ctx.lineTo(canvasX, layout.canvasCssHeight);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.font = "bold 10px sans-serif";
+  const textWidth = ctx.measureText(labelText).width;
+  const labelPadX = 4;
+  const labelWidth = textWidth + labelPadX * 2;
+  const labelHeight = Math.max(10, axisRowHeight - 2);
+  const labelTop = labelY - labelHeight / 2;
+  const labelLeft = Math.max(
+    minX,
+    Math.min(maxX - labelWidth, canvasX - labelWidth / 2),
+  );
+
+  ctx.fillStyle = "rgba(33, 150, 243, 0.85)";
+  ctx.fillRect(labelLeft, labelTop, labelWidth, labelHeight);
+
+  ctx.fillStyle = "white";
+  ctx.font = "bold 10px sans-serif";
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "left";
+  ctx.fillText(labelText, labelLeft + labelPadX, labelY);
+
+  ctx.restore();
+}
+
+function formatCurrentTimeLabel(
+  value: Date,
+  locale?: string | string[],
+  currentTimeIndicatorLabel?: (value: Date) => string,
+): string {
+  if (currentTimeIndicatorLabel) return currentTimeIndicatorLabel(value);
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(value);
+}
+
+function formatMouseTimeLabel(value: Date, locale?: string | string[]): string {
+  return new Intl.DateTimeFormat(locale, {
+    timeStyle: "short",
+  }).format(value);
 }
 
 type HitSuggestionForGroupArgs = {

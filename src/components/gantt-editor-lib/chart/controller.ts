@@ -95,6 +95,7 @@ import {
 import {
   drawMarkedRegionOverlay,
   drawCurrentTimeIndicator,
+  drawMouseTimeStrip,
   hitSuggestionForGroup,
   hitVerticalMarkerForGroup,
 } from "./interaction-and-overlay-utils";
@@ -250,6 +251,7 @@ export class GanttChartCanvasController {
   private pointerCanvasY = 0;
   private altCopyModifierActive = false;
   private shiftTimeAxisModifierActive = false;
+  private selectionModifierActive = false;
   private secondaryPointerContextMenuCandidate: {
     startX: number;
     startY: number;
@@ -484,6 +486,7 @@ export class GanttChartCanvasController {
       previousProps.markedRegion === next.markedRegion &&
       previousProps.isReadOnly === next.isReadOnly &&
       previousProps.topContentPortion === next.topContentPortion &&
+      previousProps.locale === next.locale &&
       previousProps.xAxisOptions === next.xAxisOptions;
     const isTimeRangeOnlyUpdate = parentTimeRangeChanged && nonTimePropsUnchangedByRef;
 
@@ -525,6 +528,13 @@ export class GanttChartCanvasController {
 
     if (featureFlagsChanged) {
       this.enforceFeatureStateAfterToggle();
+      shouldRedraw = true;
+    }
+
+    if (
+      previousProps.locale !== next.locale ||
+      previousProps.xAxisOptions !== next.xAxisOptions
+    ) {
       shouldRedraw = true;
     }
 
@@ -639,6 +649,10 @@ export class GanttChartCanvasController {
     return this.isFeatureEnabled("apply-slot-suggestions");
   }
 
+  private canShowMouseTimeStrip(): boolean {
+    return this.isFeatureEnabled("mouse-time-strip");
+  }
+
   private canCollapseTopics(): boolean {
     return this.isFeatureEnabled("collapse-topics");
   }
@@ -685,6 +699,10 @@ export class GanttChartCanvasController {
 
   private canUseShiftTimeAxisModifier(): boolean {
     return this.isFeatureEnabled("time-axis-modifier-shift");
+  }
+
+  private hasSelectionModifier(event: MouseEvent | KeyboardEvent): boolean {
+    return event.metaKey || event.ctrlKey;
   }
 
   private canPreviewSlotsToDestination(
@@ -810,6 +828,7 @@ export class GanttChartCanvasController {
     this.slotResizePreview = null;
     this.slotResizeRuler = null;
     this.verticalMarkerDrag = null;
+    this.selectionModifierActive = false;
     this.pendingSlotReflowFromResize = null;
     this.slotReflowAnimation = null;
     this.brushSelection = null;
@@ -894,23 +913,18 @@ export class GanttChartCanvasController {
       this.helpOverlayActiveTileId = nextTileId;
       this.helpOverlayActiveTileAnimationStartMs = performance.now();
     }
-    const helpHoverChanged =
-      this.helpOverlayHoverTargetKey(nextHelpHover) !==
-      this.helpOverlayHoverTargetKey(this.helpOverlayHoverTarget);
     this.helpOverlayHoverTarget = nextHelpHover;
 
     if (this.contextMenuState.visible) {
       this.pointerInChart = true;
-      const menuInteractionChanged = this.updateContextMenuHover(
+      this.updateContextMenuHover(
         pt.x,
         pt.y,
         layout.canvasCssWidth,
         layout.canvasCssHeight,
       );
       canvas.style.cursor = this.isPointOverContextMenu(pt.x, pt.y, layout) ? "pointer" : "";
-      if (menuInteractionChanged) {
-        this.scheduleFrameRedraw(true);
-      }
+      this.scheduleFrameRedraw(true);
       return;
     }
 
@@ -920,17 +934,16 @@ export class GanttChartCanvasController {
       canvas.style.cursor =
         helpHit === "button" || helpHit === "close"
           ? "pointer"
-          : this.helpOverlayOpen
-            ? "default"
-            : "";
-      if (helpHoverChanged) {
-        this.scheduleFrameRedraw(true);
-      }
+            : this.helpOverlayOpen
+              ? "default"
+              : "";
+      this.scheduleFrameRedraw(true);
       return;
     }
 
     const altCopyChanged = this.syncAltCopyModifier(e.altKey);
     const shiftTimeAxisChanged = this.syncShiftTimeAxisModifier(e.shiftKey);
+    const selectionModifierChanged = this.syncSelectionModifier(this.hasSelectionModifier(e));
     this.pointerInChart = true;
     const nextHover = this.resizeHoverKey(layout, e.clientX, e.clientY);
     const hoverChanged = nextHover !== this.hoverResizeBand;
@@ -956,6 +969,7 @@ export class GanttChartCanvasController {
         if (
           !this.props.isReadOnly &&
           this.clipboardItems.length > 0 &&
+          !this.selectionModifierActive &&
           !this.isBrushSelectionActivelyDragging()
         ) {
           if (
@@ -1093,12 +1107,15 @@ export class GanttChartCanvasController {
       hoverTimeAxisDiffChanged ||
       altCopyChanged ||
       shiftTimeAxisChanged ||
+      selectionModifierChanged ||
       this.clipboardItems.length > 0 ||
       this.brushSelection ||
       this.hoveredSlotId
     ) {
       this.scheduleFrameRedraw(true);
+      return;
     }
+    this.scheduleFrameRedraw(true);
   }
 
   onChartMouseLeave(): void {
@@ -3035,6 +3052,7 @@ export class GanttChartCanvasController {
     if (!this.pointerInChart) return null;
     if (this.isBrushSelectionActivelyDragging()) return null;
     if (this.props.isReadOnly) return null;
+    if (this.selectionModifierActive) return null;
     if (this.clipboardItems.length === 0) return null;
     const pulseAlpha = 0.58 + 0.2 * (0.5 + 0.5 * Math.sin(nowMs / 160));
     if (this.shiftTimeAxisModifierActive) {
@@ -4042,6 +4060,12 @@ export class GanttChartCanvasController {
   }
 
   private onDocumentKeyDown(e: KeyboardEvent): void {
+    if (this.hasSelectionModifier(e)) {
+      if (this.syncSelectionModifier(true)) {
+        this.scheduleFrameRedraw(true);
+      }
+    }
+
     if (e.key === "Alt") {
       if (this.canUseAltCopyModifier() && this.syncAltCopyModifier(true)) {
         this.scheduleFrameRedraw(true);
@@ -4076,6 +4100,12 @@ export class GanttChartCanvasController {
   }
 
   private onDocumentKeyUp(e: KeyboardEvent): void {
+    if (!this.hasSelectionModifier(e) && (e.key === "Meta" || e.key === "Control")) {
+      if (this.syncSelectionModifier(false)) {
+        this.scheduleFrameRedraw(true);
+      }
+    }
+
     if (e.key === "Alt") {
       if (this.syncAltCopyModifier(false)) {
         this.scheduleFrameRedraw(true);
@@ -4096,6 +4126,19 @@ export class GanttChartCanvasController {
     this.destinationPreviewExitTransition = null;
     this.destinationPreviewTopicsCache = null;
     this.refreshCopyCursorIndicator();
+    return true;
+  }
+
+  private syncSelectionModifier(active: boolean): boolean {
+    if (this.selectionModifierActive === active) return false;
+    this.selectionModifierActive = active;
+    if (active) {
+      this.hoveredClipboardTopicId = null;
+      this.hoveredTimeAxisDiffMs = null;
+    }
+    this.destinationPreviewTransition = null;
+    this.destinationPreviewExitTransition = null;
+    this.destinationPreviewTopicsCache = null;
     return true;
   }
 
@@ -4350,6 +4393,7 @@ export class GanttChartCanvasController {
       startTime: this.internalStartTime,
       endTime: this.internalEndTime,
       margin: MARGIN,
+      locale: this.props.locale,
       xAxisOptions: this.props.xAxisOptions,
       offsetY: layout.axisRect.y,
     });
@@ -4481,7 +4525,7 @@ export class GanttChartCanvasController {
           ctx,
           width: layout.canvasCssWidth,
           topics: groupTopics,
-          suggestions: this.props.suggestions,
+          suggestions: this.props.suggestions ?? [],
           margin: MARGIN,
           rowHeight: this.rowHeight,
           startTime: this.internalStartTime,
@@ -4550,6 +4594,7 @@ export class GanttChartCanvasController {
     });
 
     this.drawCurrentTimeIndicator(ctx, layout);
+    this.drawMouseTimeStrip(ctx, layout);
 
     this.drawBrushSelectionOverlay(ctx, layout);
     this.drawClipboardPreviewOverlay(ctx, layout);
@@ -5683,13 +5728,29 @@ export class GanttChartCanvasController {
       this.internalStartTime,
       this.internalEndTime,
       MARGIN,
+      this.props.locale,
+      this.props.currentTimeIndicatorLabel,
+    );
+  }
+
+  private drawMouseTimeStrip(ctx: CanvasRenderingContext2D, layout: UnifiedChartLayout): void {
+    if (!this.canShowMouseTimeStrip()) return;
+    if (!this.pointerInChart) return;
+    drawMouseTimeStrip(
+      ctx,
+      layout,
+      this.internalStartTime,
+      this.internalEndTime,
+      MARGIN,
+      this.pointerCanvasX,
+      this.props.locale,
     );
   }
 
   private applySuggestionForSlot(slotId: string): void {
     if (!this.canApplySlotSuggestions()) return;
     if (!slotId || this.props.isReadOnly) return;
-    const suggestion = this.props.suggestions.find((s) => s.slotId === slotId);
+    const suggestion = this.props.suggestions?.find((s) => s.slotId === slotId);
     if (!suggestion) return;
 
     const slot = this.props.slots.find((s) => s.id === slotId);
@@ -5723,7 +5784,7 @@ export class GanttChartCanvasController {
       contentY,
       width,
       groupTopics,
-      suggestions: this.props.suggestions,
+      suggestions: this.props.suggestions ?? [],
       rowHeight: this.rowHeight,
       startTime: this.internalStartTime,
       endTime: this.internalEndTime,

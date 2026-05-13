@@ -107,14 +107,16 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
   @Input({ required: true }) slots!: GanttEditorProps['slots']
   @Input({ required: true }) destinations!: GanttEditorProps['destinations']
   @Input({ required: true }) destinationGroups!: GanttEditorProps['destinationGroups']
-  @Input({ required: true }) suggestions!: GanttEditorProps['suggestions']
+  @Input() suggestions?: GanttEditorProps['suggestions']
   @Input() activateRulers?: GanttEditorProps['activateRulers']
   @Input() verticalMarkers?: GanttEditorProps['verticalMarkers']
   @Input() contextMenuActions?: GanttEditorProps['contextMenuActions']
   @Input() slotContextMenuActions?: GanttEditorProps['slotContextMenuActions']
-  @Input({ required: true }) markedRegion!: GanttEditorProps['markedRegion']
+  @Input() markedRegion?: GanttEditorProps['markedRegion']
   @Input({ required: true }) isReadOnly!: boolean
   @Input() topContentPortion?: number
+  @Input() locale?: GanttEditorProps['locale']
+  @Input() currentTimeIndicatorLabel?: GanttEditorProps['currentTimeIndicatorLabel']
   @Input() xAxisOptions?: GanttEditorProps['xAxisOptions']
   @Input() hoverPreviewMaxClipboardSize?: number
   @Input() features?: GanttEditorProps['features']
@@ -340,6 +342,8 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
       markedRegion: this.markedRegion,
       isReadOnly: this.isReadOnly,
       topContentPortion: this.topContentPortion,
+      locale: this.locale,
+      currentTimeIndicatorLabel: this.currentTimeIndicatorLabel,
       xAxisOptions: this.xAxisOptions,
       hoverPreviewMaxClipboardSize: this.hoverPreviewMaxClipboardSize,
       features: this.features,

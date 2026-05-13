@@ -3,7 +3,7 @@ import { easeInOut } from "./easing";
 
 const ANIMATION_CYCLE_MS = 2600;
 
-export const escapeKeyHelpOverlayTile: HelpOverlayTileDefinition = {
+export const escapeKeyHelpOverlayTile: HelpOverlayTileDefinition<"escape-key"> = {
   id: "escape-key",
   title: "Clear selection",
   description:

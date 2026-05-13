@@ -83,6 +83,7 @@ const FEATURE_IDS: readonly GanttEditorFeature[] = [
   "time-axis-modifier-shift",
   "scroll-horizontal",
   "zoom-time-axis",
+  "mouse-time-strip",
 ];
 
 const FEATURE_ID_SET = new Set<GanttEditorFeature>(FEATURE_IDS);

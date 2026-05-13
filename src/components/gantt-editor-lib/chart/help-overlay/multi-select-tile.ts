@@ -22,7 +22,7 @@ const multiSelectDescription = helpOverlayIsApplePlatform()
 
 const multiSelectShortcutLabel = `${helpOverlayPrimaryModifierShortLabel()} + Click`;
 
-export const multiSelectHelpOverlayTile: HelpOverlayTileDefinition = {
+export const multiSelectHelpOverlayTile: HelpOverlayTileDefinition<"multi-select"> = {
   id: "multi-select",
   title: "Select slots",
   description: multiSelectDescription,

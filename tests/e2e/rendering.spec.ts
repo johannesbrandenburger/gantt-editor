@@ -16,6 +16,7 @@ type CanvasState = {
   layout: {
     canvasCssWidth: number;
     canvasCssHeight: number;
+    axisRect: { y: number; h: number };
     groups: Array<{ id: string; y: number; h: number }>;
   } | null;
 };
@@ -100,6 +101,55 @@ test.describe("canvas rewrite rendering and display", () => {
     expect(startMs).not.toBeNull();
     expect(endMs).not.toBeNull();
     expect((endMs as number) - (startMs as number)).toBeGreaterThan(0);
+  });
+
+  test("draws a mouse-following time strip on the timeline", async ({ page }) => {
+    const canvas = await openE2eHarness(page, { fixture: "core" });
+    const state = await getCanvasState<CanvasState>(page);
+    const box = await canvas.boundingBox();
+    expect(state?.layout).not.toBeNull();
+    expect(box).not.toBeNull();
+    if (!state?.layout || !box) return;
+
+    const x = Math.round((state.margin.left + state.layout.canvasCssWidth - state.margin.right) / 2);
+    const pointerY = Math.round(state.layout.axisRect.y + state.layout.axisRect.h + 16);
+    const labelY = Math.round(state.layout.axisRect.y + (state.layout.axisRect.h / 4) * 2.5);
+    await page.mouse.move(box.x + x, box.y + pointerY);
+
+    await expect
+      .poll(async () => {
+        return await page.evaluate(({ sampleX, sampleY }) => {
+          const canvasEl = document.querySelector<HTMLCanvasElement>("canvas.chart-canvas");
+          const api = (window as Window & {
+            __ganttCanvasTestApi?: { flush: () => void };
+          }).__ganttCanvasTestApi;
+          api?.flush();
+          if (!canvasEl) return null;
+          const rect = canvasEl.getBoundingClientRect();
+          const dprX = canvasEl.width / rect.width;
+          const dprY = canvasEl.height / rect.height;
+          const ctx = canvasEl.getContext("2d");
+          if (!ctx) return false;
+
+          const startX = Math.round((sampleX - 32) * dprX);
+          const startY = Math.round((sampleY - 5) * dprY);
+          const sampleWidth = Math.round(64 * dprX);
+          const sampleHeight = Math.round(10 * dprY);
+          const image = ctx.getImageData(startX, startY, sampleWidth, sampleHeight).data;
+          let matches = 0;
+          for (let i = 0; i < image.length; i += 4) {
+            const r = image[i];
+            const g = image[i + 1];
+            const b = image[i + 2];
+            const a = image[i + 3];
+            if (a === 255 && r < 120 && g > 120 && g < 210 && b > 220) {
+              matches += 1;
+            }
+          }
+          return matches > 20;
+        }, { sampleX: x, sampleY: labelY });
+      })
+      .toBe(true);
   });
 
   test("renders departure marker hit regions for slots with deadlines", async ({ page }) => {

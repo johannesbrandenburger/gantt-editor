@@ -39,7 +39,8 @@ type Feature =
   | "copy-modifier-alt"
   | "time-axis-modifier-shift"
   | "scroll-horizontal"
-  | "zoom-time-axis";
+  | "zoom-time-axis"
+  | "mouse-time-strip";
 
 type FeatureCase = {
   feature: Feature;
@@ -78,6 +79,7 @@ const ALL_FEATURES: Feature[] = [
   "time-axis-modifier-shift",
   "scroll-horizontal",
   "zoom-time-axis",
+  "mouse-time-strip",
 ];
 
 function toFeatureQuery(features: Feature[]): string {
@@ -103,9 +105,9 @@ async function selectTwoSlots(page: Page): Promise<void> {
 async function getTimeAxisTargetPointInGroup(page: Page): Promise<{ x: number; y: number }> {
   const state = (await getCanvasState<any>(page)) as
     | {
-        layout?: { canvasCssWidth?: number } | null;
-        margin?: { right?: number };
-      }
+      layout?: { canvasCssWidth?: number } | null;
+      margin?: { right?: number };
+    }
     | null;
   const width = state?.layout?.canvasCssWidth ?? 0;
   const rightMargin = state?.margin?.right ?? 0;
@@ -120,9 +122,9 @@ async function getTimeAxisTargetPointInGroup(page: Page): Promise<{ x: number; y
 async function getTimeNavigationPoint(page: Page): Promise<{ x: number; y: number }> {
   const state = (await getCanvasState<any>(page)) as
     | {
-        margin?: { left?: number };
-        layout?: { groups?: Array<{ y: number; h: number }> };
-      }
+      margin?: { left?: number };
+      layout?: { groups?: Array<{ y: number; h: number }> };
+    }
     | null;
   const firstGroup = state?.layout?.groups?.[0];
   expect(firstGroup).toBeTruthy();
@@ -202,7 +204,73 @@ async function dispatchCanvasWheelEvent(
   );
 }
 
+async function countMouseTimeStripPixels(page: Page): Promise<number> {
+  const canvas = page.locator("canvas.chart-canvas").first();
+  const state = (await getCanvasState<any>(page)) as
+    | {
+      margin?: { left?: number; right?: number };
+      layout?: {
+        canvasCssWidth?: number;
+        axisRect?: { y?: number; h?: number };
+      } | null;
+    }
+    | null;
+  const box = await canvas.boundingBox();
+  const layout = state?.layout;
+  if (!box || !layout) return 0;
+
+  const left = state?.margin?.left ?? 0;
+  const right = state?.margin?.right ?? 0;
+  const width = layout.canvasCssWidth ?? 0;
+  const x = Math.round((left + width - right) / 2);
+  const pointerY = Math.round((layout.axisRect?.y ?? 0) + (layout.axisRect?.h ?? 0) + 16);
+  const labelY = Math.round((layout.axisRect?.y ?? 0) + ((layout.axisRect?.h ?? 0) / 4) * 2.5);
+  await page.mouse.move(box.x + x, box.y + pointerY);
+
+  return await page.evaluate(({ sampleX, sampleY }) => {
+    const canvasEl = document.querySelector<HTMLCanvasElement>("canvas.chart-canvas");
+    const api = (window as Window & {
+      __ganttCanvasTestApi?: { flush: () => void };
+    }).__ganttCanvasTestApi;
+    api?.flush();
+    if (!canvasEl) return null;
+    const rect = canvasEl.getBoundingClientRect();
+    const dprX = canvasEl.width / rect.width;
+    const dprY = canvasEl.height / rect.height;
+    const ctx = canvasEl.getContext("2d");
+    if (!ctx) return 0;
+
+    const startX = Math.round((sampleX - 32) * dprX);
+    const startY = Math.round((sampleY - 5) * dprY);
+    const sampleWidth = Math.round(64 * dprX);
+    const sampleHeight = Math.round(10 * dprY);
+    const image = ctx.getImageData(startX, startY, sampleWidth, sampleHeight).data;
+    let matches = 0;
+    for (let i = 0; i < image.length; i += 4) {
+      const r = image[i];
+      const g = image[i + 1];
+      const b = image[i + 2];
+      const a = image[i + 3];
+      if (a === 255 && r < 120 && g > 120 && g < 210 && b > 220) {
+        matches += 1;
+      }
+    }
+    return matches;
+  }, { sampleX: x, sampleY: labelY });
+}
+
 const featureCases: FeatureCase[] = [
+  {
+    feature: "mouse-time-strip",
+    minimalOnFeatures: ["mouse-time-strip"],
+    assertBehavior: async (page, enabled) => {
+      await expect
+        .poll(async () => (await countMouseTimeStripPixels(page)) > 20, {
+          timeout: enabled ? 2_000 : 500,
+        })
+        .toBe(enabled);
+    },
+  },
   {
     feature: "scroll-horizontal",
     minimalOnFeatures: ["scroll-horizontal"],
@@ -314,9 +382,9 @@ const featureCases: FeatureCase[] = [
     assertBehavior: async (page, enabled) => {
       const state = (await getCanvasState<any>(page)) as
         | {
-            margin?: { left: number; right: number };
-            layout?: { groups?: Array<{ id: string; y: number; h: number }>; canvasCssWidth: number };
-          }
+          margin?: { left: number; right: number };
+          layout?: { groups?: Array<{ id: string; y: number; h: number }>; canvasCssWidth: number };
+        }
         | null;
       const allocated = state?.layout?.groups?.find((group) => group.id === "allocated");
       expect(state?.margin && state?.layout && allocated).toBeTruthy();
