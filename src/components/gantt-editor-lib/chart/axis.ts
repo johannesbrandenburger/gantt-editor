@@ -1,5 +1,5 @@
 import type { GanttEditorXAxisOptions } from "./types";
-import { createTimeScale, timeDay, type TimeDomainValue } from "./time-scale";
+import { createTimeScale, type TimeDomainValue } from "./time-scale";
 
 export interface DrawXAxisParams {
   ctx: CanvasRenderingContext2D;
@@ -12,6 +12,36 @@ export interface DrawXAxisParams {
   xAxisOptions?: GanttEditorXAxisOptions;
   /** Top offset when drawing into a larger unified canvas (default 0). */
   offsetY?: number;
+}
+
+function startOfLocalDay(value: Date): Date {
+  const day = new Date(value);
+  day.setHours(0, 0, 0, 0);
+  return day;
+}
+
+export function visibleDayLabelTicks(startTime: Date, endTime: Date): Date[] {
+  if (endTime <= startTime) return [];
+
+  const startMs = startTime.getTime();
+  const endMs = endTime.getTime();
+  const ticks: Date[] = [];
+  let dayStart = startOfLocalDay(startTime);
+
+  while (dayStart.getTime() < endMs) {
+    const nextDayStart = new Date(dayStart);
+    nextDayStart.setDate(nextDayStart.getDate() + 1);
+
+    const visibleStartMs = Math.max(startMs, dayStart.getTime());
+    const visibleEndMs = Math.min(endMs, nextDayStart.getTime());
+    if (visibleEndMs > visibleStartMs) {
+      ticks.push(new Date(visibleStartMs + (visibleEndMs - visibleStartMs) / 2));
+    }
+
+    dayStart = nextDayStart;
+  }
+
+  return ticks;
 }
 
 export function drawXAxisOnCanvas(params: DrawXAxisParams) {
@@ -44,7 +74,9 @@ export function drawXAxisOnCanvas(params: DrawXAxisParams) {
     return defaultLowerFormatter.format(date);
   });
 
-  const upperTicks = xScale.ticks(xAxisOptions?.upper?.ticks ?? timeDay.every(1));
+  const upperTicks = xAxisOptions?.upper?.ticks
+    ? xScale.ticks(xAxisOptions.upper.ticks)
+    : visibleDayLabelTicks(startTime, endTime);
   const lowerTicks = xScale.ticks(xAxisOptions?.lower?.ticks);
 
   // Split axis height into four equal rows:
