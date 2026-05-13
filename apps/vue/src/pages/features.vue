@@ -246,7 +246,8 @@ const ALL_FEATURES: { id: GanttEditorFeature; label: string }[] = [
     { id: 'copy-modifier-alt',                       label: 'Alt = Copy Modifier' },
     { id: 'time-axis-modifier-shift',                label: 'Shift = Time Axis Modifier' },
     { id: 'scroll-horizontal',                       label: 'Scroll Horizontal' },
-    { id: 'zoom-time-axis',                            label: 'Zoom Time Axis' },
+    { id: 'zoom-time-axis',                          label: 'Zoom Time Axis' },
+    { id: 'mouse-time-strip',                        label: 'Mouse Time Strip' },
 ];
 
 const enabledFeatureSet = ref(new Set<GanttEditorFeature>(ALL_FEATURES.map((f) => f.id)));

@@ -36,7 +36,8 @@ export type GanttEditorFeature =
   | "copy-modifier-alt"
   | "time-axis-modifier-shift"
   | "scroll-horizontal"
-  | "zoom-time-axis";
+  | "zoom-time-axis"
+  | "mouse-time-strip";
 
 /**
  * Framework-agnostic input model for the canvas Gantt chart.

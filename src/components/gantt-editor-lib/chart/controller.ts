@@ -95,6 +95,7 @@ import {
 import {
   drawMarkedRegionOverlay,
   drawCurrentTimeIndicator,
+  drawMouseTimeStrip,
   hitSuggestionForGroup,
   hitVerticalMarkerForGroup,
 } from "./interaction-and-overlay-utils";
@@ -648,6 +649,10 @@ export class GanttChartCanvasController {
     return this.isFeatureEnabled("apply-slot-suggestions");
   }
 
+  private canShowMouseTimeStrip(): boolean {
+    return this.isFeatureEnabled("mouse-time-strip");
+  }
+
   private canCollapseTopics(): boolean {
     return this.isFeatureEnabled("collapse-topics");
   }
@@ -908,23 +913,18 @@ export class GanttChartCanvasController {
       this.helpOverlayActiveTileId = nextTileId;
       this.helpOverlayActiveTileAnimationStartMs = performance.now();
     }
-    const helpHoverChanged =
-      this.helpOverlayHoverTargetKey(nextHelpHover) !==
-      this.helpOverlayHoverTargetKey(this.helpOverlayHoverTarget);
     this.helpOverlayHoverTarget = nextHelpHover;
 
     if (this.contextMenuState.visible) {
       this.pointerInChart = true;
-      const menuInteractionChanged = this.updateContextMenuHover(
+      this.updateContextMenuHover(
         pt.x,
         pt.y,
         layout.canvasCssWidth,
         layout.canvasCssHeight,
       );
       canvas.style.cursor = this.isPointOverContextMenu(pt.x, pt.y, layout) ? "pointer" : "";
-      if (menuInteractionChanged) {
-        this.scheduleFrameRedraw(true);
-      }
+      this.scheduleFrameRedraw(true);
       return;
     }
 
@@ -934,12 +934,10 @@ export class GanttChartCanvasController {
       canvas.style.cursor =
         helpHit === "button" || helpHit === "close"
           ? "pointer"
-          : this.helpOverlayOpen
-            ? "default"
-            : "";
-      if (helpHoverChanged) {
-        this.scheduleFrameRedraw(true);
-      }
+            : this.helpOverlayOpen
+              ? "default"
+              : "";
+      this.scheduleFrameRedraw(true);
       return;
     }
 
@@ -1115,7 +1113,9 @@ export class GanttChartCanvasController {
       this.hoveredSlotId
     ) {
       this.scheduleFrameRedraw(true);
+      return;
     }
+    this.scheduleFrameRedraw(true);
   }
 
   onChartMouseLeave(): void {
@@ -4594,6 +4594,7 @@ export class GanttChartCanvasController {
     });
 
     this.drawCurrentTimeIndicator(ctx, layout);
+    this.drawMouseTimeStrip(ctx, layout);
 
     this.drawBrushSelectionOverlay(ctx, layout);
     this.drawClipboardPreviewOverlay(ctx, layout);
@@ -5729,6 +5730,20 @@ export class GanttChartCanvasController {
       MARGIN,
       this.props.locale,
       this.props.currentTimeIndicatorLabel,
+    );
+  }
+
+  private drawMouseTimeStrip(ctx: CanvasRenderingContext2D, layout: UnifiedChartLayout): void {
+    if (!this.canShowMouseTimeStrip()) return;
+    if (!this.pointerInChart) return;
+    drawMouseTimeStrip(
+      ctx,
+      layout,
+      this.internalStartTime,
+      this.internalEndTime,
+      MARGIN,
+      this.pointerCanvasX,
+      this.props.locale,
     );
   }
 
