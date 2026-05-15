@@ -109,20 +109,22 @@ export function drawCurrentTimeIndicator(
   ctx.setLineDash([]);
 
   ctx.font = "bold 10px sans-serif";
-  const textWidth = ctx.measureText(labelText).width;
+  const textMetrics = ctx.measureText(labelText);
+  const textWidth = textMetrics.width;
   const labelPadX = 4;
   const labelWidth = textWidth + labelPadX * 2;
-  const labelHeight = Math.max(10, axisRowHeight - 2);
+  const labelHeight = Math.max(12, axisRowHeight - 0.5);
   const labelTop = labelY - labelHeight / 2;
+  const textBaselineY = centeredTextAlphabeticBaseline(textMetrics, labelTop, labelHeight);
 
   ctx.fillStyle = "rgba(255, 0, 0, 0.75)";
   ctx.fillRect(x, labelTop, labelWidth, labelHeight);
 
   ctx.fillStyle = "white";
   ctx.font = "bold 10px sans-serif";
-  ctx.textBaseline = "middle";
+  ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
-  ctx.fillText(labelText, x + labelPadX, labelY);
+  ctx.fillText(labelText, x + labelPadX, textBaselineY);
 
   ctx.restore();
 }
@@ -163,11 +165,13 @@ export function drawMouseTimeStrip(
   ctx.setLineDash([]);
 
   ctx.font = "bold 10px sans-serif";
-  const textWidth = ctx.measureText(labelText).width;
+  const textMetrics = ctx.measureText(labelText);
+  const textWidth = textMetrics.width;
   const labelPadX = 4;
   const labelWidth = textWidth + labelPadX * 2;
-  const labelHeight = Math.max(10, axisRowHeight - 2);
+  const labelHeight = Math.max(12, axisRowHeight - 0.5);
   const labelTop = labelY - labelHeight / 2;
+  const textBaselineY = centeredTextAlphabeticBaseline(textMetrics, labelTop, labelHeight);
   const labelLeft = Math.max(
     minX,
     Math.min(maxX - labelWidth, canvasX - labelWidth / 2),
@@ -178,11 +182,26 @@ export function drawMouseTimeStrip(
 
   ctx.fillStyle = "white";
   ctx.font = "bold 10px sans-serif";
-  ctx.textBaseline = "middle";
+  ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
-  ctx.fillText(labelText, labelLeft + labelPadX, labelY);
+  ctx.fillText(labelText, labelLeft + labelPadX, textBaselineY);
 
   ctx.restore();
+}
+
+function centeredTextAlphabeticBaseline(
+  metrics: TextMetrics,
+  containerTop: number,
+  containerHeight: number,
+): number {
+  const ascent = metrics.actualBoundingBoxAscent;
+  const descent = metrics.actualBoundingBoxDescent;
+
+  if (Number.isFinite(ascent) && Number.isFinite(descent) && ascent + descent > 0) {
+    return containerTop + (containerHeight - ascent - descent) / 2 + ascent;
+  }
+
+  return containerTop + containerHeight / 2;
 }
 
 function formatCurrentTimeLabel(
