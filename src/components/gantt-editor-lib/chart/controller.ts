@@ -487,6 +487,7 @@ export class GanttChartCanvasController {
       previousProps.isReadOnly === next.isReadOnly &&
       previousProps.topContentPortion === next.topContentPortion &&
       previousProps.locale === next.locale &&
+      previousProps.dateTimeFormatters === next.dateTimeFormatters &&
       previousProps.xAxisOptions === next.xAxisOptions;
     const isTimeRangeOnlyUpdate = parentTimeRangeChanged && nonTimePropsUnchangedByRef;
 
@@ -533,6 +534,7 @@ export class GanttChartCanvasController {
 
     if (
       previousProps.locale !== next.locale ||
+      previousProps.dateTimeFormatters !== next.dateTimeFormatters ||
       previousProps.xAxisOptions !== next.xAxisOptions
     ) {
       shouldRedraw = true;
@@ -4394,6 +4396,7 @@ export class GanttChartCanvasController {
       endTime: this.internalEndTime,
       margin: MARGIN,
       locale: this.props.locale,
+      dateTimeFormatters: this.props.dateTimeFormatters,
       xAxisOptions: this.props.xAxisOptions,
       offsetY: layout.axisRect.y,
     });
@@ -5729,6 +5732,7 @@ export class GanttChartCanvasController {
       this.internalEndTime,
       MARGIN,
       this.props.locale,
+      this.props.dateTimeFormatters,
       this.props.currentTimeIndicatorLabel,
     );
   }
@@ -5744,6 +5748,7 @@ export class GanttChartCanvasController {
       MARGIN,
       this.pointerCanvasX,
       this.props.locale,
+      this.props.dateTimeFormatters,
     );
   }
 

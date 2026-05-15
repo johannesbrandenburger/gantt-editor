@@ -14,6 +14,13 @@ import type { HelpOverlayTileDefinition, HelpOverlayTileId } from "./help-overla
 
 export type GanttEditorRulerMode = "ROW" | "GLOBAL" | null;
 
+export interface GanttEditorDateTimeFormatters {
+  upper?: Intl.DateTimeFormat;
+  lower?: Intl.DateTimeFormat;
+  currentTime?: Intl.DateTimeFormat;
+  onMouseTimeStrip?: Intl.DateTimeFormat;
+}
+
 export type GanttEditorFeature =
   | "select-slots"
   | "brush-select-slots"
@@ -61,6 +68,8 @@ export interface GanttEditorProps {
   topContentPortion?: number;
   /** Locale used by built-in date/time formatters. Does not translate user-provided text. */
   locale?: string | string[];
+  /** Date/time formatters used before falling back to locale-based built-in formatting. */
+  dateTimeFormatters?: GanttEditorDateTimeFormatters;
   /** Formats the current-time indicator label. Omit to show the locale date and time. */
   currentTimeIndicatorLabel?: (value: Date) => string;
   xAxisOptions?: GanttEditorXAxisOptions;
