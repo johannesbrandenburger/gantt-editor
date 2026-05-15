@@ -234,6 +234,26 @@ Angular note: multi-value outputs are emitted as tuples in the same order as the
 
 </details>
 
+## Reactivity
+
+The editor redraws when its input references change. After changing slots, pass a new array reference so the wrapper can trigger an update:
+
+```ts
+slots.value = slots.value.map((slot) =>
+  slot.id === slotId ? { ...slot, destinationId } : slot,
+);
+```
+
+If you mutate a slot object directly, reassign the array afterwards:
+
+```ts
+slotToUpdate.openTime = openTime;
+slotToUpdate.closeTime = closeTime;
+slots.value = [...slots.value];
+```
+
+See `apps/vue/src/pages/index.vue` for the full Vue example.
+
 ## Shared API
 
 All wrappers expose the same core model and behavior.
