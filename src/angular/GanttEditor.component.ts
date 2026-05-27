@@ -109,6 +109,7 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
   @Input({ required: true }) destinationGroups!: GanttEditorProps['destinationGroups']
   @Input() suggestions?: GanttEditorProps['suggestions']
   @Input() activateRulers?: GanttEditorProps['activateRulers']
+  @Input() slotResizeMinutesStep?: GanttEditorProps['slotResizeMinutesStep']
   @Input() verticalMarkers?: GanttEditorProps['verticalMarkers']
   @Input() contextMenuActions?: GanttEditorProps['contextMenuActions']
   @Input() slotContextMenuActions?: GanttEditorProps['slotContextMenuActions']
@@ -337,6 +338,7 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
       destinationGroups: this.destinationGroups,
       suggestions: this.suggestions,
       activateRulers: this.activateRulers,
+      slotResizeMinutesStep: this.slotResizeMinutesStep,
       verticalMarkers: this.verticalMarkers,
       contextMenuActions: this.contextMenuActions,
       slotContextMenuActions: this.slotContextMenuActions,

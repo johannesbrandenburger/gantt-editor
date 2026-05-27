@@ -480,6 +480,7 @@ export class GanttChartCanvasController {
       previousProps.destinationGroups === next.destinationGroups &&
       previousProps.suggestions === next.suggestions &&
       previousProps.activateRulers === next.activateRulers &&
+      previousProps.slotResizeMinutesStep === next.slotResizeMinutesStep &&
       previousProps.features === next.features &&
       previousProps.helpOverlayTiles === next.helpOverlayTiles &&
       previousProps.helpOverlayTileIds === next.helpOverlayTileIds &&
@@ -1718,6 +1719,7 @@ export class GanttChartCanvasController {
     lastContextClickedSlotId: string | null;
     internalStartTimeMs: number;
     internalEndTimeMs: number;
+    slotResizeMinutesStep: number | null | undefined;
     slotReferenceAspectRatio: number;
     slotContextMenuActionCount: number;
     contextMenuOpen: boolean;
@@ -1771,6 +1773,7 @@ export class GanttChartCanvasController {
       lastContextClickedSlotId: this.lastContextClickedSlotId,
       internalStartTimeMs: this.internalStartTime.getTime(),
       internalEndTimeMs: this.internalEndTime.getTime(),
+      slotResizeMinutesStep: this.props.slotResizeMinutesStep,
       slotReferenceAspectRatio: this.getCurrentSlotRenderRatio(),
       slotContextMenuActionCount: this.props.slotContextMenuActions?.length ?? 0,
       contextMenuOpen: this.contextMenuState.visible,
@@ -3681,8 +3684,46 @@ export class GanttChartCanvasController {
   }
 
   private resolveRulerMode(): Exclude<GanttEditorRulerMode, null> | null {
+    if (this.resolveSlotResizeStepMs() > 0) return null;
     const mode = this.props.activateRulers ?? null;
     return mode === "ROW" || mode === "GLOBAL" ? mode : null;
+  }
+
+  private resolveSlotResizeStepMs(): number {
+    const step = this.props.slotResizeMinutesStep;
+    if (step == null || step <= 0 || !Number.isFinite(step)) return 0;
+    return step * 60_000;
+  }
+
+  private resolveResizePreviewWithMinuteStep(
+    drag: NonNullable<GanttChartCanvasController["slotResizeDrag"]>,
+    base: { openTime: Date; closeTime: Date },
+  ): { openTime: Date; closeTime: Date } {
+    const stepMs = this.resolveSlotResizeStepMs();
+    if (stepMs <= 0) return base;
+
+    const edgeTimeMs =
+      drag.edge === "left" ? base.openTime.getTime() : base.closeTime.getTime();
+    const snappedTimeMs = Math.round(edgeTimeMs / stepMs) * stepMs;
+    const rangeMs = this.internalEndTime.getTime() - this.internalStartTime.getTime();
+    if (rangeMs <= 0) return base;
+
+    const lockedInnerX =
+      ((snappedTimeMs - this.internalStartTime.getTime()) / rangeMs) * drag.chartWidth;
+    const snappedDx =
+      drag.edge === "left"
+        ? lockedInnerX - drag.displayInnerLeft
+        : lockedInnerX - drag.displayInnerLeft - drag.displayInnerWidth;
+
+    return slotTimesForResizeDragStep(
+      drag.edge,
+      snappedDx,
+      drag.displayInnerLeft,
+      drag.displayInnerWidth,
+      drag.chartWidth,
+      this.internalStartTime,
+      this.internalEndTime,
+    );
   }
 
   private collectResizeSnapPoints(
@@ -3732,13 +3773,14 @@ export class GanttChartCanvasController {
       this.internalStartTime,
       this.internalEndTime,
     );
+    const steppedBase = this.resolveResizePreviewWithMinuteStep(drag, base);
 
     if (!drag.rulerMode || drag.snapPoints.length === 0) {
-      return { ...base, ruler: null };
+      return { ...steppedBase, ruler: null };
     }
 
     const edgeTimeMs =
-      drag.edge === "left" ? base.openTime.getTime() : base.closeTime.getTime();
+      drag.edge === "left" ? steppedBase.openTime.getTime() : steppedBase.closeTime.getTime();
     const edgeCanvasX = timeMsToCanvasX(
       edgeTimeMs,
       canvasWidth,
@@ -3769,7 +3811,7 @@ export class GanttChartCanvasController {
     }
 
     if (!bestPoint) {
-      return { ...base, ruler: null };
+      return { ...steppedBase, ruler: null };
     }
 
     const lockedCanvasX = timeMsToCanvasX(
@@ -3798,8 +3840,9 @@ export class GanttChartCanvasController {
       this.internalEndTime,
     );
 
+    const steppedSnapped = this.resolveResizePreviewWithMinuteStep(drag, snapped);
     const snappedEdgeMs =
-      drag.edge === "left" ? snapped.openTime.getTime() : snapped.closeTime.getTime();
+      drag.edge === "left" ? steppedSnapped.openTime.getTime() : steppedSnapped.closeTime.getTime();
     const snappedEdgeCanvasX = timeMsToCanvasX(
       snappedEdgeMs,
       canvasWidth,
@@ -3808,7 +3851,7 @@ export class GanttChartCanvasController {
       MARGIN,
     );
     if (Math.abs(snappedEdgeCanvasX - lockedCanvasX) > 0.5) {
-      return { ...base, ruler: null };
+      return { ...steppedBase, ruler: null };
     }
 
     const kinds = drag.snapPoints
@@ -3819,7 +3862,7 @@ export class GanttChartCanvasController {
     );
 
     return {
-      ...snapped,
+      ...steppedSnapped,
       ruler: {
         canvasX: snappedEdgeCanvasX,
         snappedTimeMs: snappedEdgeMs,

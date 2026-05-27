@@ -281,6 +281,7 @@ All wrappers expose the same core model and behavior.
 ### Common Optional Inputs
 
 - `activateRulers: "ROW" | "GLOBAL" | null`
+- `slotResizeMinutesStep: number | null` (snaps slot resizing to minute increments; omit, `null`, or `0` for free resizing)
 - `verticalMarkers: GanttEditorVerticalMarker[]`
 - `contextMenuActions: GanttEditorCanvasContextMenuAction[]`
 - `slotContextMenuActions: GanttEditorSlotContextMenuAction[]`

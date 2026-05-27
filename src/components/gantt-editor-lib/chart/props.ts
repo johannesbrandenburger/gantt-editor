@@ -60,6 +60,8 @@ export interface GanttEditorProps {
   suggestions?: Array<GanttEditorSuggestion>;
   /** Enable slot-edge snap rulers while resizing (`null` disables). */
   activateRulers?: GanttEditorRulerMode;
+  /** Snap slot resizing to minute increments. Omit, `null`, or `0` to allow free resizing. */
+  slotResizeMinutesStep?: number | null;
   verticalMarkers?: Array<GanttEditorVerticalMarker>;
   contextMenuActions?: Array<GanttEditorCanvasContextMenuAction>;
   slotContextMenuActions?: Array<GanttEditorSlotContextMenuAction>;

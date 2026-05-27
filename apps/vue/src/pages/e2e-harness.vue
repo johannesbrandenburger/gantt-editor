@@ -40,6 +40,7 @@ type HarnessData = {
   slotContextMenuActions: GanttEditorSlotContextMenuAction[];
   markedRegion: GanttEditorMarkedRegion | null;
   activateRulers: GanttEditorRulerMode;
+  slotResizeMinutesStep: number | null;
   isReadOnly: boolean;
   topContentPortion: number;
   features?: GanttEditorFeature[];
@@ -53,6 +54,7 @@ type QueryInput = Partial<{
   markers: string;
   markedRegion: string;
   activateRulers: string;
+  slotResizeMinutesStep: string;
   topContentPortion: string;
   features: string;
   startTime: string;
@@ -344,6 +346,7 @@ function baseData(fixture: FixtureName, slotCount: number): HarnessData {
     slotContextMenuActions: [],
     markedRegion: null,
     activateRulers: null,
+    slotResizeMinutesStep: null,
     isReadOnly: fixture === "readonly",
     topContentPortion: 0,
   };
@@ -442,6 +445,8 @@ function fromQuery(query: QueryInput): HarnessData {
   data.isReadOnly = parseBoolean(query.readOnly ?? null, data.isReadOnly);
   const rulersRaw = (query.activateRulers ?? "").toUpperCase();
   data.activateRulers = rulersRaw === "ROW" || rulersRaw === "GLOBAL" ? rulersRaw : null;
+  const resizeStep = parseNumber(query.slotResizeMinutesStep ?? null, 0);
+  data.slotResizeMinutesStep = resizeStep > 0 ? resizeStep : null;
   data.topContentPortion = Math.max(0, Math.min(0.5, parseNumber(query.topContentPortion ?? null, 0)));
   data.features = parseFeatures(query.features ?? null);
   data.startTime = parseDate(query.startTime ?? null, data.startTime);
@@ -486,8 +491,9 @@ function fromQuery(query: QueryInput): HarnessData {
             endTime: new Date(custom.markedRegion.endTime),
           }
         : data.markedRegion,
-        activateRulers: custom.activateRulers ?? data.activateRulers,
-        features: custom.features ?? data.features,
+      activateRulers: custom.activateRulers ?? data.activateRulers,
+      slotResizeMinutesStep: custom.slotResizeMinutesStep ?? data.slotResizeMinutesStep,
+      features: custom.features ?? data.features,
     });
   }
 
@@ -848,6 +854,7 @@ onBeforeUnmount(() => {
       :markedRegion="harnessData.markedRegion"
       :topContentPortion="harnessData.topContentPortion"
       :activateRulers="harnessData.activateRulers"
+      :slotResizeMinutesStep="harnessData.slotResizeMinutesStep"
       :features="harnessData.features"
       @onChangeStartAndEndTime="onChangeStartAndEndTime"
       @onChangeDestinationId="onChangeDestinationId"

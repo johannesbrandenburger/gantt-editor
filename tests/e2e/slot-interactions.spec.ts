@@ -218,4 +218,24 @@ test.describe("canvas rewrite slot interactions", () => {
       })
       .toBe(1);
   });
+
+  test("slot resizing snaps to configured minute increments", async ({ page }) => {
+    const canvas = await openE2eHarness(page, { fixture: "core" });
+    await setHarnessConfig(page, { slotResizeMinutesStep: 5 });
+    await expect
+      .poll(async () => await getCanvasStateField<number | null>(page, "slotResizeMinutesStep"))
+      .toBe(5);
+    await clearHarnessEvents(page);
+
+    const rightEdge = await findSlotPoint(page, SLOT_ID, "right-edge");
+    const from = await canvasPointToPagePoint(canvas, rightEdge);
+    await mouseDrag(page, from, { x: from.x + 17, y: from.y });
+
+    await expect
+      .poll(async () => {
+        const closeTimeMs = await getHarnessSlotCloseTimeMs(page, SLOT_ID);
+        return closeTimeMs == null ? null : closeTimeMs % (5 * 60_000);
+      })
+      .toBe(0);
+  });
 });

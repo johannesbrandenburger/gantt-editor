@@ -54,6 +54,7 @@ type HarnessConfig = {
     destinationId: string;
   } | null;
   activateRulers?: "ROW" | "GLOBAL" | null;
+  slotResizeMinutesStep?: number | null;
   features?: string[];
 };
 
