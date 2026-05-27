@@ -4724,16 +4724,14 @@ export class GanttChartCanvasController {
     ctx.rect(0, topY, layout.canvasCssWidth, groupRect.h);
     ctx.clip();
 
-    ctx.strokeStyle = "rgba(37, 99, 235, 0.8)";
+    ctx.strokeStyle = "rgba(15, 118, 110, 0.85)";
     ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
     ctx.beginPath();
     ctx.moveTo(x + 0.5, topY + 1);
     ctx.lineTo(x + 0.5, bottomY - 1);
     ctx.stroke();
-    ctx.setLineDash([]);
 
-    ctx.strokeStyle = "#1d4ed8";
+    ctx.strokeStyle = "#0f766e";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(x + 0.5, topY + 1);
