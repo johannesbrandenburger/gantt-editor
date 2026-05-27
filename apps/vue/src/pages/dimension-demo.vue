@@ -12,12 +12,21 @@
         >
       </label>
       <output>{{ defaultZoomLevel.toFixed(1) }}x</output>
+      <button
+        class="scale-toggle"
+        type="button"
+        :aria-pressed="scaleOnResize === 'TIME_ONLY'"
+        @click="toggleScaleOnResize"
+      >
+        {{ scaleOnResizeLabel }}
+      </button>
     </div>
 
     <div class="chart-region">
       <GanttEditor
         :is-read-only="false"
         :default-zoom-level="defaultZoomLevel"
+        :scale-on-resize="scaleOnResize"
         :start-time="startTime"
         :end-time="endTime"
         :slots="slots"
@@ -30,8 +39,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import GanttEditor from '@/vue/GanttEditor.vue'
+import type { GanttEditorScaleOnResize } from '@/components/gantt-editor-lib/chart/props'
 import type {
   GanttEditorDestination,
   GanttEditorDestinationGroup,
@@ -39,6 +49,10 @@ import type {
 } from '@/components/gantt-editor-lib/chart/types'
 
 const defaultZoomLevel = ref(1)
+const scaleOnResize = ref<GanttEditorScaleOnResize>('FULL')
+const scaleOnResizeLabel = computed(() =>
+  scaleOnResize.value === 'FULL' ? 'Resize: full scale' : 'Resize: time only',
+)
 const startTime = ref(new Date('2025-01-01T06:00:00Z'))
 const endTime = ref(new Date('2025-01-01T18:00:00Z'))
 
@@ -72,6 +86,10 @@ const slots: GanttEditorSlotWithUiAttributes[] = destinations.slice(0, 12).map((
 function handleTimeRangeChange(nextStartTime: Date, nextEndTime: Date) {
   startTime.value = nextStartTime
   endTime.value = nextEndTime
+}
+
+function toggleScaleOnResize() {
+  scaleOnResize.value = scaleOnResize.value === 'FULL' ? 'TIME_ONLY' : 'FULL'
 }
 </script>
 
@@ -113,6 +131,26 @@ output {
   min-width: 42px;
   font-variant-numeric: tabular-nums;
   color: #334155;
+}
+
+.scale-toggle {
+  appearance: none;
+  border: 1px solid #b6c0d0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #111827;
+  min-height: 34px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.scale-toggle[aria-pressed="true"] {
+  border-color: #2563eb;
+  background: #dbeafe;
+  color: #1e3a8a;
 }
 
 .chart-region {

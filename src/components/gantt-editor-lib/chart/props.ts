@@ -13,6 +13,7 @@ import type {
 import type { HelpOverlayTileDefinition, HelpOverlayTileId } from "./help-overlay/tile";
 
 export type GanttEditorRulerMode = "ROW" | "GLOBAL" | null;
+export type GanttEditorScaleOnResize = "FULL" | "TIME_ONLY";
 
 export interface GanttEditorDateTimeFormatters {
   upper?: Intl.DateTimeFormat;
@@ -70,6 +71,8 @@ export interface GanttEditorProps {
   isReadOnly: boolean;
   /** Initial unified zoom multiplier. `1` keeps the default density; larger values make rows taller. */
   defaultZoomLevel?: number;
+  /** Resize behavior. `FULL` preserves current unified zoom; `TIME_ONLY` only stretches the time axis. */
+  scaleOnResize?: GanttEditorScaleOnResize;
   topContentPortion?: number;
   /** Locale used by built-in date/time formatters. Does not translate user-provided text. */
   locale?: string | string[];

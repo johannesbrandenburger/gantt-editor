@@ -286,6 +286,7 @@ All wrappers expose the same core model and behavior.
 - `contextMenuActions: GanttEditorCanvasContextMenuAction[]`
 - `slotContextMenuActions: GanttEditorSlotContextMenuAction[]`
 - `defaultZoomLevel: number` (initial unified zoom multiplier; defaults to `1`, values above `1` start with taller rows and values below `1` start denser)
+- `scaleOnResize: "FULL" | "TIME_ONLY"` (defaults to `"FULL"`; `"TIME_ONLY"` keeps row height fixed and stretches only the time axis when the container resizes)
 - `topContentPortion: number`
 - `locale: string | string[]` (used by built-in date/time formatting)
 - `dateTimeFormatters: { upper?: Intl.DateTimeFormat; lower?: Intl.DateTimeFormat; currentTime?: Intl.DateTimeFormat; onMouseTimeStrip?: Intl.DateTimeFormat; resizeSlotTime?: Intl.DateTimeFormat }` (overrides locale-based formatting for matching labels)

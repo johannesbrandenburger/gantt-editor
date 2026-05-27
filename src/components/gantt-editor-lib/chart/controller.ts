@@ -208,6 +208,7 @@ export class GanttChartCanvasController {
   private internalEndTime: Date;
   private panZoomCleanup: PanZoomCleanup | null = null;
   private lastAppliedDefaultZoomLevel: number;
+  private currentScaleOnResize: NonNullable<GanttEditorProps["scaleOnResize"]>;
 
   private currentTopContentPortion: number;
   private isResizingTopContent = false;
@@ -453,6 +454,7 @@ export class GanttChartCanvasController {
     this.lastAppliedDefaultZoomLevel = this.normalizeDefaultZoomLevel(
       initialProps.defaultZoomLevel,
     );
+    this.currentScaleOnResize = this.normalizeScaleOnResize(initialProps.scaleOnResize);
     this.currentTopContentPortion = initialProps.topContentPortion ?? 0;
     this.lastSeenParentStartMs = initialProps.startTime.getTime();
     this.lastSeenParentEndMs = initialProps.endTime.getTime();
@@ -492,6 +494,7 @@ export class GanttChartCanvasController {
       previousProps.markedRegion === next.markedRegion &&
       previousProps.isReadOnly === next.isReadOnly &&
       previousProps.defaultZoomLevel === next.defaultZoomLevel &&
+      previousProps.scaleOnResize === next.scaleOnResize &&
       previousProps.topContentPortion === next.topContentPortion &&
       previousProps.locale === next.locale &&
       previousProps.dateTimeFormatters === next.dateTimeFormatters &&
@@ -557,6 +560,18 @@ export class GanttChartCanvasController {
       shouldRedraw = true;
     }
 
+    const scaleOnResize = this.normalizeScaleOnResize(next.scaleOnResize);
+    if (scaleOnResize !== this.currentScaleOnResize) {
+      this.currentScaleOnResize = scaleOnResize;
+      if (scaleOnResize === "FULL") {
+        this.reconcileUnifiedZoomRowHeight(
+          undefined,
+          this.defaultZoomLevelToSlotRenderRatio(this.lastAppliedDefaultZoomLevel),
+        );
+      }
+      shouldRedraw = true;
+    }
+
     if (!isTimeRangeOnlyUpdate) {
       nextFingerprint = this.computeProcessDataDeepFingerprint(next);
       processDataChanged = this.processDataDeepFingerprint !== nextFingerprint;
@@ -573,10 +588,12 @@ export class GanttChartCanvasController {
       this.lastSeenParentEndMs = pe;
       this.internalStartTime = new Date(next.startTime);
       this.internalEndTime = new Date(next.endTime);
-      this.reconcileUnifiedZoomRowHeight(
-        undefined,
-        this.defaultZoomLevelToSlotRenderRatio(this.lastAppliedDefaultZoomLevel),
-      );
+      if (this.currentScaleOnResize === "FULL") {
+        this.reconcileUnifiedZoomRowHeight(
+          undefined,
+          this.defaultZoomLevelToSlotRenderRatio(this.lastAppliedDefaultZoomLevel),
+        );
+      }
       shouldRedraw = true;
     }
 
@@ -658,6 +675,12 @@ export class GanttChartCanvasController {
   private normalizeDefaultZoomLevel(value: number | undefined): number {
     if (value === undefined) return 1;
     return Number.isFinite(value) && value > 0 ? value : 1;
+  }
+
+  private normalizeScaleOnResize(
+    value: GanttEditorProps["scaleOnResize"],
+  ): NonNullable<GanttEditorProps["scaleOnResize"]> {
+    return value === "TIME_ONLY" ? "TIME_ONLY" : "FULL";
   }
 
   private defaultZoomLevelToSlotRenderRatio(defaultZoomLevel: number): number {
@@ -809,10 +832,12 @@ export class GanttChartCanvasController {
         this.containerHeight = entry.contentRect.height;
         this.containerWidth = entry.contentRect.width;
         this.invalidateLayoutCache();
-        this.reconcileUnifiedZoomRowHeight(
-          undefined,
-          this.defaultZoomLevelToSlotRenderRatio(this.lastAppliedDefaultZoomLevel),
-        );
+        if (this.currentScaleOnResize === "FULL") {
+          this.reconcileUnifiedZoomRowHeight(
+            undefined,
+            this.defaultZoomLevelToSlotRenderRatio(this.lastAppliedDefaultZoomLevel),
+          );
+        }
         this.redraw();
         this.maybeNotifyTopContentLayout();
       }
@@ -1752,6 +1777,7 @@ export class GanttChartCanvasController {
     lastContextClickedSlotId: string | null;
     internalStartTimeMs: number;
     internalEndTimeMs: number;
+    scaleOnResize: NonNullable<GanttEditorProps["scaleOnResize"]>;
     slotResizeMinutesStep: number | null | undefined;
     slotReferenceAspectRatio: number;
     slotContextMenuActionCount: number;
@@ -1815,6 +1841,7 @@ export class GanttChartCanvasController {
       lastContextClickedSlotId: this.lastContextClickedSlotId,
       internalStartTimeMs: this.internalStartTime.getTime(),
       internalEndTimeMs: this.internalEndTime.getTime(),
+      scaleOnResize: this.currentScaleOnResize,
       slotResizeMinutesStep: this.props.slotResizeMinutesStep,
       slotReferenceAspectRatio: this.getCurrentSlotRenderRatio(),
       slotContextMenuActionCount: this.props.slotContextMenuActions?.length ?? 0,

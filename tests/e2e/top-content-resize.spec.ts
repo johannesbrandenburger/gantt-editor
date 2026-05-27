@@ -55,4 +55,60 @@ test.describe("canvas rewrite top content and resize", () => {
     await page.keyboard.press("t");
     await expect(topContent).toBeVisible();
   });
+
+  test("dimension demo time-only resize keeps row height and changes slot ratio", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "chromium-vue", "dimension demo is only available in the Vue app");
+
+    await page.setViewportSize({ width: 1000, height: 700 });
+    await page.goto("/dimension-demo");
+    await waitForCanvasApi(page);
+
+    const before = await page.evaluate(() => {
+      const api = (window as Window & { __ganttCanvasTestApi?: { flush: () => void; getState: () => {
+        rowHeight?: number;
+        slotReferenceAspectRatio?: number;
+      } } }).__ganttCanvasTestApi;
+      api?.flush();
+      const state = api?.getState();
+      return {
+        rowHeight: state?.rowHeight ?? 0,
+        ratio: state?.slotReferenceAspectRatio ?? 0,
+      };
+    });
+
+    await page.getByRole("button", { name: "Resize: full scale" }).click();
+    await expect(page.getByRole("button", { name: "Resize: time only" })).toBeVisible();
+
+    await page.setViewportSize({ width: 1400, height: 700 });
+    await expect
+      .poll(async () => {
+        return await page.evaluate(() => {
+          const api = (window as Window & { __ganttCanvasTestApi?: { flush: () => void; getState: () => {
+            rowHeight?: number;
+          } } }).__ganttCanvasTestApi;
+          api?.flush();
+          const state = api?.getState();
+          return state?.rowHeight ?? 0;
+        });
+      })
+      .toBeCloseTo(before.rowHeight, 4);
+
+    const after = await page.evaluate(() => {
+      const api = (window as Window & { __ganttCanvasTestApi?: { flush: () => void; getState: () => {
+        rowHeight?: number;
+        slotReferenceAspectRatio?: number;
+      } } }).__ganttCanvasTestApi;
+      api?.flush();
+      const state = api?.getState();
+      return {
+        rowHeight: state?.rowHeight ?? 0,
+        ratio: state?.slotReferenceAspectRatio ?? 0,
+      };
+    });
+
+    expect(after.rowHeight).toBeCloseTo(before.rowHeight, 4);
+    expect(after.ratio).toBeGreaterThan(before.ratio);
+  });
 });
