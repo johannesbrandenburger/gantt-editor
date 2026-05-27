@@ -207,6 +207,7 @@ export class GanttChartCanvasController {
   private internalStartTime: Date;
   private internalEndTime: Date;
   private panZoomCleanup: PanZoomCleanup | null = null;
+  private lastAppliedDefaultZoomLevel: number;
 
   private currentTopContentPortion: number;
   private isResizingTopContent = false;
@@ -449,6 +450,9 @@ export class GanttChartCanvasController {
     this.helpOverlayTiles = this.resolveHelpOverlayTiles(initialProps);
     this.internalStartTime = new Date(initialProps.startTime);
     this.internalEndTime = new Date(initialProps.endTime);
+    this.lastAppliedDefaultZoomLevel = this.normalizeDefaultZoomLevel(
+      initialProps.defaultZoomLevel,
+    );
     this.currentTopContentPortion = initialProps.topContentPortion ?? 0;
     this.lastSeenParentStartMs = initialProps.startTime.getTime();
     this.lastSeenParentEndMs = initialProps.endTime.getTime();
@@ -487,6 +491,7 @@ export class GanttChartCanvasController {
       previousProps.verticalMarkers === next.verticalMarkers &&
       previousProps.markedRegion === next.markedRegion &&
       previousProps.isReadOnly === next.isReadOnly &&
+      previousProps.defaultZoomLevel === next.defaultZoomLevel &&
       previousProps.topContentPortion === next.topContentPortion &&
       previousProps.locale === next.locale &&
       previousProps.dateTimeFormatters === next.dateTimeFormatters &&
@@ -542,6 +547,16 @@ export class GanttChartCanvasController {
       shouldRedraw = true;
     }
 
+    const defaultZoomLevel = this.normalizeDefaultZoomLevel(next.defaultZoomLevel);
+    if (defaultZoomLevel !== this.lastAppliedDefaultZoomLevel) {
+      this.lastAppliedDefaultZoomLevel = defaultZoomLevel;
+      this.reconcileUnifiedZoomRowHeight(
+        undefined,
+        this.defaultZoomLevelToSlotRenderRatio(defaultZoomLevel),
+      );
+      shouldRedraw = true;
+    }
+
     if (!isTimeRangeOnlyUpdate) {
       nextFingerprint = this.computeProcessDataDeepFingerprint(next);
       processDataChanged = this.processDataDeepFingerprint !== nextFingerprint;
@@ -558,7 +573,10 @@ export class GanttChartCanvasController {
       this.lastSeenParentEndMs = pe;
       this.internalStartTime = new Date(next.startTime);
       this.internalEndTime = new Date(next.endTime);
-      this.reconcileUnifiedZoomRowHeight();
+      this.reconcileUnifiedZoomRowHeight(
+        undefined,
+        this.defaultZoomLevelToSlotRenderRatio(this.lastAppliedDefaultZoomLevel),
+      );
       shouldRedraw = true;
     }
 
@@ -635,6 +653,15 @@ export class GanttChartCanvasController {
 
   private isFeatureEnabled(feature: GanttEditorFeature): boolean {
     return this.enabledFeatures === null || this.enabledFeatures.has(feature);
+  }
+
+  private normalizeDefaultZoomLevel(value: number | undefined): number {
+    if (value === undefined) return 1;
+    return Number.isFinite(value) && value > 0 ? value : 1;
+  }
+
+  private defaultZoomLevelToSlotRenderRatio(defaultZoomLevel: number): number {
+    return SLOT_RENDER_RATIO / defaultZoomLevel;
   }
 
   private canSelectSlots(): boolean {
@@ -782,7 +809,10 @@ export class GanttChartCanvasController {
         this.containerHeight = entry.contentRect.height;
         this.containerWidth = entry.contentRect.width;
         this.invalidateLayoutCache();
-        this.reconcileUnifiedZoomRowHeight();
+        this.reconcileUnifiedZoomRowHeight(
+          undefined,
+          this.defaultZoomLevelToSlotRenderRatio(this.lastAppliedDefaultZoomLevel),
+        );
         this.redraw();
         this.maybeNotifyTopContentLayout();
       }
@@ -794,7 +824,10 @@ export class GanttChartCanvasController {
     document.addEventListener("keyup", this.boundDocumentKeyUp);
 
     queueMicrotask(() => {
-      this.reconcileUnifiedZoomRowHeight();
+      this.reconcileUnifiedZoomRowHeight(
+        undefined,
+        this.defaultZoomLevelToSlotRenderRatio(this.lastAppliedDefaultZoomLevel),
+      );
       this.scrollToMarkedRegionDestination(this.props.markedRegion);
       this.drawUnifiedFrame();
       this.isInitialized = true;
@@ -4337,6 +4370,7 @@ export class GanttChartCanvasController {
     }
 
     this.getProcessedTopics();
+    this.invalidateLayoutCache();
 
     for (const group of this.props.destinationGroups) {
       const groupTopics = this.topicsByGroupId.get(group.id) ?? [];
@@ -4368,7 +4402,9 @@ export class GanttChartCanvasController {
     const chartW = this.containerWidth - MARGIN.left - MARGIN.right;
     const timeRangeMs = this.internalEndTime.getTime() - this.internalStartTime.getTime();
     const ratio = computeSlotRenderRatioForUnifiedZoom(chartW, timeRangeMs, this.rowHeight);
-    return Number.isFinite(ratio) ? ratio : SLOT_RENDER_RATIO;
+    return Number.isFinite(ratio)
+      ? ratio
+      : this.defaultZoomLevelToSlotRenderRatio(this.lastAppliedDefaultZoomLevel);
   }
 
   private buildPanZoomCallbacks() {

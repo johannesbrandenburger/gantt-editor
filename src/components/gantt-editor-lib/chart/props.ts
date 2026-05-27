@@ -68,6 +68,8 @@ export interface GanttEditorProps {
   slotContextMenuActions?: Array<GanttEditorSlotContextMenuAction>;
   markedRegion?: GanttEditorMarkedRegion | null;
   isReadOnly: boolean;
+  /** Initial unified zoom multiplier. `1` keeps the default density; larger values make rows taller. */
+  defaultZoomLevel?: number;
   topContentPortion?: number;
   /** Locale used by built-in date/time formatters. Does not translate user-provided text. */
   locale?: string | string[];

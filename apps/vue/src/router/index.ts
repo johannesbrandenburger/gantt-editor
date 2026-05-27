@@ -14,6 +14,10 @@ const routes = [
     component: () => import('../pages/performance.vue'),
   },
   {
+    path: '/dimension-demo',
+    component: () => import('../pages/dimension-demo.vue'),
+  },
+  {
     path: '/e2e-harness',
     component: () => import('../pages/e2e-harness.vue'),
   },

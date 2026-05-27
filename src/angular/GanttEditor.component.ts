@@ -115,6 +115,7 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
   @Input() slotContextMenuActions?: GanttEditorProps['slotContextMenuActions']
   @Input() markedRegion?: GanttEditorProps['markedRegion']
   @Input({ required: true }) isReadOnly!: boolean
+  @Input() defaultZoomLevel?: number
   @Input() topContentPortion?: number
   @Input() locale?: GanttEditorProps['locale']
   @Input() dateTimeFormatters?: GanttEditorProps['dateTimeFormatters']
@@ -344,6 +345,7 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
       slotContextMenuActions: this.slotContextMenuActions,
       markedRegion: this.markedRegion,
       isReadOnly: this.isReadOnly,
+      defaultZoomLevel: this.defaultZoomLevel,
       topContentPortion: this.topContentPortion,
       locale: this.locale,
       dateTimeFormatters: this.dateTimeFormatters,
