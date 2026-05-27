@@ -18,6 +18,7 @@ export type {
     GanttEditorProps,
     GanttEditorCallbacks,
     GanttEditorHost,
+    GanttEditorDateTimeFormatters,
     GanttEditorFeature,
 } from '../components/gantt-editor-lib/chart/props'
 

@@ -1737,6 +1737,7 @@ export class GanttChartCanvasController {
     } | null;
     slotResizeActive: boolean;
     resizePreviewEdgeTimeMs: number | null;
+    resizePreviewEdgeTimeLabel: string | null;
     margin: { left: number; right: number };
     layout: {
       canvasCssWidth: number;
@@ -1755,6 +1756,14 @@ export class GanttChartCanvasController {
         ? (this.slotResizeDrag.edge === "left"
             ? this.slotResizePreview.openTime.getTime()
             : this.slotResizePreview.closeTime.getTime())
+        : null;
+    const resizePreviewEdgeTimeLabel =
+      this.slotResizeDrag && this.slotResizePreview
+        ? this.formatResizeTimeLabel(
+            this.slotResizeDrag.edge === "left"
+              ? this.slotResizePreview.openTime
+              : this.slotResizePreview.closeTime,
+          )
         : null;
     return {
       rowHeight: this.rowHeight,
@@ -1809,6 +1818,7 @@ export class GanttChartCanvasController {
         : null,
       slotResizeActive: !!this.slotResizeDrag,
       resizePreviewEdgeTimeMs,
+      resizePreviewEdgeTimeLabel,
       margin: { left: MARGIN.left, right: MARGIN.right },
       layout: layout
         ? {
@@ -5062,9 +5072,13 @@ export class GanttChartCanvasController {
   }
 
   private formatResizeTimeLabel(value: Date): string {
-    const hh = `${value.getHours()}`.padStart(2, "0");
-    const mm = `${value.getMinutes()}`.padStart(2, "0");
-    return `${hh}:${mm}`;
+    const formatter =
+      this.props.dateTimeFormatters?.resizeSlotTime ??
+      new Intl.DateTimeFormat(this.props.locale, {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    return formatter.format(value);
   }
 
   private drawContextMenuOverlay(

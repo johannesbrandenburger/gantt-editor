@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   GanttEditor,
+  type GanttEditorDateTimeFormatters,
   type GanttEditorFeature,
   type GanttEditorRulerMode,
   type GanttEditorCanvasContextMenuAction,
@@ -41,6 +42,7 @@ type HarnessData = {
   slotResizeMinutesStep: number | null
   isReadOnly: boolean
   topContentPortion: number
+  dateTimeFormatters?: GanttEditorDateTimeFormatters
   features?: GanttEditorFeature[]
 }
 
@@ -999,6 +1001,7 @@ export function E2eHarnessPage() {
           topContentPortion={harnessData.topContentPortion}
           activateRulers={harnessData.activateRulers}
           slotResizeMinutesStep={harnessData.slotResizeMinutesStep}
+          dateTimeFormatters={harnessData.dateTimeFormatters}
           features={harnessData.features}
           onChangeStartAndEndTime={onChangeStartAndEndTime}
           onChangeDestinationId={onChangeDestinationId}

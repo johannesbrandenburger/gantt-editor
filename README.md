@@ -287,7 +287,7 @@ All wrappers expose the same core model and behavior.
 - `slotContextMenuActions: GanttEditorSlotContextMenuAction[]`
 - `topContentPortion: number`
 - `locale: string | string[]` (used by built-in date/time formatting)
-- `dateTimeFormatters: { upper?: Intl.DateTimeFormat; lower?: Intl.DateTimeFormat; currentTime?: Intl.DateTimeFormat; onMouseTimeStrip?: Intl.DateTimeFormat }` (overrides locale-based formatting for matching labels)
+- `dateTimeFormatters: { upper?: Intl.DateTimeFormat; lower?: Intl.DateTimeFormat; currentTime?: Intl.DateTimeFormat; onMouseTimeStrip?: Intl.DateTimeFormat; resizeSlotTime?: Intl.DateTimeFormat }` (overrides locale-based formatting for matching labels)
 - `currentTimeIndicatorLabel: (value: Date) => string` (custom text for the current-time indicator; defaults to date and time)
 - `xAxisOptions: GanttEditorXAxisOptions`
 - `helpOverlayTiles: HelpOverlayTileDefinition[]`

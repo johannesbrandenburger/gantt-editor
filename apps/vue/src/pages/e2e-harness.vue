@@ -3,6 +3,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import GanttEditor from "@/vue/GanttEditor.vue";
 import type {
+  GanttEditorDateTimeFormatters,
   GanttEditorFeature,
   GanttEditorRulerMode,
 } from "@/components/gantt-editor-lib/chart/props";
@@ -43,6 +44,7 @@ type HarnessData = {
   slotResizeMinutesStep: number | null;
   isReadOnly: boolean;
   topContentPortion: number;
+  dateTimeFormatters?: GanttEditorDateTimeFormatters;
   features?: GanttEditorFeature[];
 };
 
@@ -855,6 +857,7 @@ onBeforeUnmount(() => {
       :topContentPortion="harnessData.topContentPortion"
       :activateRulers="harnessData.activateRulers"
       :slotResizeMinutesStep="harnessData.slotResizeMinutesStep"
+      :dateTimeFormatters="harnessData.dateTimeFormatters"
       :features="harnessData.features"
       @onChangeStartAndEndTime="onChangeStartAndEndTime"
       @onChangeDestinationId="onChangeDestinationId"

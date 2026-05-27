@@ -19,6 +19,7 @@ export interface GanttEditorDateTimeFormatters {
   lower?: Intl.DateTimeFormat;
   currentTime?: Intl.DateTimeFormat;
   onMouseTimeStrip?: Intl.DateTimeFormat;
+  resizeSlotTime?: Intl.DateTimeFormat;
 }
 
 export type GanttEditorFeature =

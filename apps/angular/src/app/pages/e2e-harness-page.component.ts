@@ -4,6 +4,7 @@ import { ActivatedRoute, ParamMap, Router } from '@angular/router'
 import {
   GanttEditor,
   type GanttEditorCanvasContextMenuAction,
+  type GanttEditorDateTimeFormatters,
   type GanttEditorSlotContextMenuAction,
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
@@ -41,6 +42,7 @@ type HarnessData = {
   slotResizeMinutesStep: number | null
   isReadOnly: boolean
   topContentPortion: number
+  dateTimeFormatters?: GanttEditorDateTimeFormatters
   features?: GanttEditorFeature[]
 }
 
@@ -584,6 +586,7 @@ function buildCopiedSlotOnTimeAxis(
         [topContentPortion]="harnessData.topContentPortion"
         [activateRulers]="harnessData.activateRulers"
         [slotResizeMinutesStep]="harnessData.slotResizeMinutesStep"
+        [dateTimeFormatters]="harnessData.dateTimeFormatters"
         [features]="harnessData.features"
         (onChangeStartAndEndTime)="onChangeStartAndEndTime($event)"
         (onChangeDestinationId)="onChangeDestinationId($event)"

@@ -175,6 +175,51 @@ test.describe("canvas rewrite core interactions", () => {
     await page.mouse.up();
   });
 
+  test("resize preview label uses the resize slot time formatter", async ({ page }) => {
+    const canvas = await openE2eHarness(page);
+    await page.evaluate(() => {
+      window.__ganttE2eHarness?.setConfig?.({
+        dateTimeFormatters: {
+          resizeSlotTime: new Intl.DateTimeFormat("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+            timeZone: "UTC",
+          }),
+        },
+      } as never);
+    });
+
+    const edgePoint = await findSlotPoint(page, SLOT_ID, "right-edge");
+    const from = await canvasPointToPagePoint(canvas, edgePoint);
+    const to = { x: from.x + 60, y: from.y };
+
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 10 });
+
+    const previewEdgeTimeMs = await getCanvasStateField<number | null>(
+      page,
+      "resizePreviewEdgeTimeMs",
+    );
+    const previewLabel = await getCanvasStateField<string | null>(
+      page,
+      "resizePreviewEdgeTimeLabel",
+    );
+
+    expect(previewEdgeTimeMs).not.toBeNull();
+    expect(previewLabel).toBe(
+      new Intl.DateTimeFormat("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: "UTC",
+      }).format(new Date(previewEdgeTimeMs as number)),
+    );
+
+    await page.mouse.up();
+  });
+
   test("supports brush selection via drag and stores selection", async ({ page }) => {
     const canvas = await openE2eHarness(page);
 
