@@ -352,6 +352,7 @@ export class GanttChartCanvasController {
     rulerMode: Exclude<GanttEditorRulerMode, null> | null;
     snapPoints: ResizeRulerSnapPoint[];
     startClientX: number;
+    pointerToEdgeOffsetPx: number;
     displayInnerLeft: number;
     displayInnerWidth: number;
     chartWidth: number;
@@ -1346,6 +1347,8 @@ export class GanttChartCanvasController {
         this.resetHoverSlot();
         const chartWidth = layout.canvasCssWidth - MARGIN.left - MARGIN.right;
         const rulerMode = this.resolveRulerMode();
+        const activeEdgeInnerX =
+          rh.edge === "left" ? rh.displayInnerLeft : rh.displayInnerLeft + rh.displayInnerWidth;
         this.slotResizeDrag = {
           edge: rh.edge,
           slotId: rh.slotId,
@@ -1354,6 +1357,7 @@ export class GanttChartCanvasController {
           rulerMode,
           snapPoints: this.collectResizeSnapPoints(rh.slotId, rh.slot.destinationId, rulerMode),
           startClientX: e.clientX,
+          pointerToEdgeOffsetPx: pt.x - MARGIN.left - activeEdgeInnerX,
           displayInnerLeft: rh.displayInnerLeft,
           displayInnerWidth: rh.displayInnerWidth,
           chartWidth,
@@ -2010,10 +2014,10 @@ export class GanttChartCanvasController {
           });
           if (!edgeHit || edgeHit.slotId !== slotId) continue;
           if (mode === "left-edge" && edgeHit.edge === "left") {
-            return { x, y };
+            return { x: MARGIN.left + edgeHit.displayInnerLeft, y };
           }
           if (mode === "right-edge" && edgeHit.edge === "right") {
-            return { x, y };
+            return { x: MARGIN.left + edgeHit.displayInnerLeft + edgeHit.displayInnerWidth, y };
           }
         }
       }
@@ -3827,7 +3831,8 @@ export class GanttChartCanvasController {
 
   private onSlotResizeMouseMove(e: MouseEvent): void {
     if (!this.slotResizeDrag) return;
-    const dx = e.clientX - this.slotResizeDrag.startClientX;
+    const dx =
+      e.clientX - this.slotResizeDrag.startClientX + this.slotResizeDrag.pointerToEdgeOffsetPx;
     const d = this.slotResizeDrag;
     const canvasWidth = d.chartWidth + MARGIN.left + MARGIN.right;
     const preview = this.resolveResizePreviewWithRulers(d, dx, canvasWidth);
@@ -3855,7 +3860,7 @@ export class GanttChartCanvasController {
     document.removeEventListener("mouseup", this.boundSlotResizeMouseUp);
     if (!this.slotResizeDrag) return;
     const d = this.slotResizeDrag;
-    const dx = e.clientX - d.startClientX;
+    const dx = e.clientX - d.startClientX + d.pointerToEdgeOffsetPx;
     const canvasWidth = d.chartWidth + MARGIN.left + MARGIN.right;
     const preview = this.resolveResizePreviewWithRulers(d, dx, canvasWidth);
     const { openTime, closeTime } = preview;
