@@ -600,11 +600,7 @@ const handleChangeStartAndEndTime = (newStartTime: Date, newEndTime: Date) => {
     showEventMessage(`📅 Time window: ${newStartTime.toLocaleDateString()} - ${newEndTime.toLocaleDateString()}`);
 };
 
-const handleChangeDestinationId = (slotId: string, destinationId: string, wasSuggestion?: boolean) => {
-    if (wasSuggestion) {
-        console.log('Callback: Applied suggestion for slot', slotId, 'to', destinationId);
-        showEventMessage(`💡 Applied suggestion: ${slotId} → ${destinationId}`);
-    }
+const handleChangeDestinationId = (slotId: string, destinationId: string) => {
     console.log('Callback: Moved slot to different destination', slotId, destinationId);
     const slotIndex = slots.value.findIndex(slot => slot.id === slotId);
     if (slotIndex !== -1 && !slots.value[slotIndex].readOnly) {
@@ -618,11 +614,7 @@ const handleChangeDestinationId = (slotId: string, destinationId: string, wasSug
     }
 };
 
-const handleBulkChangeDestinationId = (slotIds: string[], destinationId: string, wasSuggestion?: boolean) => {
-    if (wasSuggestion) {
-        console.log('Callback: Applied bulk suggestion for slots', slotIds, 'to', destinationId);
-    }
-
+const handleBulkChangeDestinationId = (slotIds: string[], destinationId: string) => {
     const movedSlotIds = new Set(slotIds);
     let movedCount = 0;
     slots.value = slots.value.map((slot) => {

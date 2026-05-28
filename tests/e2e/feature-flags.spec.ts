@@ -438,10 +438,9 @@ const featureCases: FeatureCase[] = [
         await expect(findSuggestionPoint(page, SUGGESTION_SLOT_ID)).rejects.toThrow();
       }
       const events = await getHarnessEvents(page);
-      const moves = (events.onChangeDestinationId ?? []) as Array<{ preview?: boolean }>;
+      const moves = events.onChangeDestinationId ?? [];
       if (enabled) {
         expect(moves.length).toBeGreaterThan(0);
-        expect(moves.at(-1)?.preview).toBe(true);
       } else {
         expect(moves).toHaveLength(0);
       }

@@ -40,14 +40,14 @@ import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 
 interface GanttEditorEmits {
   onChangeStartAndEndTime: [Date, Date],
-  onChangeDestinationId: [string, string, boolean],
-  onBulkChangeDestinationId: [string[], string, boolean],
-  onCopyToDestinationId: [string, string, boolean],
-  onBulkCopyToDestinationId: [string[], string, boolean],
-  onMoveSlotOnTimeAxis: [string, number, boolean],
-  onBulkMoveSlotsOnTimeAxis: [string[], number, boolean],
-  onCopySlotOnTimeAxis: [string, number, boolean],
-  onBulkCopySlotsOnTimeAxis: [string[], number, boolean],
+  onChangeDestinationId: [string, string],
+  onBulkChangeDestinationId: [string[], string],
+  onCopyToDestinationId: [string, string],
+  onBulkCopyToDestinationId: [string[], string],
+  onMoveSlotOnTimeAxis: [string, number],
+  onBulkMoveSlotsOnTimeAxis: [string[], number],
+  onCopySlotOnTimeAxis: [string, number],
+  onBulkCopySlotsOnTimeAxis: [string[], number],
   onChangeSlotTime: [string, Date, Date],
   onSelectionChange: [string[]],
   onClickOnSlot: [string],
@@ -157,29 +157,29 @@ const controller = new GanttChartCanvasController(
     onChangeSlotTime: (slotId, openTime, closeTime) => {
       emit("onChangeSlotTime", slotId, openTime, closeTime);
     },
-    onChangeDestinationId: (slotId, destinationId, preview) => {
-      emit("onChangeDestinationId", slotId, destinationId, preview);
+    onChangeDestinationId: (slotId, destinationId) => {
+      emit("onChangeDestinationId", slotId, destinationId);
     },
-    onBulkChangeDestinationId: (slotIds, destinationId, preview) => {
-      emit("onBulkChangeDestinationId", slotIds, destinationId, preview);
+    onBulkChangeDestinationId: (slotIds, destinationId) => {
+      emit("onBulkChangeDestinationId", slotIds, destinationId);
     },
-    onCopyToDestinationId: (slotId, destinationId, preview) => {
-      emit("onCopyToDestinationId", slotId, destinationId, preview);
+    onCopyToDestinationId: (slotId, destinationId) => {
+      emit("onCopyToDestinationId", slotId, destinationId);
     },
-    onBulkCopyToDestinationId: (slotIds, destinationId, preview) => {
-      emit("onBulkCopyToDestinationId", slotIds, destinationId, preview);
+    onBulkCopyToDestinationId: (slotIds, destinationId) => {
+      emit("onBulkCopyToDestinationId", slotIds, destinationId);
     },
-    onMoveSlotOnTimeAxis: (slotId, timeDiffMs, preview) => {
-      emit("onMoveSlotOnTimeAxis", slotId, timeDiffMs, preview);
+    onMoveSlotOnTimeAxis: (slotId, timeDiffMs) => {
+      emit("onMoveSlotOnTimeAxis", slotId, timeDiffMs);
     },
-    onBulkMoveSlotsOnTimeAxis: (slotIds, timeDiffMs, preview) => {
-      emit("onBulkMoveSlotsOnTimeAxis", slotIds, timeDiffMs, preview);
+    onBulkMoveSlotsOnTimeAxis: (slotIds, timeDiffMs) => {
+      emit("onBulkMoveSlotsOnTimeAxis", slotIds, timeDiffMs);
     },
-    onCopySlotOnTimeAxis: (slotId, timeDiffMs, preview) => {
-      emit("onCopySlotOnTimeAxis", slotId, timeDiffMs, preview);
+    onCopySlotOnTimeAxis: (slotId, timeDiffMs) => {
+      emit("onCopySlotOnTimeAxis", slotId, timeDiffMs);
     },
-    onBulkCopySlotsOnTimeAxis: (slotIds, timeDiffMs, preview) => {
-      emit("onBulkCopySlotsOnTimeAxis", slotIds, timeDiffMs, preview);
+    onBulkCopySlotsOnTimeAxis: (slotIds, timeDiffMs) => {
+      emit("onBulkCopySlotsOnTimeAxis", slotIds, timeDiffMs);
     },
     onClickOnSlot: (slotId) => {
       emit("onClickOnSlot", slotId);

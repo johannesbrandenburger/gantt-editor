@@ -98,11 +98,10 @@ test.describe("canvas rewrite slot destination change", () => {
         const moves = (events.onChangeDestinationId ?? []) as Array<{
           slotId?: string;
           destinationId?: string;
-          preview?: boolean;
         }>;
-        return moves.find((event) => event.slotId === SLOT_A && event.preview === false) ?? null;
+        return moves.find((event) => event.slotId === SLOT_A) ?? null;
       })
-      .toEqual({ slotId: SLOT_A, destinationId: targetDestination, preview: false });
+      .toEqual({ slotId: SLOT_A, destinationId: targetDestination });
   });
 
   test("Escape clears the selection", async ({ page }) => {
@@ -161,10 +160,9 @@ test.describe("canvas rewrite slot destination change", () => {
         const bulkMoves = (events.onBulkChangeDestinationId ?? []) as Array<{
           slotIds?: string[];
           destinationId?: string;
-          preview?: boolean;
         }>;
         const committedBulk = bulkMoves.find(
-          (event) => event.preview === false && event.destinationId === targetDestination,
+          (event) => event.destinationId === targetDestination,
         );
         const slotIds = [...(committedBulk?.slotIds ?? [])].sort();
         return slotIds;
@@ -174,9 +172,7 @@ test.describe("canvas rewrite slot destination change", () => {
     await expect
       .poll(async () => {
         const events = await getHarnessEvents(page);
-        const singleMoves = (events.onChangeDestinationId ?? []) as Array<{ slotId?: string; preview?: boolean }>;
-        const committedSingles = singleMoves.filter((event) => event.preview === false);
-        return committedSingles.length;
+        return (events.onChangeDestinationId ?? []).length;
       })
       .toBe(0);
   });
@@ -209,17 +205,15 @@ test.describe("canvas rewrite slot destination change", () => {
         const copies = (events.onCopyToDestinationId ?? []) as Array<{
           slotId?: string;
           destinationId?: string;
-          preview?: boolean;
         }>;
-        return copies.find((event) => event.slotId === SLOT_A && event.preview === false) ?? null;
+        return copies.find((event) => event.slotId === SLOT_A) ?? null;
       })
-      .toEqual({ slotId: SLOT_A, destinationId: targetDestination, preview: false });
+      .toEqual({ slotId: SLOT_A, destinationId: targetDestination });
 
     await expect
       .poll(async () => {
         const events = await getHarnessEvents(page);
-        const moves = (events.onChangeDestinationId ?? []) as Array<{ preview?: boolean }>;
-        return moves.filter((event) => event.preview === false).length;
+        return (events.onChangeDestinationId ?? []).length;
       })
       .toBe(0);
 
@@ -253,10 +247,9 @@ test.describe("canvas rewrite slot destination change", () => {
         const bulkCopies = (events.onBulkCopyToDestinationId ?? []) as Array<{
           slotIds?: string[];
           destinationId?: string;
-          preview?: boolean;
         }>;
         const committed = bulkCopies.find(
-          (event) => event.preview === false && event.destinationId === targetDestination,
+          (event) => event.destinationId === targetDestination,
         );
         return [...(committed?.slotIds ?? [])].sort();
       })
@@ -265,8 +258,7 @@ test.describe("canvas rewrite slot destination change", () => {
     await expect
       .poll(async () => {
         const events = await getHarnessEvents(page);
-        const moves = (events.onBulkChangeDestinationId ?? []) as Array<{ preview?: boolean }>;
-        return moves.filter((event) => event.preview === false).length;
+        return (events.onBulkChangeDestinationId ?? []).length;
       })
       .toBe(0);
 
@@ -299,11 +291,10 @@ test.describe("canvas rewrite slot destination change", () => {
         const singles = (events.onChangeDestinationId ?? []) as Array<{
           slotId?: string;
           destinationId?: string;
-          preview?: boolean;
         }>;
-        return singles.find((event) => event.preview === false) ?? null;
+        return singles[0] ?? null;
       })
-      .toEqual({ slotId: SLOT_A, destinationId: "UNALLOCATED", preview: false });
+      .toEqual({ slotId: SLOT_A, destinationId: "UNALLOCATED" });
 
     await expect
       .poll(async () => {
@@ -404,11 +395,10 @@ test.describe("canvas rewrite slot destination change", () => {
         const moves = (events.onMoveSlotOnTimeAxis ?? []) as Array<{
           slotId?: string;
           timeDiffMs?: number;
-          preview?: boolean;
         }>;
-        return moves.find((event) => event.slotId === SLOT_A && event.preview === false) ?? null;
+        return moves.find((event) => event.slotId === SLOT_A) ?? null;
       })
-      .toEqual({ slotId: SLOT_A, timeDiffMs: DAY_IN_MS, preview: false });
+      .toEqual({ slotId: SLOT_A, timeDiffMs: DAY_IN_MS });
 
     await expect
       .poll(async () => (await getCanvasStateField<string[]>(page, "selectionSlotIds")) ?? [], {
@@ -466,9 +456,8 @@ test.describe("canvas rewrite slot destination change", () => {
         const copies = (events.onBulkCopySlotsOnTimeAxis ?? []) as Array<{
           slotIds?: string[];
           timeDiffMs?: number;
-          preview?: boolean;
         }>;
-        const committed = copies.find((item) => item.preview === false);
+        const committed = copies[0];
         return {
           slotIds: [...(committed?.slotIds ?? [])].sort(),
           timeDiffMs: committed?.timeDiffMs ?? null,
@@ -515,9 +504,8 @@ test.describe("canvas rewrite slot destination change", () => {
         const bulkCopies = (events.onBulkCopySlotsOnTimeAxis ?? []) as Array<{
           slotIds?: string[];
           timeDiffMs?: number;
-          preview?: boolean;
         }>;
-        const committed = bulkCopies.find((event) => event.preview === false);
+        const committed = bulkCopies[0];
         return {
           slotIds: [...(committed?.slotIds ?? [])].sort(),
           timeDiffMs: committed?.timeDiffMs ?? null,

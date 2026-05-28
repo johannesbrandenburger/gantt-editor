@@ -92,20 +92,19 @@ export interface GanttEditorProps {
 
 /**
  * Event callbacks for the canvas chart (framework bindings wire these to outputs).
- * Required entries are invoked today; optional ones mirror legacy emit names for future handlers.
  */
 export interface GanttEditorCallbacks {
   onChangeStartAndEndTime: (start: Date, end: Date) => void;
   onTopContentPortionChange: (portion: number, heightPx: number) => void;
   onChangeSlotTime: (slotId: string, openTime: Date, closeTime: Date) => void;
-  onChangeDestinationId?: (slotId: string, destinationId: string, preview: boolean) => void;
-  onBulkChangeDestinationId?: (slotIds: string[], destinationId: string, preview: boolean) => void;
-  onCopyToDestinationId?: (slotId: string, destinationId: string, preview: boolean) => void;
-  onBulkCopyToDestinationId?: (slotIds: string[], destinationId: string, preview: boolean) => void;
-  onMoveSlotOnTimeAxis?: (slotId: string, timeDiffMs: number, preview: boolean) => void;
-  onBulkMoveSlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number, preview: boolean) => void;
-  onCopySlotOnTimeAxis?: (slotId: string, timeDiffMs: number, preview: boolean) => void;
-  onBulkCopySlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number, preview: boolean) => void;
+  onChangeDestinationId?: (slotId: string, destinationId: string) => void;
+  onBulkChangeDestinationId?: (slotIds: string[], destinationId: string) => void;
+  onCopyToDestinationId?: (slotId: string, destinationId: string) => void;
+  onBulkCopyToDestinationId?: (slotIds: string[], destinationId: string) => void;
+  onMoveSlotOnTimeAxis?: (slotId: string, timeDiffMs: number) => void;
+  onBulkMoveSlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number) => void;
+  onCopySlotOnTimeAxis?: (slotId: string, timeDiffMs: number) => void;
+  onBulkCopySlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number) => void;
   onClickOnSlot?: (slotId: string) => void;
   onHoverOnSlot?: (slotId: string) => void;
   onDoubleClickOnSlot?: (slotId: string) => void;

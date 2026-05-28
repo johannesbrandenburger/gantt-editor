@@ -85,35 +85,35 @@ export class SmallExamplePageComponent {
     console.log(`onChangeStartAndEndTime(${newStartTime}, ${newEndTime})`)
   }
 
-  handleChangeDestinationId([slotId, newDestinationId]: [string, string, boolean]): void {
+  handleChangeDestinationId([slotId, newDestinationId]: [string, string]): void {
     console.log(`onChangeDestinationId(${slotId}, ${newDestinationId})`)
   }
 
-  handleBulkChangeDestinationId([slotIds, newDestinationId]: [string[], string, boolean]): void {
+  handleBulkChangeDestinationId([slotIds, newDestinationId]: [string[], string]): void {
     console.log(`onBulkChangeDestinationId(${slotIds.join(',')}, ${newDestinationId})`)
   }
 
-  handleCopyToDestinationId([slotId, newDestinationId]: [string, string, boolean]): void {
+  handleCopyToDestinationId([slotId, newDestinationId]: [string, string]): void {
     console.log(`onCopyToDestinationId(${slotId}, ${newDestinationId})`)
   }
 
-  handleBulkCopyToDestinationId([slotIds, newDestinationId]: [string[], string, boolean]): void {
+  handleBulkCopyToDestinationId([slotIds, newDestinationId]: [string[], string]): void {
     console.log(`onBulkCopyToDestinationId(${slotIds.join(',')}, ${newDestinationId})`)
   }
 
-  handleMoveSlotOnTimeAxis([slotId, timeDiffMs]: [string, number, boolean]): void {
+  handleMoveSlotOnTimeAxis([slotId, timeDiffMs]: [string, number]): void {
     console.log(`onMoveSlotOnTimeAxis(${slotId}, ${timeDiffMs})`)
   }
 
-  handleBulkMoveSlotsOnTimeAxis([slotIds, timeDiffMs]: [string[], number, boolean]): void {
+  handleBulkMoveSlotsOnTimeAxis([slotIds, timeDiffMs]: [string[], number]): void {
     console.log(`onBulkMoveSlotsOnTimeAxis(${slotIds.join(',')}, ${timeDiffMs})`)
   }
 
-  handleCopySlotOnTimeAxis([slotId, timeDiffMs]: [string, number, boolean]): void {
+  handleCopySlotOnTimeAxis([slotId, timeDiffMs]: [string, number]): void {
     console.log(`onCopySlotOnTimeAxis(${slotId}, ${timeDiffMs})`)
   }
 
-  handleBulkCopySlotsOnTimeAxis([slotIds, timeDiffMs]: [string[], number, boolean]): void {
+  handleBulkCopySlotsOnTimeAxis([slotIds, timeDiffMs]: [string[], number]): void {
     console.log(`onBulkCopySlotsOnTimeAxis(${slotIds.join(',')}, ${timeDiffMs})`)
   }
 

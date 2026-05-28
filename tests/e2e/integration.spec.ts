@@ -60,11 +60,10 @@ test.describe("canvas rewrite integration workflows", () => {
         const moves = (events.onChangeDestinationId ?? []) as Array<{
           slotId?: string;
           destinationId?: string;
-          preview?: boolean;
         }>;
-        return moves.find((event) => event.slotId === SLOT_A && event.preview === false) ?? null;
+        return moves.find((event) => event.slotId === SLOT_A) ?? null;
       })
-      .toEqual({ slotId: SLOT_A, destinationId: targetDestination, preview: false });
+      .toEqual({ slotId: SLOT_A, destinationId: targetDestination });
   });
 
   test("resizing multiple slots updates close times", async ({ page }) => {

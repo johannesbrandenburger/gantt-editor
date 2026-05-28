@@ -175,9 +175,8 @@ test.describe("canvas rewrite brush selection", () => {
         const events = await getHarnessEvents(page);
         const bulkMoves = (events.onBulkChangeDestinationId ?? []) as Array<{
           slotIds?: string[];
-          preview?: boolean;
         }>;
-        const committedBulk = bulkMoves.find((event) => event.preview === false);
+        const committedBulk = bulkMoves[0];
         const movedSlotIds = [...(committedBulk?.slotIds ?? [])].sort();
         return JSON.stringify(movedSlotIds);
       })

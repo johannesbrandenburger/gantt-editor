@@ -162,15 +162,13 @@ test.describe("canvas rewrite selection preview behavior", () => {
         const moves = (events.onChangeDestinationId ?? []) as Array<{
           slotId?: string;
           destinationId?: string;
-          preview?: boolean;
         }>;
-        const committed = moves.find((event) => event.slotId === SOURCE_SLOT_ID && event.preview === false);
+        const committed = moves.find((event) => event.slotId === SOURCE_SLOT_ID);
         return committed ?? null;
       })
       .toEqual({
         slotId: SOURCE_SLOT_ID,
         destinationId: targetDestination,
-        preview: false,
       });
   });
 

@@ -85,8 +85,8 @@ const destinationGroups = ref<GanttEditorDestinationGroup[]>([
       :destinationGroups="destinationGroups"
       :markedRegion="null"
       :suggestions="[]"
-      @onChangeDestinationId="(slotId, destinationId, preview) => console.log(slotId, destinationId, preview)"
-      @onMoveSlotOnTimeAxis="(slotId, timeDiffMs, preview) => console.log(slotId, timeDiffMs, preview)"
+      @onChangeDestinationId="(slotId, destinationId => console.log(slotId, destinationId"
+      @onMoveSlotOnTimeAxis="(slotId, timeDiffMs => console.log(slotId, timeDiffMs"
       @onSelectionChange="(slotIds) => console.log(slotIds)"
     />
   </div>
@@ -147,8 +147,8 @@ export function App() {
         destinationGroups={destinationGroups}
         markedRegion={null}
         suggestions={[]}
-        onChangeDestinationId={(slotId, destinationId, preview) => console.log(slotId, destinationId, preview)}
-        onMoveSlotOnTimeAxis={(slotId, timeDiffMs, preview) => console.log(slotId, timeDiffMs, preview)}
+        onChangeDestinationId={(slotId, destinationId => console.log(slotId, destinationId}
+        onMoveSlotOnTimeAxis={(slotId, timeDiffMs => console.log(slotId, timeDiffMs}
         onSelectionChange={(slotIds) => console.log(slotIds)}
       />
     </div>
@@ -216,12 +216,12 @@ export class AppComponent {
     { id: "allocated", displayName: "Allocated Chutes", heightPortion: 1 },
   ];
 
-  onChangeDestinationId([slotId, destinationId, preview]: [string, string, boolean]) {
-    console.log(slotId, destinationId, preview);
+  onChangeDestinationId([slotId, destinationId]: [string, string]) {
+    console.log(slotId, destinationId);
   }
 
-  onMoveSlotOnTimeAxis([slotId, timeDiffMs, preview]: [string, number, boolean]) {
-    console.log(slotId, timeDiffMs, preview);
+  onMoveSlotOnTimeAxis([slotId, timeDiffMs]: [string, number]) {
+    console.log(slotId, timeDiffMs);
   }
 
   onSelectionChange(slotIds: string[]) {

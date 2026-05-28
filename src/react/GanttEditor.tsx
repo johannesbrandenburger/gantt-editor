@@ -26,14 +26,14 @@ type GanttCanvasTestApi = {
 
 export interface GanttEditorWrapperProps extends GanttEditorCanvasProps {
   onChangeStartAndEndTime?: (start: Date, end: Date) => void
-  onChangeDestinationId?: (slotId: string, destinationId: string, preview: boolean) => void
-  onBulkChangeDestinationId?: (slotIds: string[], destinationId: string, preview: boolean) => void
-  onCopyToDestinationId?: (slotId: string, destinationId: string, preview: boolean) => void
-  onBulkCopyToDestinationId?: (slotIds: string[], destinationId: string, preview: boolean) => void
-  onMoveSlotOnTimeAxis?: (slotId: string, timeDiffMs: number, preview: boolean) => void
-  onBulkMoveSlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number, preview: boolean) => void
-  onCopySlotOnTimeAxis?: (slotId: string, timeDiffMs: number, preview: boolean) => void
-  onBulkCopySlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number, preview: boolean) => void
+  onChangeDestinationId?: (slotId: string, destinationId: string) => void
+  onBulkChangeDestinationId?: (slotIds: string[], destinationId: string) => void
+  onCopyToDestinationId?: (slotId: string, destinationId: string) => void
+  onBulkCopyToDestinationId?: (slotIds: string[], destinationId: string) => void
+  onMoveSlotOnTimeAxis?: (slotId: string, timeDiffMs: number) => void
+  onBulkMoveSlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number) => void
+  onCopySlotOnTimeAxis?: (slotId: string, timeDiffMs: number) => void
+  onBulkCopySlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number) => void
   onChangeSlotTime?: (slotId: string, openTime: Date, closeTime: Date) => void
   onSelectionChange?: (slotIds: string[]) => void
   onClickOnSlot?: (slotId: string) => void
@@ -139,22 +139,22 @@ export const GanttEditor = forwardRef<GanttEditorRef, GanttEditorWrapperProps>(
           propsRef.current.onTopContentPortionChange?.(portion, heightPx),
         onChangeSlotTime: (slotId, openTime, closeTime) =>
           propsRef.current.onChangeSlotTime?.(slotId, openTime, closeTime),
-        onChangeDestinationId: (slotId, destinationId, preview) =>
-          propsRef.current.onChangeDestinationId?.(slotId, destinationId, preview),
-        onBulkChangeDestinationId: (slotIds, destinationId, preview) =>
-          propsRef.current.onBulkChangeDestinationId?.(slotIds, destinationId, preview),
-        onCopyToDestinationId: (slotId, destinationId, preview) =>
-          propsRef.current.onCopyToDestinationId?.(slotId, destinationId, preview),
-        onBulkCopyToDestinationId: (slotIds, destinationId, preview) =>
-          propsRef.current.onBulkCopyToDestinationId?.(slotIds, destinationId, preview),
-        onMoveSlotOnTimeAxis: (slotId, timeDiffMs, preview) =>
-          propsRef.current.onMoveSlotOnTimeAxis?.(slotId, timeDiffMs, preview),
-        onBulkMoveSlotsOnTimeAxis: (slotIds, timeDiffMs, preview) =>
-          propsRef.current.onBulkMoveSlotsOnTimeAxis?.(slotIds, timeDiffMs, preview),
-        onCopySlotOnTimeAxis: (slotId, timeDiffMs, preview) =>
-          propsRef.current.onCopySlotOnTimeAxis?.(slotId, timeDiffMs, preview),
-        onBulkCopySlotsOnTimeAxis: (slotIds, timeDiffMs, preview) =>
-          propsRef.current.onBulkCopySlotsOnTimeAxis?.(slotIds, timeDiffMs, preview),
+        onChangeDestinationId: (slotId, destinationId) =>
+          propsRef.current.onChangeDestinationId?.(slotId, destinationId),
+        onBulkChangeDestinationId: (slotIds, destinationId) =>
+          propsRef.current.onBulkChangeDestinationId?.(slotIds, destinationId),
+        onCopyToDestinationId: (slotId, destinationId) =>
+          propsRef.current.onCopyToDestinationId?.(slotId, destinationId),
+        onBulkCopyToDestinationId: (slotIds, destinationId) =>
+          propsRef.current.onBulkCopyToDestinationId?.(slotIds, destinationId),
+        onMoveSlotOnTimeAxis: (slotId, timeDiffMs) =>
+          propsRef.current.onMoveSlotOnTimeAxis?.(slotId, timeDiffMs),
+        onBulkMoveSlotsOnTimeAxis: (slotIds, timeDiffMs) =>
+          propsRef.current.onBulkMoveSlotsOnTimeAxis?.(slotIds, timeDiffMs),
+        onCopySlotOnTimeAxis: (slotId, timeDiffMs) =>
+          propsRef.current.onCopySlotOnTimeAxis?.(slotId, timeDiffMs),
+        onBulkCopySlotsOnTimeAxis: (slotIds, timeDiffMs) =>
+          propsRef.current.onBulkCopySlotsOnTimeAxis?.(slotIds, timeDiffMs),
         onClickOnSlot: (slotId) => propsRef.current.onClickOnSlot?.(slotId),
         onHoverOnSlot: (slotId) => propsRef.current.onHoverOnSlot?.(slotId),
         onDoubleClickOnSlot: (slotId) => propsRef.current.onDoubleClickOnSlot?.(slotId),

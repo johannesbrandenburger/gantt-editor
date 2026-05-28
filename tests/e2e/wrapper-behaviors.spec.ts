@@ -157,20 +157,17 @@ test.describe("canvas rewrite wrapper behaviors", () => {
         const bulkMoves = (events.onBulkMoveSlotsOnTimeAxis ?? []) as Array<{
           slotIds?: string[];
           timeDiffMs?: number;
-          preview?: boolean;
         }>;
-        const committed = bulkMoves.find((event) => event.preview === false) ?? null;
+        const committed = bulkMoves[0] ?? null;
         if (!committed) return null;
         return {
           slotIds: [...(committed.slotIds ?? [])].sort(),
           timeDiffMs: committed.timeDiffMs ?? null,
-          preview: committed.preview ?? null,
         };
       })
       .toEqual({
         slotIds: [SLOT_ID, SLOT_B].sort(),
         timeDiffMs: DAY_IN_MS,
-        preview: false,
       });
   });
 
@@ -195,10 +192,9 @@ test.describe("canvas rewrite wrapper behaviors", () => {
         const copies = (events.onCopySlotOnTimeAxis ?? []) as Array<{
           slotId?: string;
           timeDiffMs?: number;
-          preview?: boolean;
         }>;
-        return copies.find((event) => event.preview === false) ?? null;
+        return copies[0] ?? null;
       })
-      .toEqual({ slotId: SLOT_ID, timeDiffMs: DAY_IN_MS, preview: false });
+      .toEqual({ slotId: SLOT_ID, timeDiffMs: DAY_IN_MS });
   });
 });
