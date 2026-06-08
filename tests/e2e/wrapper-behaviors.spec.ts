@@ -136,7 +136,7 @@ test.describe("canvas rewrite wrapper behaviors", () => {
     await page.waitForFunction(() => !!(window as Window & { __ganttCanvasTestApi?: unknown }).__ganttCanvasTestApi);
   });
 
-  test("Shift + click with multi-selection emits onBulkMoveSlotsOnTimeAxis", async ({ page }) => {
+  test("Shift + click with multi-selection emits onMoveSlotOnTimeAxis", async ({ page }) => {
     await openE2eHarness(page, {
       fixture: "core",
       query: {
@@ -154,7 +154,7 @@ test.describe("canvas rewrite wrapper behaviors", () => {
     await expect
       .poll(async () => {
         const events = await getHarnessEvents(page);
-        const bulkMoves = (events.onBulkMoveSlotsOnTimeAxis ?? []) as Array<{
+        const bulkMoves = (events.onMoveSlotOnTimeAxis ?? []) as Array<{
           slotIds?: string[];
           timeDiffMs?: number;
         }>;
@@ -190,11 +190,11 @@ test.describe("canvas rewrite wrapper behaviors", () => {
       .poll(async () => {
         const events = await getHarnessEvents(page);
         const copies = (events.onCopySlotOnTimeAxis ?? []) as Array<{
-          slotId?: string;
+          slotIds?: string[];
           timeDiffMs?: number;
         }>;
         return copies[0] ?? null;
       })
-      .toEqual({ slotId: SLOT_ID, timeDiffMs: DAY_IN_MS });
+      .toEqual({ slotIds: [SLOT_ID], timeDiffMs: DAY_IN_MS });
   });
 });

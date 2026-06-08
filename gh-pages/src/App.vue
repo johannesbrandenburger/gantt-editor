@@ -16,13 +16,9 @@
         { id: 'delete', label: 'Delete Slot' },
       ]"
       @onChangeDestinationId="handleChangeDestinationId"
-      @onBulkChangeDestinationId="handleBulkChangeDestinationId"
       @onCopyToDestinationId="handleCopyDestinationId"
-      @onBulkCopyToDestinationId="handleBulkCopyDestinationId"
       @onMoveSlotOnTimeAxis="handleMoveSlotOnTimeAxis"
-      @onBulkMoveSlotsOnTimeAxis="handleBulkMoveSlotsOnTimeAxis"
       @onCopySlotOnTimeAxis="handleCopySlotOnTimeAxis"
-      @onBulkCopySlotsOnTimeAxis="handleBulkCopySlotsOnTimeAxis"
       @onChangeSlotTime="handleChangeSlotTime"
       @onContextMenuAction="handleCanvasContextMenuAction"
       @onSlotContextMenuAction="handleSlotContextMenuAction"
@@ -237,26 +233,14 @@ const handleChangeStartAndEndTime = (newStart: Date, newEnd: Date) => {
   endTime.value = newEnd
 }
 
-const handleChangeDestinationId = (slotId: string, destinationId: string) => {
-  slots.value = slots.value.map((slot) =>
-    slot.id === slotId && !slot.readOnly ? { ...slot, destinationId } : slot,
-  )
-}
-
-const handleBulkChangeDestinationId = (slotIds: string[], destinationId: string) => {
+const handleChangeDestinationId = (slotIds: string[], destinationId: string) => {
   const ids = new Set(slotIds)
   slots.value = slots.value.map((slot) =>
     ids.has(slot.id) && !slot.readOnly ? { ...slot, destinationId } : slot,
   )
 }
 
-const handleCopyDestinationId = (slotId: string, destinationId: string) => {
-  const source = slots.value.find((s) => s.id === slotId)
-  if (!source || source.readOnly) return
-  slots.value = [...slots.value, buildCopiedSlot(source, destinationId)]
-}
-
-const handleBulkCopyDestinationId = (slotIds: string[], destinationId: string) => {
+const handleCopyDestinationId = (slotIds: string[], destinationId: string) => {
   const ids = new Set(slotIds)
   const sources = slots.value.filter((s) => ids.has(s.id) && !s.readOnly)
   if (sources.length === 0) return
@@ -266,21 +250,7 @@ const handleBulkCopyDestinationId = (slotIds: string[], destinationId: string) =
   ]
 }
 
-const handleMoveSlotOnTimeAxis = (slotId: string, timeDiffMs: number) => {
-  if (timeDiffMs === 0) return
-  slots.value = slots.value.map((slot) =>
-    slot.id === slotId && !slot.readOnly
-      ? {
-          ...slot,
-          openTime: new Date(slot.openTime.getTime() + timeDiffMs),
-          closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
-          deadlines: shiftDeadlinesByMs(slot.deadlines, timeDiffMs),
-        }
-      : slot,
-  )
-}
-
-const handleBulkMoveSlotsOnTimeAxis = (slotIds: string[], timeDiffMs: number) => {
+const handleMoveSlotOnTimeAxis = (slotIds: string[], timeDiffMs: number) => {
   if (timeDiffMs === 0) return
   const ids = new Set(slotIds)
   slots.value = slots.value.map((slot) =>
@@ -295,14 +265,7 @@ const handleBulkMoveSlotsOnTimeAxis = (slotIds: string[], timeDiffMs: number) =>
   )
 }
 
-const handleCopySlotOnTimeAxis = (slotId: string, timeDiffMs: number) => {
-  if (timeDiffMs === 0) return
-  const source = slots.value.find((s) => s.id === slotId)
-  if (!source || source.readOnly) return
-  slots.value = [...slots.value, buildCopiedSlotOnTimeAxis(source, timeDiffMs)]
-}
-
-const handleBulkCopySlotsOnTimeAxis = (slotIds: string[], timeDiffMs: number) => {
+const handleCopySlotOnTimeAxis = (slotIds: string[], timeDiffMs: number) => {
   if (timeDiffMs === 0) return
   const ids = new Set(slotIds)
   const sources = slots.value.filter((s) => ids.has(s.id) && !s.readOnly)

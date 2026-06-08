@@ -3505,18 +3505,9 @@ export class GanttChartCanvasController {
       copiedSlotIds.push(source.id);
     }
 
-    if (copiedSlotIds.length > 1) {
+    if (copiedSlotIds.length > 0) {
       if (!this.canCopySlotsToDestination(copiedSlotIds.length)) return false;
-      if (this.callbacks.onBulkCopyToDestinationId) {
-        this.callbacks.onBulkCopyToDestinationId(copiedSlotIds, topicId);
-      } else {
-        for (const slotId of copiedSlotIds) {
-          this.callbacks.onCopyToDestinationId?.(slotId, topicId);
-        }
-      }
-    } else if (copiedSlotIds.length === 1) {
-      if (!this.canCopySlotsToDestination(copiedSlotIds.length)) return false;
-      this.callbacks.onCopyToDestinationId?.(copiedSlotIds[0], topicId);
+      this.callbacks.onCopyToDestinationId?.(copiedSlotIds, topicId);
     }
 
     return copiedSlotIds.length > 0;
@@ -3531,18 +3522,9 @@ export class GanttChartCanvasController {
       copiedSlotIds.push(source.id);
     }
 
-    if (copiedSlotIds.length > 1) {
+    if (copiedSlotIds.length > 0) {
       if (!this.canCopySlotsOnTimeAxis(copiedSlotIds.length)) return false;
-      if (this.callbacks.onBulkCopySlotsOnTimeAxis) {
-        this.callbacks.onBulkCopySlotsOnTimeAxis(copiedSlotIds, timeDiffMs);
-      } else {
-        for (const slotId of copiedSlotIds) {
-          this.callbacks.onCopySlotOnTimeAxis?.(slotId, timeDiffMs);
-        }
-      }
-    } else if (copiedSlotIds.length === 1) {
-      if (!this.canCopySlotsOnTimeAxis(copiedSlotIds.length)) return false;
-      this.callbacks.onCopySlotOnTimeAxis?.(copiedSlotIds[0], timeDiffMs);
+      this.callbacks.onCopySlotOnTimeAxis?.(copiedSlotIds, timeDiffMs);
     }
 
     return copiedSlotIds.length > 0;
@@ -3621,17 +3603,7 @@ export class GanttChartCanvasController {
       movedSlotIds.push(target.id);
     }
 
-    if (movedSlotIds.length > 1) {
-      if (this.callbacks.onBulkChangeDestinationId) {
-        this.callbacks.onBulkChangeDestinationId(movedSlotIds, topicId);
-      } else {
-        for (const slotId of movedSlotIds) {
-          this.callbacks.onChangeDestinationId?.(slotId, topicId);
-        }
-      }
-    } else if (movedSlotIds.length === 1) {
-      this.callbacks.onChangeDestinationId?.(movedSlotIds[0], topicId);
-    }
+    this.callbacks.onChangeDestinationId?.(movedSlotIds, topicId);
 
     this.writeSelection([]);
     this.updateSelection();
@@ -3675,17 +3647,7 @@ export class GanttChartCanvasController {
       .map((slot) => slot.id);
     if (movedSlotIds.length === 0 || !this.canMoveSlotsOnTimeAxis(movedSlotIds.length)) return;
 
-    if (movedSlotIds.length > 1) {
-      if (this.callbacks.onBulkMoveSlotsOnTimeAxis) {
-        this.callbacks.onBulkMoveSlotsOnTimeAxis(movedSlotIds, timeDiffMs);
-      } else {
-        for (const slotId of movedSlotIds) {
-          this.callbacks.onMoveSlotOnTimeAxis?.(slotId, timeDiffMs);
-        }
-      }
-    } else if (movedSlotIds.length === 1) {
-      this.callbacks.onMoveSlotOnTimeAxis?.(movedSlotIds[0], timeDiffMs);
-    }
+    this.callbacks.onMoveSlotOnTimeAxis?.(movedSlotIds, timeDiffMs);
 
     this.writeSelection([]);
     this.updateSelection();
@@ -5884,7 +5846,7 @@ export class GanttChartCanvasController {
     const slot = this.props.slots.find((s) => s.id === slotId);
     if (!slot || slot.readOnly) return;
 
-    this.callbacks.onChangeDestinationId?.(slot.id, suggestion.alternativeDestinationId);
+    this.callbacks.onChangeDestinationId?.([slot.id], suggestion.alternativeDestinationId);
     this.redraw();
   }
 

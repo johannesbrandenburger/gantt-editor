@@ -85,8 +85,8 @@ const destinationGroups = ref<GanttEditorDestinationGroup[]>([
       :destinationGroups="destinationGroups"
       :markedRegion="null"
       :suggestions="[]"
-      @onChangeDestinationId="(slotId, destinationId => console.log(slotId, destinationId"
-      @onMoveSlotOnTimeAxis="(slotId, timeDiffMs => console.log(slotId, timeDiffMs"
+      @onChangeDestinationId="(slotIds, destinationId) => console.log(slotIds, destinationId)"
+      @onMoveSlotOnTimeAxis="(slotIds, timeDiffMs) => console.log(slotIds, timeDiffMs)"
       @onSelectionChange="(slotIds) => console.log(slotIds)"
     />
   </div>
@@ -147,8 +147,8 @@ export function App() {
         destinationGroups={destinationGroups}
         markedRegion={null}
         suggestions={[]}
-        onChangeDestinationId={(slotId, destinationId => console.log(slotId, destinationId}
-        onMoveSlotOnTimeAxis={(slotId, timeDiffMs => console.log(slotId, timeDiffMs}
+        onChangeDestinationId={(slotIds, destinationId) => console.log(slotIds, destinationId)}
+        onMoveSlotOnTimeAxis={(slotIds, timeDiffMs) => console.log(slotIds, timeDiffMs)}
         onSelectionChange={(slotIds) => console.log(slotIds)}
       />
     </div>
@@ -216,12 +216,12 @@ export class AppComponent {
     { id: "allocated", displayName: "Allocated Chutes", heightPortion: 1 },
   ];
 
-  onChangeDestinationId([slotId, destinationId]: [string, string]) {
-    console.log(slotId, destinationId);
+  onChangeDestinationId([slotIds, destinationId]: [string[], string]) {
+    console.log(slotIds, destinationId);
   }
 
-  onMoveSlotOnTimeAxis([slotId, timeDiffMs]: [string, number]) {
-    console.log(slotId, timeDiffMs);
+  onMoveSlotOnTimeAxis([slotIds, timeDiffMs]: [string[], number]) {
+    console.log(slotIds, timeDiffMs);
   }
 
   onSelectionChange(slotIds: string[]) {
@@ -299,9 +299,9 @@ All wrappers expose the same core model and behavior.
 ### Key Events
 
 - Time range: `onChangeStartAndEndTime(start, end)`
-- Destination move/copy (single and bulk): `onChangeDestinationId`, `onBulkChangeDestinationId`, `onCopyToDestinationId`, `onBulkCopyToDestinationId`
-- Time-axis move/copy (single and bulk): `onMoveSlotOnTimeAxis`, `onBulkMoveSlotsOnTimeAxis`, `onCopySlotOnTimeAxis`, `onBulkCopySlotsOnTimeAxis`
 - Resize: `onChangeSlotTime(slotId, openTime, closeTime)`
+- Destination move/copy: `onChangeDestinationId(slotIds, destinationId)`, `onCopyToDestinationId(slotIds, destinationId)`
+- Time-axis move/copy: `onMoveSlotOnTimeAxis(slotIds, timeDiffMs)`, `onCopySlotOnTimeAxis(slotIds, timeDiffMs)`
 - Selection and click interactions: `onSelectionChange`, `onClickOnSlot`, `onHoverOnSlot`, `onDoubleClickOnSlot`, `onContextClickOnSlot`
 - Vertical markers: `onChangeVerticalMarker`, `onClickVerticalMarker`
 - Canvas context menu action: `onContextMenuAction(actionId, timestamp, destinationId)`

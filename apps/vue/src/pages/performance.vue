@@ -64,13 +64,9 @@
                 :markedRegion="null"
                 @onChangeStartAndEndTime="handleChangeStartAndEndTime"
                 @onChangeDestinationId="handleChangeDestinationId"
-                @onBulkChangeDestinationId="handleBulkChangeDestinationId"
                 @onCopyToDestinationId="handleCopyDestinationId"
-                @onBulkCopyToDestinationId="handleBulkCopyDestinationId"
                 @onMoveSlotOnTimeAxis="handleMoveSlotOnTimeAxis"
-                @onBulkMoveSlotsOnTimeAxis="handleBulkMoveSlotsOnTimeAxis"
                 @onCopySlotOnTimeAxis="handleCopySlotOnTimeAxis"
-                @onBulkCopySlotsOnTimeAxis="handleBulkCopySlotsOnTimeAxis"
                 @onChangeSlotTime="handleChangeSlotTime"
                 @onClickOnSlot="() => {}"
                 @onHoverOnSlot="() => {}"
@@ -202,13 +198,7 @@ const handleChangeStartAndEndTime = (newStartTime: Date, newEndTime: Date) => {
     endTime.value = newEndTime;
 };
 
-const handleChangeDestinationId = (slotId: string, destinationId: string) => {
-    slots.value = slots.value.map(slot =>
-        slot.id === slotId ? { ...slot, destinationId } : slot
-    );
-};
-
-const handleBulkChangeDestinationId = (slotIds: string[], destinationId: string) => {
+const handleChangeDestinationId = (slotIds: string[], destinationId: string) => {
     const movedSlotIds = new Set(slotIds);
     slots.value = slots.value.map(slot =>
         movedSlotIds.has(slot.id) ? { ...slot, destinationId } : slot
@@ -240,18 +230,7 @@ const buildCopiedSlot = (
     ...overrides,
 });
 
-const handleCopyDestinationId = (slotId: string, destinationId: string) => {
-    const source = slots.value.find((slot) => slot.id === slotId);
-    if (!source) return;
-    const existingIds = new Set(slots.value.map((slot) => slot.id));
-    const nextId = reserveCopyId(source.id, existingIds);
-    slots.value = [
-        ...slots.value,
-        buildCopiedSlot(source, nextId, { destinationId }),
-    ];
-};
-
-const handleBulkCopyDestinationId = (slotIds: string[], destinationId: string) => {
+const handleCopyDestinationId = (slotIds: string[], destinationId: string) => {
     const slotIdsToCopy = new Set(slotIds);
     const existingIds = new Set(slots.value.map((slot) => slot.id));
     const copiedSlots = slots.value
@@ -279,21 +258,7 @@ const shiftDeadlinesByMs = (
 ): GanttEditorSlot["deadlines"] | undefined =>
     deadlines?.map((deadline) => ({ ...deadline, timestamp: deadline.timestamp + timeDiffMs }));
 
-const handleMoveSlotOnTimeAxis = (slotId: string, timeDiffMs: number) => {
-    if (timeDiffMs === 0) return;
-    slots.value = slots.value.map((slot) =>
-        slot.id === slotId
-            ? {
-                ...slot,
-                openTime: new Date(slot.openTime.getTime() + timeDiffMs),
-                closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
-                deadlines: shiftDeadlinesByMs(slot.deadlines, timeDiffMs),
-            }
-            : slot
-    );
-};
-
-const handleBulkMoveSlotsOnTimeAxis = (slotIds: string[], timeDiffMs: number) => {
+const handleMoveSlotOnTimeAxis = (slotIds: string[], timeDiffMs: number) => {
     if (timeDiffMs === 0) return;
     const slotIdSet = new Set(slotIds);
     slots.value = slots.value.map((slot) =>
@@ -308,23 +273,7 @@ const handleBulkMoveSlotsOnTimeAxis = (slotIds: string[], timeDiffMs: number) =>
     );
 };
 
-const handleCopySlotOnTimeAxis = (slotId: string, timeDiffMs: number) => {
-    if (timeDiffMs === 0) return;
-    const source = slots.value.find((slot) => slot.id === slotId);
-    if (!source) return;
-    const existingIds = new Set(slots.value.map((slot) => slot.id));
-    const nextId = reserveCopyId(source.id, existingIds);
-    slots.value = [
-        ...slots.value,
-        buildCopiedSlot(source, nextId, {
-            openTime: new Date(source.openTime.getTime() + timeDiffMs),
-            closeTime: new Date(source.closeTime.getTime() + timeDiffMs),
-            deadlines: shiftDeadlinesByMs(source.deadlines, timeDiffMs),
-        }),
-    ];
-};
-
-const handleBulkCopySlotsOnTimeAxis = (slotIds: string[], timeDiffMs: number) => {
+const handleCopySlotOnTimeAxis = (slotIds: string[], timeDiffMs: number) => {
     if (timeDiffMs === 0) return;
     const slotIdsToCopy = new Set(slotIds);
     const existingIds = new Set(slots.value.map((slot) => slot.id));

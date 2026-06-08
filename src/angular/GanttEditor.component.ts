@@ -128,14 +128,10 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
   @Input() helpOverlayTileIds?: GanttEditorProps['helpOverlayTileIds']
 
   @Output() onChangeStartAndEndTime = new EventEmitter<[Date, Date]>()
-  @Output() onChangeDestinationId = new EventEmitter<[string, string]>()
-  @Output() onBulkChangeDestinationId = new EventEmitter<[string[], string]>()
-  @Output() onCopyToDestinationId = new EventEmitter<[string, string]>()
-  @Output() onBulkCopyToDestinationId = new EventEmitter<[string[], string]>()
-  @Output() onMoveSlotOnTimeAxis = new EventEmitter<[string, number]>()
-  @Output() onBulkMoveSlotsOnTimeAxis = new EventEmitter<[string[], number]>()
-  @Output() onCopySlotOnTimeAxis = new EventEmitter<[string, number]>()
-  @Output() onBulkCopySlotsOnTimeAxis = new EventEmitter<[string[], number]>()
+  @Output() onChangeDestinationId = new EventEmitter<[string[], string]>()
+  @Output() onCopyToDestinationId = new EventEmitter<[string[], string]>()
+  @Output() onMoveSlotOnTimeAxis = new EventEmitter<[string[], number]>()
+  @Output() onCopySlotOnTimeAxis = new EventEmitter<[string[], number]>()
   @Output() onChangeSlotTime = new EventEmitter<[string, Date, Date]>()
   @Output() onSelectionChange = new EventEmitter<string[]>()
   @Output() onClickOnSlot = new EventEmitter<string>()
@@ -186,22 +182,14 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
         this.onTopContentPortionChange.emit([portion, heightPx]),
       onChangeSlotTime: (slotId, openTime, closeTime) =>
         this.onChangeSlotTime.emit([slotId, openTime, closeTime]),
-      onChangeDestinationId: (slotId, destinationId) =>
-        this.onChangeDestinationId.emit([slotId, destinationId]),
-      onBulkChangeDestinationId: (slotIds, destinationId) =>
-        this.onBulkChangeDestinationId.emit([slotIds, destinationId]),
-      onCopyToDestinationId: (slotId, destinationId) =>
-        this.onCopyToDestinationId.emit([slotId, destinationId]),
-      onBulkCopyToDestinationId: (slotIds, destinationId) =>
-        this.onBulkCopyToDestinationId.emit([slotIds, destinationId]),
-      onMoveSlotOnTimeAxis: (slotId, timeDiffMs) =>
-        this.onMoveSlotOnTimeAxis.emit([slotId, timeDiffMs]),
-      onBulkMoveSlotsOnTimeAxis: (slotIds, timeDiffMs) =>
-        this.onBulkMoveSlotsOnTimeAxis.emit([slotIds, timeDiffMs]),
-      onCopySlotOnTimeAxis: (slotId, timeDiffMs) =>
-        this.onCopySlotOnTimeAxis.emit([slotId, timeDiffMs]),
-      onBulkCopySlotsOnTimeAxis: (slotIds, timeDiffMs) =>
-        this.onBulkCopySlotsOnTimeAxis.emit([slotIds, timeDiffMs]),
+      onChangeDestinationId: (slotIds, destinationId) =>
+        this.onChangeDestinationId.emit([slotIds, destinationId]),
+      onCopyToDestinationId: (slotIds, destinationId) =>
+        this.onCopyToDestinationId.emit([slotIds, destinationId]),
+      onMoveSlotOnTimeAxis: (slotIds, timeDiffMs) =>
+        this.onMoveSlotOnTimeAxis.emit([slotIds, timeDiffMs]),
+      onCopySlotOnTimeAxis: (slotIds, timeDiffMs) =>
+        this.onCopySlotOnTimeAxis.emit([slotIds, timeDiffMs]),
       onClickOnSlot: (slotId) => this.onClickOnSlot.emit(slotId),
       onHoverOnSlot: (slotId) => this.onHoverOnSlot.emit(slotId),
       onDoubleClickOnSlot: (slotId) => this.onDoubleClickOnSlot.emit(slotId),

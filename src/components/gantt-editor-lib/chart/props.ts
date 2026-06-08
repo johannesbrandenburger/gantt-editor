@@ -97,14 +97,11 @@ export interface GanttEditorCallbacks {
   onChangeStartAndEndTime: (start: Date, end: Date) => void;
   onTopContentPortionChange: (portion: number, heightPx: number) => void;
   onChangeSlotTime: (slotId: string, openTime: Date, closeTime: Date) => void;
-  onChangeDestinationId?: (slotId: string, destinationId: string) => void;
-  onBulkChangeDestinationId?: (slotIds: string[], destinationId: string) => void;
-  onCopyToDestinationId?: (slotId: string, destinationId: string) => void;
-  onBulkCopyToDestinationId?: (slotIds: string[], destinationId: string) => void;
-  onMoveSlotOnTimeAxis?: (slotId: string, timeDiffMs: number) => void;
-  onBulkMoveSlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number) => void;
-  onCopySlotOnTimeAxis?: (slotId: string, timeDiffMs: number) => void;
-  onBulkCopySlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number) => void;
+  // TODO: not trigger changedestinationid if same destination
+  onChangeDestinationId?: (slotIds: string[], destinationId: string) => void;
+  onCopyToDestinationId?: (slotIds: string[], destinationId: string) => void;
+  onMoveSlotOnTimeAxis?: (slotIds: string[], timeDiffMs: number) => void;
+  onCopySlotOnTimeAxis?: (slotIds: string[], timeDiffMs: number) => void;
   onClickOnSlot?: (slotId: string) => void;
   onHoverOnSlot?: (slotId: string) => void;
   onDoubleClickOnSlot?: (slotId: string) => void;

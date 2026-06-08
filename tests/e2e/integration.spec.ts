@@ -58,12 +58,12 @@ test.describe("canvas rewrite integration workflows", () => {
       .poll(async () => {
         const events = await getHarnessEvents(page);
         const moves = (events.onChangeDestinationId ?? []) as Array<{
-          slotId?: string;
+          slotIds?: string[];
           destinationId?: string;
         }>;
-        return moves.find((event) => event.slotId === SLOT_A) ?? null;
+        return moves.find((event) => event.slotIds?.includes(SLOT_A)) ?? null;
       })
-      .toEqual({ slotId: SLOT_A, destinationId: targetDestination });
+      .toEqual({ slotIds: [SLOT_A], destinationId: targetDestination });
   });
 
   test("resizing multiple slots updates close times", async ({ page }) => {

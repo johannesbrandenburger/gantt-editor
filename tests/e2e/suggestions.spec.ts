@@ -31,12 +31,12 @@ test.describe("canvas rewrite suggestions", () => {
       .poll(async () => {
         const events = await getHarnessEvents(page);
         const changes = (events.onChangeDestinationId ?? []) as Array<{
-          slotId?: string;
+          slotIds?: string[];
           destinationId?: string;
         }>;
         return changes.at(-1) ?? null;
       })
-      .toEqual({ slotId: SLOT_ID, destinationId: "chute-3" });
+      .toEqual({ slotIds: [SLOT_ID], destinationId: "chute-3" });
   });
 
   test("applied suggestion updates slot destination in harness config", async ({ page }) => {
@@ -79,11 +79,11 @@ test.describe("canvas rewrite suggestions", () => {
       .poll(async () => {
         const events = await getHarnessEvents(page);
         const changes = (events.onChangeDestinationId ?? []) as Array<{
-          slotId?: string;
+          slotIds?: string[];
           destinationId?: string;
         }>;
         return changes
-          .filter((item) => item.slotId === SLOT_ID)
+          .filter((item) => item.slotIds?.includes(SLOT_ID))
           .map((item) => item.destinationId);
       })
       .toEqual(["chute-3", "chute-2"]);

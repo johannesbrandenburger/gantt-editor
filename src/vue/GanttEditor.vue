@@ -40,14 +40,10 @@ import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 
 interface GanttEditorEmits {
   onChangeStartAndEndTime: [Date, Date],
-  onChangeDestinationId: [string, string],
-  onBulkChangeDestinationId: [string[], string],
-  onCopyToDestinationId: [string, string],
-  onBulkCopyToDestinationId: [string[], string],
-  onMoveSlotOnTimeAxis: [string, number],
-  onBulkMoveSlotsOnTimeAxis: [string[], number],
-  onCopySlotOnTimeAxis: [string, number],
-  onBulkCopySlotsOnTimeAxis: [string[], number],
+  onChangeDestinationId: [string[], string],
+  onCopyToDestinationId: [string[], string],
+  onMoveSlotOnTimeAxis: [string[], number],
+  onCopySlotOnTimeAxis: [string[], number],
   onChangeSlotTime: [string, Date, Date],
   onSelectionChange: [string[]],
   onClickOnSlot: [string],
@@ -157,29 +153,17 @@ const controller = new GanttChartCanvasController(
     onChangeSlotTime: (slotId, openTime, closeTime) => {
       emit("onChangeSlotTime", slotId, openTime, closeTime);
     },
-    onChangeDestinationId: (slotId, destinationId) => {
-      emit("onChangeDestinationId", slotId, destinationId);
+    onChangeDestinationId: (slotIds, destinationId) => {
+      emit("onChangeDestinationId", slotIds, destinationId);
     },
-    onBulkChangeDestinationId: (slotIds, destinationId) => {
-      emit("onBulkChangeDestinationId", slotIds, destinationId);
+    onCopyToDestinationId: (slotIds, destinationId) => {
+      emit("onCopyToDestinationId", slotIds, destinationId);
     },
-    onCopyToDestinationId: (slotId, destinationId) => {
-      emit("onCopyToDestinationId", slotId, destinationId);
+    onMoveSlotOnTimeAxis: (slotIds, timeDiffMs) => {
+      emit("onMoveSlotOnTimeAxis", slotIds, timeDiffMs);
     },
-    onBulkCopyToDestinationId: (slotIds, destinationId) => {
-      emit("onBulkCopyToDestinationId", slotIds, destinationId);
-    },
-    onMoveSlotOnTimeAxis: (slotId, timeDiffMs) => {
-      emit("onMoveSlotOnTimeAxis", slotId, timeDiffMs);
-    },
-    onBulkMoveSlotsOnTimeAxis: (slotIds, timeDiffMs) => {
-      emit("onBulkMoveSlotsOnTimeAxis", slotIds, timeDiffMs);
-    },
-    onCopySlotOnTimeAxis: (slotId, timeDiffMs) => {
-      emit("onCopySlotOnTimeAxis", slotId, timeDiffMs);
-    },
-    onBulkCopySlotsOnTimeAxis: (slotIds, timeDiffMs) => {
-      emit("onBulkCopySlotsOnTimeAxis", slotIds, timeDiffMs);
+    onCopySlotOnTimeAxis: (slotIds, timeDiffMs) => {
+      emit("onCopySlotOnTimeAxis", slotIds, timeDiffMs);
     },
     onClickOnSlot: (slotId) => {
       emit("onClickOnSlot", slotId);

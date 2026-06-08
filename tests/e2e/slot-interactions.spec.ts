@@ -117,7 +117,7 @@ test.describe("canvas rewrite slot interactions", () => {
       .poll(async () => {
         const events = await getHarnessEvents(page);
         const singleMoves = events.onChangeDestinationId ?? [];
-        const bulkMoves = events.onBulkChangeDestinationId ?? [];
+        const bulkMoves = events.onChangeDestinationId ?? [];
         return singleMoves.length + bulkMoves.length;
       })
       .toBe(0);

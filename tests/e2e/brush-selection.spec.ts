@@ -173,7 +173,7 @@ test.describe("canvas rewrite brush selection", () => {
     await expect
       .poll(async () => {
         const events = await getHarnessEvents(page);
-        const bulkMoves = (events.onBulkChangeDestinationId ?? []) as Array<{
+        const bulkMoves = (events.onChangeDestinationId ?? []) as Array<{
           slotIds?: string[];
         }>;
         const committedBulk = bulkMoves[0];

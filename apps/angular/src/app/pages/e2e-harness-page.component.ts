@@ -590,13 +590,9 @@ function buildCopiedSlotOnTimeAxis(
         [features]="harnessData.features"
         (onChangeStartAndEndTime)="onChangeStartAndEndTime($event)"
         (onChangeDestinationId)="onChangeDestinationId($event)"
-        (onBulkChangeDestinationId)="onBulkChangeDestinationId($event)"
         (onCopyToDestinationId)="onCopyToDestinationId($event)"
-        (onBulkCopyToDestinationId)="onBulkCopyToDestinationId($event)"
         (onMoveSlotOnTimeAxis)="onMoveSlotOnTimeAxis($event)"
-        (onBulkMoveSlotsOnTimeAxis)="onBulkMoveSlotsOnTimeAxis($event)"
         (onCopySlotOnTimeAxis)="onCopySlotOnTimeAxis($event)"
-        (onBulkCopySlotsOnTimeAxis)="onBulkCopySlotsOnTimeAxis($event)"
         (onChangeSlotTime)="onChangeSlotTime($event)"
         (onClickOnSlot)="onClickOnSlot($event)"
         (onHoverOnSlot)="onHoverOnSlot($event)"
@@ -750,17 +746,7 @@ export class E2eHarnessPageComponent implements OnInit, OnDestroy {
     this.logEvent('onChangeStartAndEndTime', { start, end })
   }
 
-  onChangeDestinationId([slotId, destinationId]: [string, string]): void {
-    this.harnessData = {
-      ...this.harnessData,
-      slots: this.harnessData.slots.map((slot) =>
-        slot.id === slotId ? { ...slot, destinationId } : slot,
-      ),
-    }
-    this.logEvent('onChangeDestinationId', { slotId, destinationId })
-  }
-
-  onBulkChangeDestinationId([slotIds, destinationId]: [string[], string]): void {
+  onChangeDestinationId([slotIds, destinationId]: [string[], string]): void {
     const movedSlotIds = new Set(slotIds)
     this.harnessData = {
       ...this.harnessData,
@@ -768,22 +754,10 @@ export class E2eHarnessPageComponent implements OnInit, OnDestroy {
         movedSlotIds.has(slot.id) ? { ...slot, destinationId } : slot,
       ),
     }
-    this.logEvent('onBulkChangeDestinationId', { slotIds, destinationId })
+    this.logEvent('onChangeDestinationId', { slotIds, destinationId })
   }
 
-  onCopyToDestinationId([slotId, destinationId]: [string, string]): void {
-    const existingIds = new Set(this.harnessData.slots.map((slot) => slot.id))
-    const source = this.harnessData.slots.find((slot) => slot.id === slotId)
-    if (source && source.destinationId !== destinationId) {
-      this.harnessData = {
-        ...this.harnessData,
-        slots: [...this.harnessData.slots, buildCopiedSlot(source, destinationId, existingIds)],
-      }
-    }
-    this.logEvent('onCopyToDestinationId', { slotId, destinationId })
-  }
-
-  onBulkCopyToDestinationId([slotIds, destinationId]: [string[], string]): void {
+  onCopyToDestinationId([slotIds, destinationId]: [string[], string]): void {
     const sourceIds = new Set(slotIds)
     const existingIds = new Set(this.harnessData.slots.map((slot) => slot.id))
     const sources = this.harnessData.slots.filter(
@@ -798,7 +772,7 @@ export class E2eHarnessPageComponent implements OnInit, OnDestroy {
         ],
       }
     }
-    this.logEvent('onBulkCopyToDestinationId', { slotIds, destinationId })
+    this.logEvent('onCopyToDestinationId', { slotIds, destinationId })
   }
 
   onChangeSlotTime([slotId, openTime, closeTime]: [string, Date, Date]): void {
@@ -817,26 +791,7 @@ export class E2eHarnessPageComponent implements OnInit, OnDestroy {
     this.logEvent('onChangeSlotTime', { slotId, openTime, closeTime })
   }
 
-  onMoveSlotOnTimeAxis([slotId, timeDiffMs]: [string, number]): void {
-    if (timeDiffMs !== 0) {
-      this.harnessData = {
-        ...this.harnessData,
-        slots: this.harnessData.slots.map((slot) =>
-          slot.id === slotId
-            ? {
-                ...slot,
-                openTime: new Date(slot.openTime.getTime() + timeDiffMs),
-                closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
-                deadlines: shiftDeadlinesByMs(slot.deadlines, timeDiffMs),
-              }
-            : slot,
-        ),
-      }
-    }
-    this.logEvent('onMoveSlotOnTimeAxis', { slotId, timeDiffMs })
-  }
-
-  onBulkMoveSlotsOnTimeAxis([slotIds, timeDiffMs]: [string[], number]): void {
+  onMoveSlotOnTimeAxis([slotIds, timeDiffMs]: [string[], number]): void {
     if (timeDiffMs !== 0) {
       const movedSlotIds = new Set(slotIds)
       this.harnessData = {
@@ -853,24 +808,10 @@ export class E2eHarnessPageComponent implements OnInit, OnDestroy {
         ),
       }
     }
-    this.logEvent('onBulkMoveSlotsOnTimeAxis', { slotIds, timeDiffMs })
+    this.logEvent('onMoveSlotOnTimeAxis', { slotIds, timeDiffMs })
   }
 
-  onCopySlotOnTimeAxis([slotId, timeDiffMs]: [string, number]): void {
-    if (timeDiffMs !== 0) {
-      const existingIds = new Set(this.harnessData.slots.map((slot) => slot.id))
-      const source = this.harnessData.slots.find((slot) => slot.id === slotId)
-      if (source) {
-        this.harnessData = {
-          ...this.harnessData,
-          slots: [...this.harnessData.slots, buildCopiedSlotOnTimeAxis(source, timeDiffMs, existingIds)],
-        }
-      }
-    }
-    this.logEvent('onCopySlotOnTimeAxis', { slotId, timeDiffMs })
-  }
-
-  onBulkCopySlotsOnTimeAxis([slotIds, timeDiffMs]: [string[], number]): void {
+  onCopySlotOnTimeAxis([slotIds, timeDiffMs]: [string[], number]): void {
     if (timeDiffMs !== 0) {
       const sourceIds = new Set(slotIds)
       const existingIds = new Set(this.harnessData.slots.map((slot) => slot.id))
@@ -885,7 +826,7 @@ export class E2eHarnessPageComponent implements OnInit, OnDestroy {
         }
       }
     }
-    this.logEvent('onBulkCopySlotsOnTimeAxis', { slotIds, timeDiffMs })
+    this.logEvent('onCopySlotOnTimeAxis', { slotIds, timeDiffMs })
   }
 
   onClickOnSlot(slotId: string): void {

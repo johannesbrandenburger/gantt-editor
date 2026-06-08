@@ -576,17 +576,7 @@ function onChangeStartAndEndTime(start: Date, end: Date): void {
   logEvent("onChangeStartAndEndTime", { start, end });
 }
 
-function onChangeDestinationId(slotId: string, destinationId: string): void {
-  harnessData.value = {
-    ...harnessData.value,
-    slots: harnessData.value.slots.map((slot) =>
-      slot.id === slotId ? { ...slot, destinationId } : slot,
-    ),
-  };
-  logEvent("onChangeDestinationId", { slotId, destinationId });
-}
-
-function onBulkChangeDestinationId(slotIds: string[], destinationId: string): void {
+function onChangeDestinationId(slotIds: string[], destinationId: string): void {
   const movedSlotIds = new Set(slotIds);
   harnessData.value = {
     ...harnessData.value,
@@ -594,22 +584,10 @@ function onBulkChangeDestinationId(slotIds: string[], destinationId: string): vo
       movedSlotIds.has(slot.id) ? { ...slot, destinationId } : slot,
     ),
   };
-  logEvent("onBulkChangeDestinationId", { slotIds, destinationId });
+  logEvent("onChangeDestinationId", { slotIds, destinationId });
 }
 
-function onCopyToDestinationId(slotId: string, destinationId: string): void {
-  const existingIds = new Set(harnessData.value.slots.map((slot) => slot.id));
-  const source = harnessData.value.slots.find((slot) => slot.id === slotId);
-  if (source && source.destinationId !== destinationId) {
-    harnessData.value = {
-      ...harnessData.value,
-      slots: [...harnessData.value.slots, buildCopiedSlot(source, destinationId, existingIds)],
-    };
-  }
-  logEvent("onCopyToDestinationId", { slotId, destinationId });
-}
-
-function onBulkCopyToDestinationId(slotIds: string[], destinationId: string): void {
+function onCopyToDestinationId(slotIds: string[], destinationId: string): void {
   const sourceIds = new Set(slotIds);
   const existingIds = new Set(harnessData.value.slots.map((slot) => slot.id));
   const sources = harnessData.value.slots.filter(
@@ -624,7 +602,7 @@ function onBulkCopyToDestinationId(slotIds: string[], destinationId: string): vo
       ],
     };
   }
-  logEvent("onBulkCopyToDestinationId", { slotIds, destinationId });
+  logEvent("onCopyToDestinationId", { slotIds, destinationId });
 }
 
 function onChangeSlotTime(slotId: string, openTime: Date, closeTime: Date): void {
@@ -643,26 +621,7 @@ function onChangeSlotTime(slotId: string, openTime: Date, closeTime: Date): void
   logEvent("onChangeSlotTime", { slotId, openTime, closeTime });
 }
 
-function onMoveSlotOnTimeAxis(slotId: string, timeDiffMs: number): void {
-  if (timeDiffMs !== 0) {
-    harnessData.value = {
-      ...harnessData.value,
-      slots: harnessData.value.slots.map((slot) =>
-        slot.id === slotId
-          ? {
-              ...slot,
-              openTime: new Date(slot.openTime.getTime() + timeDiffMs),
-              closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
-              deadlines: shiftDeadlinesByMs(slot.deadlines, timeDiffMs),
-            }
-          : slot,
-      ),
-    };
-  }
-  logEvent("onMoveSlotOnTimeAxis", { slotId, timeDiffMs });
-}
-
-function onBulkMoveSlotsOnTimeAxis(slotIds: string[], timeDiffMs: number): void {
+function onMoveSlotOnTimeAxis(slotIds: string[], timeDiffMs: number): void {
   if (timeDiffMs !== 0) {
     const movedSlotIds = new Set(slotIds);
     harnessData.value = {
@@ -679,24 +638,10 @@ function onBulkMoveSlotsOnTimeAxis(slotIds: string[], timeDiffMs: number): void 
       ),
     };
   }
-  logEvent("onBulkMoveSlotsOnTimeAxis", { slotIds, timeDiffMs });
+  logEvent("onMoveSlotOnTimeAxis", { slotIds, timeDiffMs });
 }
 
-function onCopySlotOnTimeAxis(slotId: string, timeDiffMs: number): void {
-  if (timeDiffMs !== 0) {
-    const existingIds = new Set(harnessData.value.slots.map((slot) => slot.id));
-    const source = harnessData.value.slots.find((slot) => slot.id === slotId);
-    if (source) {
-      harnessData.value = {
-        ...harnessData.value,
-        slots: [...harnessData.value.slots, buildCopiedSlotOnTimeAxis(source, timeDiffMs, existingIds)],
-      };
-    }
-  }
-  logEvent("onCopySlotOnTimeAxis", { slotId, timeDiffMs });
-}
-
-function onBulkCopySlotsOnTimeAxis(slotIds: string[], timeDiffMs: number): void {
+function onCopySlotOnTimeAxis(slotIds: string[], timeDiffMs: number): void {
   if (timeDiffMs !== 0) {
     const sourceIds = new Set(slotIds);
     const existingIds = new Set(harnessData.value.slots.map((slot) => slot.id));
@@ -711,7 +656,7 @@ function onBulkCopySlotsOnTimeAxis(slotIds: string[], timeDiffMs: number): void 
       };
     }
   }
-  logEvent("onBulkCopySlotsOnTimeAxis", { slotIds, timeDiffMs });
+  logEvent("onCopySlotOnTimeAxis", { slotIds, timeDiffMs });
 }
 
 function onClickOnSlot(slotId: string): void {
@@ -853,13 +798,9 @@ onBeforeUnmount(() => {
       :features="harnessData.features"
       @onChangeStartAndEndTime="onChangeStartAndEndTime"
       @onChangeDestinationId="onChangeDestinationId"
-      @onBulkChangeDestinationId="onBulkChangeDestinationId"
       @onCopyToDestinationId="onCopyToDestinationId"
-      @onBulkCopyToDestinationId="onBulkCopyToDestinationId"
       @onMoveSlotOnTimeAxis="onMoveSlotOnTimeAxis"
-      @onBulkMoveSlotsOnTimeAxis="onBulkMoveSlotsOnTimeAxis"
       @onCopySlotOnTimeAxis="onCopySlotOnTimeAxis"
-      @onBulkCopySlotsOnTimeAxis="onBulkCopySlotsOnTimeAxis"
       @onChangeSlotTime="onChangeSlotTime"
       @onClickOnSlot="onClickOnSlot"
       @onHoverOnSlot="onHoverOnSlot"
