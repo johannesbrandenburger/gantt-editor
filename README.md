@@ -64,8 +64,8 @@ const destinationGroups = ref<GanttEditorDestinationGroup[]>([
       :destinationGroups="destinationGroups"
       :markedRegion="null"
       :suggestions="[]"
-      @onChangeDestinationId="(slotId, destinationId, preview) => console.log(slotId, destinationId, preview)"
-      @onMoveSlotOnTimeAxis="(slotId, timeDiffMs, preview) => console.log(slotId, timeDiffMs, preview)"
+      @onChangeDestinationId="(slotIds, destinationId) => console.log(slotIds, destinationId)"
+      @onMoveSlotOnTimeAxis="(slotIds, timeDiffMs) => console.log(slotIds, timeDiffMs)"
       @onSelectionChange="(slotIds) => console.log(slotIds)"
     />
   </div>
@@ -126,8 +126,8 @@ export function App() {
         destinationGroups={destinationGroups}
         markedRegion={null}
         suggestions={[]}
-        onChangeDestinationId={(slotId, destinationId, preview) => console.log(slotId, destinationId, preview)}
-        onMoveSlotOnTimeAxis={(slotId, timeDiffMs, preview) => console.log(slotId, timeDiffMs, preview)}
+        onChangeDestinationId={(slotIds, destinationId) => console.log(slotIds, destinationId)}
+        onMoveSlotOnTimeAxis={(slotIds, timeDiffMs) => console.log(slotIds, timeDiffMs)}
         onSelectionChange={(slotIds) => console.log(slotIds)}
       />
     </div>
@@ -195,12 +195,12 @@ export class AppComponent {
     { id: "allocated", displayName: "Allocated Chutes", heightPortion: 1 },
   ];
 
-  onChangeDestinationId([slotId, destinationId, preview]: [string, string, boolean]) {
-    console.log(slotId, destinationId, preview);
+  onChangeDestinationId([slotIds, destinationId]: [string[], string]) {
+    console.log(slotIds, destinationId);
   }
 
-  onMoveSlotOnTimeAxis([slotId, timeDiffMs, preview]: [string, number, boolean]) {
-    console.log(slotId, timeDiffMs, preview);
+  onMoveSlotOnTimeAxis([slotIds, timeDiffMs]: [string[], number]) {
+    console.log(slotIds, timeDiffMs);
   }
 
   onSelectionChange(slotIds: string[]) {
@@ -212,6 +212,26 @@ export class AppComponent {
 Angular note: multi-value outputs are emitted as tuples in the same order as the Vue/React callback arguments.
 
 </details>
+
+## Reactivity
+
+The editor redraws when its input references change. After changing slots, pass a new array reference so the wrapper can trigger an update:
+
+```ts
+slots.value = slots.value.map((slot) =>
+  slot.id === slotId ? { ...slot, destinationId } : slot,
+);
+```
+
+If you mutate a slot object directly, reassign the array afterwards:
+
+```ts
+slotToUpdate.openTime = openTime;
+slotToUpdate.closeTime = closeTime;
+slots.value = [...slots.value];
+```
+
+See `apps/vue/src/pages/index.vue` for the full Vue example.
 
 ## Shared API
 
@@ -240,11 +260,15 @@ All wrappers expose the same core model and behavior.
 ### Common Optional Inputs
 
 - `activateRulers: "ROW" | "GLOBAL" | null`
+- `slotResizeMinutesStep: number | null` (snaps slot resizing to minute increments; omit, `null`, or `0` for free resizing)
 - `verticalMarkers: GanttEditorVerticalMarker[]`
 - `contextMenuActions: GanttEditorCanvasContextMenuAction[]`
 - `slotContextMenuActions: GanttEditorSlotContextMenuAction[]`
+- `defaultZoomLevel: number` (initial unified zoom multiplier; defaults to `1`, values above `1` start with taller rows and values below `1` start denser)
+- `scaleOnResize: "FULL" | "TIME_ONLY"` (defaults to `"FULL"`; `"TIME_ONLY"` keeps row height fixed and stretches only the time axis when the container resizes)
 - `topContentPortion: number`
 - `locale: string | string[]` (used by built-in date/time formatting)
+- `dateTimeFormatters: { upper?: Intl.DateTimeFormat; lower?: Intl.DateTimeFormat; currentTime?: Intl.DateTimeFormat; onMouseTimeStrip?: Intl.DateTimeFormat; resizeSlotTime?: Intl.DateTimeFormat }` (overrides locale-based formatting for matching labels)
 - `currentTimeIndicatorLabel: (value: Date) => string` (custom text for the current-time indicator; defaults to date and time)
 - `xAxisOptions: GanttEditorXAxisOptions`
 - `helpOverlayTiles: HelpOverlayTileDefinition[]`
@@ -254,9 +278,9 @@ All wrappers expose the same core model and behavior.
 ### Key Events
 
 - Time range: `onChangeStartAndEndTime(start, end)`
-- Destination move/copy (single and bulk): `onChangeDestinationId`, `onBulkChangeDestinationId`, `onCopyToDestinationId`, `onBulkCopyToDestinationId`
-- Time-axis move/copy (single and bulk): `onMoveSlotOnTimeAxis`, `onBulkMoveSlotsOnTimeAxis`, `onCopySlotOnTimeAxis`, `onBulkCopySlotsOnTimeAxis`
 - Resize: `onChangeSlotTime(slotId, openTime, closeTime)`
+- Destination move/copy: `onChangeDestinationId(slotIds, destinationId)`, `onCopyToDestinationId(slotIds, destinationId)`
+- Time-axis move/copy: `onMoveSlotOnTimeAxis(slotIds, timeDiffMs)`, `onCopySlotOnTimeAxis(slotIds, timeDiffMs)`
 - Selection and click interactions: `onSelectionChange`, `onClickOnSlot`, `onHoverOnSlot`, `onDoubleClickOnSlot`, `onContextClickOnSlot`
 - Vertical markers: `onChangeVerticalMarker`, `onClickVerticalMarker`
 - Canvas context menu action: `onContextMenuAction(actionId, timestamp, destinationId)`

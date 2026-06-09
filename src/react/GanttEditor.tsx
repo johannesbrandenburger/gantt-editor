@@ -26,14 +26,10 @@ type GanttCanvasTestApi = {
 
 export interface GanttEditorWrapperProps extends GanttEditorCanvasProps {
   onChangeStartAndEndTime?: (start: Date, end: Date) => void
-  onChangeDestinationId?: (slotId: string, destinationId: string, preview: boolean) => void
-  onBulkChangeDestinationId?: (slotIds: string[], destinationId: string, preview: boolean) => void
-  onCopyToDestinationId?: (slotId: string, destinationId: string, preview: boolean) => void
-  onBulkCopyToDestinationId?: (slotIds: string[], destinationId: string, preview: boolean) => void
-  onMoveSlotOnTimeAxis?: (slotId: string, timeDiffMs: number, preview: boolean) => void
-  onBulkMoveSlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number, preview: boolean) => void
-  onCopySlotOnTimeAxis?: (slotId: string, timeDiffMs: number, preview: boolean) => void
-  onBulkCopySlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number, preview: boolean) => void
+  onChangeDestinationId?: (slotIds: string[], destinationId: string) => void
+  onCopyToDestinationId?: (slotIds: string[], destinationId: string) => void
+  onMoveSlotOnTimeAxis?: (slotIds: string[], timeDiffMs: number) => void
+  onCopySlotOnTimeAxis?: (slotIds: string[], timeDiffMs: number) => void
   onChangeSlotTime?: (slotId: string, openTime: Date, closeTime: Date) => void
   onSelectionChange?: (slotIds: string[]) => void
   onClickOnSlot?: (slotId: string) => void
@@ -94,13 +90,17 @@ function snapshotProps(props: GanttEditorWrapperProps): GanttEditorCanvasProps {
     destinationGroups: props.destinationGroups,
     suggestions: props.suggestions,
     activateRulers: props.activateRulers,
+    slotResizeMinutesStep: props.slotResizeMinutesStep,
     verticalMarkers: props.verticalMarkers,
     contextMenuActions: props.contextMenuActions,
     slotContextMenuActions: props.slotContextMenuActions,
     markedRegion: props.markedRegion,
     isReadOnly: props.isReadOnly,
+    defaultZoomLevel: props.defaultZoomLevel,
+    scaleOnResize: props.scaleOnResize,
     topContentPortion: props.topContentPortion,
     locale: props.locale,
+    dateTimeFormatters: props.dateTimeFormatters,
     currentTimeIndicatorLabel: props.currentTimeIndicatorLabel,
     xAxisOptions: props.xAxisOptions,
     hoverPreviewMaxClipboardSize: props.hoverPreviewMaxClipboardSize,
@@ -135,22 +135,14 @@ export const GanttEditor = forwardRef<GanttEditorRef, GanttEditorWrapperProps>(
           propsRef.current.onTopContentPortionChange?.(portion, heightPx),
         onChangeSlotTime: (slotId, openTime, closeTime) =>
           propsRef.current.onChangeSlotTime?.(slotId, openTime, closeTime),
-        onChangeDestinationId: (slotId, destinationId, preview) =>
-          propsRef.current.onChangeDestinationId?.(slotId, destinationId, preview),
-        onBulkChangeDestinationId: (slotIds, destinationId, preview) =>
-          propsRef.current.onBulkChangeDestinationId?.(slotIds, destinationId, preview),
-        onCopyToDestinationId: (slotId, destinationId, preview) =>
-          propsRef.current.onCopyToDestinationId?.(slotId, destinationId, preview),
-        onBulkCopyToDestinationId: (slotIds, destinationId, preview) =>
-          propsRef.current.onBulkCopyToDestinationId?.(slotIds, destinationId, preview),
-        onMoveSlotOnTimeAxis: (slotId, timeDiffMs, preview) =>
-          propsRef.current.onMoveSlotOnTimeAxis?.(slotId, timeDiffMs, preview),
-        onBulkMoveSlotsOnTimeAxis: (slotIds, timeDiffMs, preview) =>
-          propsRef.current.onBulkMoveSlotsOnTimeAxis?.(slotIds, timeDiffMs, preview),
-        onCopySlotOnTimeAxis: (slotId, timeDiffMs, preview) =>
-          propsRef.current.onCopySlotOnTimeAxis?.(slotId, timeDiffMs, preview),
-        onBulkCopySlotsOnTimeAxis: (slotIds, timeDiffMs, preview) =>
-          propsRef.current.onBulkCopySlotsOnTimeAxis?.(slotIds, timeDiffMs, preview),
+        onChangeDestinationId: (slotIds, destinationId) =>
+          propsRef.current.onChangeDestinationId?.(slotIds, destinationId),
+        onCopyToDestinationId: (slotIds, destinationId) =>
+          propsRef.current.onCopyToDestinationId?.(slotIds, destinationId),
+        onMoveSlotOnTimeAxis: (slotIds, timeDiffMs) =>
+          propsRef.current.onMoveSlotOnTimeAxis?.(slotIds, timeDiffMs),
+        onCopySlotOnTimeAxis: (slotIds, timeDiffMs) =>
+          propsRef.current.onCopySlotOnTimeAxis?.(slotIds, timeDiffMs),
         onClickOnSlot: (slotId) => propsRef.current.onClickOnSlot?.(slotId),
         onHoverOnSlot: (slotId) => propsRef.current.onHoverOnSlot?.(slotId),
         onDoubleClickOnSlot: (slotId) => propsRef.current.onDoubleClickOnSlot?.(slotId),
@@ -226,12 +218,16 @@ export const GanttEditor = forwardRef<GanttEditorRef, GanttEditorWrapperProps>(
       props.destinationGroups,
       props.suggestions,
       props.activateRulers,
+      props.slotResizeMinutesStep,
       props.verticalMarkers,
       props.contextMenuActions,
       props.slotContextMenuActions,
       props.isReadOnly,
+      props.defaultZoomLevel,
+      props.scaleOnResize,
       props.topContentPortion,
       props.locale,
+      props.dateTimeFormatters,
       props.currentTimeIndicatorLabel,
       props.xAxisOptions,
       props.features,

@@ -2,7 +2,7 @@ import { hitTestVerticalMarker } from "./vertical-markers";
 import { hitTestSuggestionButton } from "./suggestions";
 import type { Topic, GanttEditorSuggestion } from "./types";
 import type { UnifiedChartLayout } from "./unified-chart-layout";
-import type { GanttEditorProps } from "./props";
+import type { GanttEditorDateTimeFormatters, GanttEditorProps } from "./props";
 import { timeMsToCanvasX, verticalMarkerDateFromCanvasX } from "./time-utils";
 
 type ChartMargin = {
@@ -82,6 +82,7 @@ export function drawCurrentTimeIndicator(
   endTime: Date,
   margin: ChartMargin,
   locale?: string | string[],
+  dateTimeFormatters?: GanttEditorDateTimeFormatters,
   currentTimeIndicatorLabel?: (value: Date) => string,
 ): void {
   const now = new Date();
@@ -90,7 +91,12 @@ export function drawCurrentTimeIndicator(
   const x = timeMsToCanvasX(now.getTime(), layout.canvasCssWidth, startTime, endTime, margin);
   const axisRowHeight = layout.axisRect.h / 4;
   const labelY = layout.axisRect.y + axisRowHeight * 3.5;
-  const labelText = formatCurrentTimeLabel(now, locale, currentTimeIndicatorLabel);
+  const labelText = formatCurrentTimeLabel(
+    now,
+    locale,
+    currentTimeIndicatorLabel,
+    dateTimeFormatters?.currentTime,
+  );
   ctx.save();
 
   ctx.strokeStyle = "red";
@@ -103,20 +109,22 @@ export function drawCurrentTimeIndicator(
   ctx.setLineDash([]);
 
   ctx.font = "bold 10px sans-serif";
-  const textWidth = ctx.measureText(labelText).width;
+  const textMetrics = ctx.measureText(labelText);
+  const textWidth = textMetrics.width;
   const labelPadX = 4;
   const labelWidth = textWidth + labelPadX * 2;
-  const labelHeight = Math.max(10, axisRowHeight - 2);
+  const labelHeight = Math.max(12, axisRowHeight - 0.5);
   const labelTop = labelY - labelHeight / 2;
+  const textBaselineY = centeredTextAlphabeticBaseline(textMetrics, labelTop, labelHeight);
 
   ctx.fillStyle = "rgba(255, 0, 0, 0.75)";
   ctx.fillRect(x, labelTop, labelWidth, labelHeight);
 
   ctx.fillStyle = "white";
   ctx.font = "bold 10px sans-serif";
-  ctx.textBaseline = "middle";
+  ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
-  ctx.fillText(labelText, x + labelPadX, labelY);
+  ctx.fillText(labelText, x + labelPadX, textBaselineY);
 
   ctx.restore();
 }
@@ -129,6 +137,7 @@ export function drawMouseTimeStrip(
   margin: ChartMargin,
   canvasX: number,
   locale?: string | string[],
+  dateTimeFormatters?: GanttEditorDateTimeFormatters,
 ): void {
   const minX = margin.left;
   const maxX = layout.canvasCssWidth - margin.right;
@@ -143,7 +152,7 @@ export function drawMouseTimeStrip(
   );
   const axisRowHeight = layout.axisRect.h / 4;
   const labelY = layout.axisRect.y + axisRowHeight * 2.5;
-  const labelText = formatMouseTimeLabel(value, locale);
+  const labelText = formatMouseTimeLabel(value, locale, dateTimeFormatters?.onMouseTimeStrip);
   ctx.save();
 
   ctx.strokeStyle = "rgba(33, 150, 243, 0.9)";
@@ -156,11 +165,13 @@ export function drawMouseTimeStrip(
   ctx.setLineDash([]);
 
   ctx.font = "bold 10px sans-serif";
-  const textWidth = ctx.measureText(labelText).width;
+  const textMetrics = ctx.measureText(labelText);
+  const textWidth = textMetrics.width;
   const labelPadX = 4;
   const labelWidth = textWidth + labelPadX * 2;
-  const labelHeight = Math.max(10, axisRowHeight - 2);
+  const labelHeight = Math.max(12, axisRowHeight - 0.5);
   const labelTop = labelY - labelHeight / 2;
+  const textBaselineY = centeredTextAlphabeticBaseline(textMetrics, labelTop, labelHeight);
   const labelLeft = Math.max(
     minX,
     Math.min(maxX - labelWidth, canvasX - labelWidth / 2),
@@ -171,26 +182,48 @@ export function drawMouseTimeStrip(
 
   ctx.fillStyle = "white";
   ctx.font = "bold 10px sans-serif";
-  ctx.textBaseline = "middle";
+  ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
-  ctx.fillText(labelText, labelLeft + labelPadX, labelY);
+  ctx.fillText(labelText, labelLeft + labelPadX, textBaselineY);
 
   ctx.restore();
+}
+
+function centeredTextAlphabeticBaseline(
+  metrics: TextMetrics,
+  containerTop: number,
+  containerHeight: number,
+): number {
+  const ascent = metrics.actualBoundingBoxAscent;
+  const descent = metrics.actualBoundingBoxDescent;
+
+  if (Number.isFinite(ascent) && Number.isFinite(descent) && ascent + descent > 0) {
+    return containerTop + (containerHeight - ascent - descent) / 2 + ascent;
+  }
+
+  return containerTop + containerHeight / 2;
 }
 
 function formatCurrentTimeLabel(
   value: Date,
   locale?: string | string[],
   currentTimeIndicatorLabel?: (value: Date) => string,
+  formatter?: Intl.DateTimeFormat,
 ): string {
   if (currentTimeIndicatorLabel) return currentTimeIndicatorLabel(value);
+  if (formatter) return formatter.format(value);
   return new Intl.DateTimeFormat(locale, {
     dateStyle: "short",
     timeStyle: "short",
   }).format(value);
 }
 
-function formatMouseTimeLabel(value: Date, locale?: string | string[]): string {
+function formatMouseTimeLabel(
+  value: Date,
+  locale?: string | string[],
+  formatter?: Intl.DateTimeFormat,
+): string {
+  if (formatter) return formatter.format(value);
   return new Intl.DateTimeFormat(locale, {
     timeStyle: "short",
   }).format(value);

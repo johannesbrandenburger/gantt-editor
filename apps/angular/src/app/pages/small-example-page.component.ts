@@ -23,13 +23,9 @@ import {
         [suggestions]="[]"
         (onChangeStartAndEndTime)="handleChangeStartAndEndTime($event)"
         (onChangeDestinationId)="handleChangeDestinationId($event)"
-        (onBulkChangeDestinationId)="handleBulkChangeDestinationId($event)"
         (onCopyToDestinationId)="handleCopyToDestinationId($event)"
-        (onBulkCopyToDestinationId)="handleBulkCopyToDestinationId($event)"
         (onMoveSlotOnTimeAxis)="handleMoveSlotOnTimeAxis($event)"
-        (onBulkMoveSlotsOnTimeAxis)="handleBulkMoveSlotsOnTimeAxis($event)"
         (onCopySlotOnTimeAxis)="handleCopySlotOnTimeAxis($event)"
-        (onBulkCopySlotsOnTimeAxis)="handleBulkCopySlotsOnTimeAxis($event)"
         (onChangeSlotTime)="handleChangeSlotTime($event)"
         (onClickOnSlot)="handleClickOnSlot($event)"
         (onHoverOnSlot)="handleHoverOnSlot($event)"
@@ -85,36 +81,20 @@ export class SmallExamplePageComponent {
     console.log(`onChangeStartAndEndTime(${newStartTime}, ${newEndTime})`)
   }
 
-  handleChangeDestinationId([slotId, newDestinationId]: [string, string, boolean]): void {
-    console.log(`onChangeDestinationId(${slotId}, ${newDestinationId})`)
+  handleChangeDestinationId([slotIds, newDestinationId]: [string[], string]): void {
+    console.log(`onChangeDestinationId(${slotIds.join(',')}, ${newDestinationId})`)
   }
 
-  handleBulkChangeDestinationId([slotIds, newDestinationId]: [string[], string, boolean]): void {
-    console.log(`onBulkChangeDestinationId(${slotIds.join(',')}, ${newDestinationId})`)
+  handleCopyToDestinationId([slotIds, newDestinationId]: [string[], string]): void {
+    console.log(`onCopyToDestinationId(${slotIds.join(',')}, ${newDestinationId})`)
   }
 
-  handleCopyToDestinationId([slotId, newDestinationId]: [string, string, boolean]): void {
-    console.log(`onCopyToDestinationId(${slotId}, ${newDestinationId})`)
+  handleMoveSlotOnTimeAxis([slotIds, timeDiffMs]: [string[], number]): void {
+    console.log(`onMoveSlotOnTimeAxis(${slotIds.join(',')}, ${timeDiffMs})`)
   }
 
-  handleBulkCopyToDestinationId([slotIds, newDestinationId]: [string[], string, boolean]): void {
-    console.log(`onBulkCopyToDestinationId(${slotIds.join(',')}, ${newDestinationId})`)
-  }
-
-  handleMoveSlotOnTimeAxis([slotId, timeDiffMs]: [string, number, boolean]): void {
-    console.log(`onMoveSlotOnTimeAxis(${slotId}, ${timeDiffMs})`)
-  }
-
-  handleBulkMoveSlotsOnTimeAxis([slotIds, timeDiffMs]: [string[], number, boolean]): void {
-    console.log(`onBulkMoveSlotsOnTimeAxis(${slotIds.join(',')}, ${timeDiffMs})`)
-  }
-
-  handleCopySlotOnTimeAxis([slotId, timeDiffMs]: [string, number, boolean]): void {
-    console.log(`onCopySlotOnTimeAxis(${slotId}, ${timeDiffMs})`)
-  }
-
-  handleBulkCopySlotsOnTimeAxis([slotIds, timeDiffMs]: [string[], number, boolean]): void {
-    console.log(`onBulkCopySlotsOnTimeAxis(${slotIds.join(',')}, ${timeDiffMs})`)
+  handleCopySlotOnTimeAxis([slotIds, timeDiffMs]: [string[], number]): void {
+    console.log(`onCopySlotOnTimeAxis(${slotIds.join(',')}, ${timeDiffMs})`)
   }
 
   handleChangeSlotTime([slotId, newOpenTime, newCloseTime]: [string, Date, Date]): void {

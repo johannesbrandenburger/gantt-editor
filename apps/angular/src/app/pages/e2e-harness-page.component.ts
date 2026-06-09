@@ -4,6 +4,7 @@ import { ActivatedRoute, ParamMap, Router } from '@angular/router'
 import {
   GanttEditor,
   type GanttEditorCanvasContextMenuAction,
+  type GanttEditorDateTimeFormatters,
   type GanttEditorSlotContextMenuAction,
   type GanttEditorDestination,
   type GanttEditorDestinationGroup,
@@ -38,8 +39,10 @@ type HarnessData = {
   slotContextMenuActions: GanttEditorSlotContextMenuAction[]
   markedRegion: GanttEditorMarkedRegion | null
   activateRulers: GanttEditorRulerMode
+  slotResizeMinutesStep: number | null
   isReadOnly: boolean
   topContentPortion: number
+  dateTimeFormatters?: GanttEditorDateTimeFormatters
   features?: GanttEditorFeature[]
 }
 
@@ -51,6 +54,7 @@ type QueryInput = Partial<{
   markers: string
   markedRegion: string
   activateRulers: string
+  slotResizeMinutesStep: string
   topContentPortion: string
   features: string
   startTime: string
@@ -338,6 +342,7 @@ function baseData(fixture: FixtureName, slotCount: number): HarnessData {
     slotContextMenuActions: [],
     markedRegion: null,
     activateRulers: null,
+    slotResizeMinutesStep: null,
     isReadOnly: fixture === 'readonly',
     topContentPortion: 0,
   }
@@ -434,6 +439,8 @@ function fromQuery(query: QueryInput): HarnessData {
   data.isReadOnly = parseBoolean(query.readOnly ?? null, data.isReadOnly)
   const rulersRaw = (query.activateRulers ?? '').toUpperCase()
   data.activateRulers = rulersRaw === 'ROW' || rulersRaw === 'GLOBAL' ? rulersRaw : null
+  const resizeStep = parseNumber(query.slotResizeMinutesStep ?? null, 0)
+  data.slotResizeMinutesStep = resizeStep > 0 ? resizeStep : null
   data.topContentPortion = Math.max(0, Math.min(0.5, parseNumber(query.topContentPortion ?? null, 0)))
   data.features = parseFeatures(query.features ?? null)
   data.startTime = parseDate(query.startTime ?? null, data.startTime)
@@ -479,6 +486,7 @@ function fromQuery(query: QueryInput): HarnessData {
           }
         : data.markedRegion,
       activateRulers: custom.activateRulers ?? data.activateRulers,
+      slotResizeMinutesStep: custom.slotResizeMinutesStep ?? data.slotResizeMinutesStep,
       features: custom.features ?? data.features,
     })
   }
@@ -495,6 +503,7 @@ function queryFromParamMap(queryParamMap: ParamMap): QueryInput {
     markers: queryParamMap.get('markers') ?? undefined,
     markedRegion: queryParamMap.get('markedRegion') ?? undefined,
     activateRulers: queryParamMap.get('activateRulers') ?? undefined,
+    slotResizeMinutesStep: queryParamMap.get('slotResizeMinutesStep') ?? undefined,
     topContentPortion: queryParamMap.get('topContentPortion') ?? undefined,
     features: queryParamMap.get('features') ?? undefined,
     startTime: queryParamMap.get('startTime') ?? undefined,
@@ -576,16 +585,14 @@ function buildCopiedSlotOnTimeAxis(
         [markedRegion]="harnessData.markedRegion"
         [topContentPortion]="harnessData.topContentPortion"
         [activateRulers]="harnessData.activateRulers"
+        [slotResizeMinutesStep]="harnessData.slotResizeMinutesStep"
+        [dateTimeFormatters]="harnessData.dateTimeFormatters"
         [features]="harnessData.features"
         (onChangeStartAndEndTime)="onChangeStartAndEndTime($event)"
         (onChangeDestinationId)="onChangeDestinationId($event)"
-        (onBulkChangeDestinationId)="onBulkChangeDestinationId($event)"
         (onCopyToDestinationId)="onCopyToDestinationId($event)"
-        (onBulkCopyToDestinationId)="onBulkCopyToDestinationId($event)"
         (onMoveSlotOnTimeAxis)="onMoveSlotOnTimeAxis($event)"
-        (onBulkMoveSlotsOnTimeAxis)="onBulkMoveSlotsOnTimeAxis($event)"
         (onCopySlotOnTimeAxis)="onCopySlotOnTimeAxis($event)"
-        (onBulkCopySlotsOnTimeAxis)="onBulkCopySlotsOnTimeAxis($event)"
         (onChangeSlotTime)="onChangeSlotTime($event)"
         (onClickOnSlot)="onClickOnSlot($event)"
         (onHoverOnSlot)="onHoverOnSlot($event)"
@@ -739,63 +746,33 @@ export class E2eHarnessPageComponent implements OnInit, OnDestroy {
     this.logEvent('onChangeStartAndEndTime', { start, end })
   }
 
-  onChangeDestinationId([slotId, destinationId, preview]: [string, string, boolean]): void {
-    if (!preview) {
+  onChangeDestinationId([slotIds, destinationId]: [string[], string]): void {
+    const movedSlotIds = new Set(slotIds)
+    this.harnessData = {
+      ...this.harnessData,
+      slots: this.harnessData.slots.map((slot) =>
+        movedSlotIds.has(slot.id) ? { ...slot, destinationId } : slot,
+      ),
+    }
+    this.logEvent('onChangeDestinationId', { slotIds, destinationId })
+  }
+
+  onCopyToDestinationId([slotIds, destinationId]: [string[], string]): void {
+    const sourceIds = new Set(slotIds)
+    const existingIds = new Set(this.harnessData.slots.map((slot) => slot.id))
+    const sources = this.harnessData.slots.filter(
+      (slot) => sourceIds.has(slot.id) && slot.destinationId !== destinationId,
+    )
+    if (sources.length > 0) {
       this.harnessData = {
         ...this.harnessData,
-        slots: this.harnessData.slots.map((slot) =>
-          slot.id === slotId ? { ...slot, destinationId } : slot,
-        ),
+        slots: [
+          ...this.harnessData.slots,
+          ...sources.map((source) => buildCopiedSlot(source, destinationId, existingIds)),
+        ],
       }
     }
-    this.logEvent('onChangeDestinationId', { slotId, destinationId, preview })
-  }
-
-  onBulkChangeDestinationId([slotIds, destinationId, preview]: [string[], string, boolean]): void {
-    if (!preview) {
-      const movedSlotIds = new Set(slotIds)
-      this.harnessData = {
-        ...this.harnessData,
-        slots: this.harnessData.slots.map((slot) =>
-          movedSlotIds.has(slot.id) ? { ...slot, destinationId } : slot,
-        ),
-      }
-    }
-    this.logEvent('onBulkChangeDestinationId', { slotIds, destinationId, preview })
-  }
-
-  onCopyToDestinationId([slotId, destinationId, preview]: [string, string, boolean]): void {
-    if (!preview) {
-      const existingIds = new Set(this.harnessData.slots.map((slot) => slot.id))
-      const source = this.harnessData.slots.find((slot) => slot.id === slotId)
-      if (source && source.destinationId !== destinationId) {
-        this.harnessData = {
-          ...this.harnessData,
-          slots: [...this.harnessData.slots, buildCopiedSlot(source, destinationId, existingIds)],
-        }
-      }
-    }
-    this.logEvent('onCopyToDestinationId', { slotId, destinationId, preview })
-  }
-
-  onBulkCopyToDestinationId([slotIds, destinationId, preview]: [string[], string, boolean]): void {
-    if (!preview) {
-      const sourceIds = new Set(slotIds)
-      const existingIds = new Set(this.harnessData.slots.map((slot) => slot.id))
-      const sources = this.harnessData.slots.filter(
-        (slot) => sourceIds.has(slot.id) && slot.destinationId !== destinationId,
-      )
-      if (sources.length > 0) {
-        this.harnessData = {
-          ...this.harnessData,
-          slots: [
-            ...this.harnessData.slots,
-            ...sources.map((source) => buildCopiedSlot(source, destinationId, existingIds)),
-          ],
-        }
-      }
-    }
-    this.logEvent('onBulkCopyToDestinationId', { slotIds, destinationId, preview })
+    this.logEvent('onCopyToDestinationId', { slotIds, destinationId })
   }
 
   onChangeSlotTime([slotId, openTime, closeTime]: [string, Date, Date]): void {
@@ -814,27 +791,8 @@ export class E2eHarnessPageComponent implements OnInit, OnDestroy {
     this.logEvent('onChangeSlotTime', { slotId, openTime, closeTime })
   }
 
-  onMoveSlotOnTimeAxis([slotId, timeDiffMs, preview]: [string, number, boolean]): void {
-    if (!preview && timeDiffMs !== 0) {
-      this.harnessData = {
-        ...this.harnessData,
-        slots: this.harnessData.slots.map((slot) =>
-          slot.id === slotId
-            ? {
-                ...slot,
-                openTime: new Date(slot.openTime.getTime() + timeDiffMs),
-                closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
-                deadlines: shiftDeadlinesByMs(slot.deadlines, timeDiffMs),
-              }
-            : slot,
-        ),
-      }
-    }
-    this.logEvent('onMoveSlotOnTimeAxis', { slotId, timeDiffMs, preview })
-  }
-
-  onBulkMoveSlotsOnTimeAxis([slotIds, timeDiffMs, preview]: [string[], number, boolean]): void {
-    if (!preview && timeDiffMs !== 0) {
+  onMoveSlotOnTimeAxis([slotIds, timeDiffMs]: [string[], number]): void {
+    if (timeDiffMs !== 0) {
       const movedSlotIds = new Set(slotIds)
       this.harnessData = {
         ...this.harnessData,
@@ -850,25 +808,11 @@ export class E2eHarnessPageComponent implements OnInit, OnDestroy {
         ),
       }
     }
-    this.logEvent('onBulkMoveSlotsOnTimeAxis', { slotIds, timeDiffMs, preview })
+    this.logEvent('onMoveSlotOnTimeAxis', { slotIds, timeDiffMs })
   }
 
-  onCopySlotOnTimeAxis([slotId, timeDiffMs, preview]: [string, number, boolean]): void {
-    if (!preview && timeDiffMs !== 0) {
-      const existingIds = new Set(this.harnessData.slots.map((slot) => slot.id))
-      const source = this.harnessData.slots.find((slot) => slot.id === slotId)
-      if (source) {
-        this.harnessData = {
-          ...this.harnessData,
-          slots: [...this.harnessData.slots, buildCopiedSlotOnTimeAxis(source, timeDiffMs, existingIds)],
-        }
-      }
-    }
-    this.logEvent('onCopySlotOnTimeAxis', { slotId, timeDiffMs, preview })
-  }
-
-  onBulkCopySlotsOnTimeAxis([slotIds, timeDiffMs, preview]: [string[], number, boolean]): void {
-    if (!preview && timeDiffMs !== 0) {
+  onCopySlotOnTimeAxis([slotIds, timeDiffMs]: [string[], number]): void {
+    if (timeDiffMs !== 0) {
       const sourceIds = new Set(slotIds)
       const existingIds = new Set(this.harnessData.slots.map((slot) => slot.id))
       const sources = this.harnessData.slots.filter((slot) => sourceIds.has(slot.id))
@@ -882,7 +826,7 @@ export class E2eHarnessPageComponent implements OnInit, OnDestroy {
         }
       }
     }
-    this.logEvent('onBulkCopySlotsOnTimeAxis', { slotIds, timeDiffMs, preview })
+    this.logEvent('onCopySlotOnTimeAxis', { slotIds, timeDiffMs })
   }
 
   onClickOnSlot(slotId: string): void {

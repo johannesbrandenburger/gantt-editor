@@ -1,4 +1,5 @@
 import type { GanttEditorXAxisOptions } from "./types";
+import type { GanttEditorDateTimeFormatters } from "./props";
 import { createTimeScale, type TimeDomainValue } from "./time-scale";
 
 export interface DrawXAxisParams {
@@ -9,6 +10,7 @@ export interface DrawXAxisParams {
   endTime: Date;
   margin: { left: number; right: number };
   locale?: string | string[];
+  dateTimeFormatters?: GanttEditorDateTimeFormatters;
   xAxisOptions?: GanttEditorXAxisOptions;
   /** Top offset when drawing into a larger unified canvas (default 0). */
   offsetY?: number;
@@ -45,7 +47,7 @@ export function visibleDayLabelTicks(startTime: Date, endTime: Date): Date[] {
 }
 
 export function drawXAxisOnCanvas(params: DrawXAxisParams) {
-  const { ctx, width, height, startTime, endTime, margin, locale, xAxisOptions } = params;
+  const { ctx, width, height, startTime, endTime, margin, locale, dateTimeFormatters, xAxisOptions } = params;
   const offsetY = params.offsetY ?? 0;
 
   const chartWidth = width - margin.left - margin.right;
@@ -67,11 +69,11 @@ export function drawXAxisOnCanvas(params: DrawXAxisParams) {
   });
   const dateFormatter = xAxisOptions?.upper?.tickFormat ?? ((d: TimeDomainValue) => {
     const date = d instanceof Date ? d : new Date(d);
-    return defaultUpperFormatter.format(date);
+    return (dateTimeFormatters?.upper ?? defaultUpperFormatter).format(date);
   });
   const timeFormatter = xAxisOptions?.lower?.tickFormat ?? ((d: TimeDomainValue) => {
     const date = d instanceof Date ? d : new Date(d);
-    return defaultLowerFormatter.format(date);
+    return (dateTimeFormatters?.lower ?? defaultLowerFormatter).format(date);
   });
 
   const upperTicks = xAxisOptions?.upper?.ticks

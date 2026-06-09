@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   GanttEditor,
+  type GanttEditorDateTimeFormatters,
   type GanttEditorFeature,
   type GanttEditorRulerMode,
   type GanttEditorCanvasContextMenuAction,
@@ -38,8 +39,10 @@ type HarnessData = {
   slotContextMenuActions: GanttEditorSlotContextMenuAction[]
   markedRegion: GanttEditorMarkedRegion | null
   activateRulers: GanttEditorRulerMode
+  slotResizeMinutesStep: number | null
   isReadOnly: boolean
   topContentPortion: number
+  dateTimeFormatters?: GanttEditorDateTimeFormatters
   features?: GanttEditorFeature[]
 }
 
@@ -51,6 +54,7 @@ type QueryInput = Partial<{
   markers: string
   markedRegion: string
   activateRulers: string
+  slotResizeMinutesStep: string
   topContentPortion: string
   features: string
   startTime: string
@@ -342,6 +346,7 @@ function baseData(fixture: FixtureName, slotCount: number): HarnessData {
     slotContextMenuActions: [],
     markedRegion: null,
     activateRulers: null,
+    slotResizeMinutesStep: null,
     isReadOnly: fixture === 'readonly',
     topContentPortion: 0,
   }
@@ -438,6 +443,8 @@ function fromQuery(query: QueryInput): HarnessData {
   data.isReadOnly = parseBoolean(query.readOnly ?? null, data.isReadOnly)
   const rulersRaw = (query.activateRulers ?? '').toUpperCase()
   data.activateRulers = rulersRaw === 'ROW' || rulersRaw === 'GLOBAL' ? rulersRaw : null
+  const resizeStep = parseNumber(query.slotResizeMinutesStep ?? null, 0)
+  data.slotResizeMinutesStep = resizeStep > 0 ? resizeStep : null
   data.topContentPortion = Math.max(0, Math.min(0.5, parseNumber(query.topContentPortion ?? null, 0)))
   data.features = parseFeatures(query.features ?? null)
   data.startTime = parseDate(query.startTime ?? null, data.startTime)
@@ -483,6 +490,7 @@ function fromQuery(query: QueryInput): HarnessData {
           }
         : data.markedRegion,
       activateRulers: custom.activateRulers ?? data.activateRulers,
+      slotResizeMinutesStep: custom.slotResizeMinutesStep ?? data.slotResizeMinutesStep,
       features: custom.features ?? data.features,
     })
   }
@@ -617,76 +625,39 @@ export function E2eHarnessPage() {
   )
 
   const onChangeDestinationId = useCallback(
-    (slotId: string, destinationId: string, preview: boolean): void => {
-      if (!preview) {
-        setHarnessData((current) => ({
-          ...current,
-          slots: current.slots.map((slot) => (slot.id === slotId ? { ...slot, destinationId } : slot)),
-        }))
-      }
-      logEvent('onChangeDestinationId', { slotId, destinationId, preview })
-    },
-    [logEvent],
-  )
-
-  const onBulkChangeDestinationId = useCallback(
-    (slotIds: string[], destinationId: string, preview: boolean): void => {
-      if (!preview) {
-        const movedSlotIds = new Set(slotIds)
-        setHarnessData((current) => ({
-          ...current,
-          slots: current.slots.map((slot) =>
-            movedSlotIds.has(slot.id) ? { ...slot, destinationId } : slot,
-          ),
-        }))
-      }
-      logEvent('onBulkChangeDestinationId', { slotIds, destinationId, preview })
+    (slotIds: string[], destinationId: string): void => {
+      const movedSlotIds = new Set(slotIds)
+      setHarnessData((current) => ({
+        ...current,
+        slots: current.slots.map((slot) =>
+          movedSlotIds.has(slot.id) ? { ...slot, destinationId } : slot,
+        ),
+      }))
+      logEvent('onChangeDestinationId', { slotIds, destinationId })
     },
     [logEvent],
   )
 
   const onCopyToDestinationId = useCallback(
-    (slotId: string, destinationId: string, preview: boolean): void => {
-      if (!preview) {
-        setHarnessData((current) => {
-          const existingIds = new Set(current.slots.map((slot) => slot.id))
-          const source = current.slots.find((slot) => slot.id === slotId)
-          if (!source || source.destinationId === destinationId) {
-            return current
-          }
-          return {
-            ...current,
-            slots: [...current.slots, buildCopiedSlot(source, destinationId, existingIds)],
-          }
-        })
-      }
-      logEvent('onCopyToDestinationId', { slotId, destinationId, preview })
-    },
-    [logEvent],
-  )
-
-  const onBulkCopyToDestinationId = useCallback(
-    (slotIds: string[], destinationId: string, preview: boolean): void => {
-      if (!preview) {
-        setHarnessData((current) => {
-          const sourceIds = new Set(slotIds)
-          const existingIds = new Set(current.slots.map((slot) => slot.id))
-          const sources = current.slots.filter(
-            (slot) => sourceIds.has(slot.id) && slot.destinationId !== destinationId,
-          )
-          if (sources.length === 0) {
-            return current
-          }
-          return {
-            ...current,
-            slots: [
-              ...current.slots,
-              ...sources.map((source) => buildCopiedSlot(source, destinationId, existingIds)),
-            ],
-          }
-        })
-      }
-      logEvent('onBulkCopyToDestinationId', { slotIds, destinationId, preview })
+    (slotIds: string[], destinationId: string): void => {
+      setHarnessData((current) => {
+        const sourceIds = new Set(slotIds)
+        const existingIds = new Set(current.slots.map((slot) => slot.id))
+        const sources = current.slots.filter(
+          (slot) => sourceIds.has(slot.id) && slot.destinationId !== destinationId,
+        )
+        if (sources.length === 0) {
+          return current
+        }
+        return {
+          ...current,
+          slots: [
+            ...current.slots,
+            ...sources.map((source) => buildCopiedSlot(source, destinationId, existingIds)),
+          ],
+        }
+      })
+      logEvent('onCopyToDestinationId', { slotIds, destinationId })
     },
     [logEvent],
   )
@@ -711,30 +682,8 @@ export function E2eHarnessPage() {
   )
 
   const onMoveSlotOnTimeAxis = useCallback(
-    (slotId: string, timeDiffMs: number, preview: boolean): void => {
-      if (!preview && timeDiffMs !== 0) {
-        setHarnessData((current) => ({
-          ...current,
-          slots: current.slots.map((slot) =>
-            slot.id === slotId
-              ? {
-                  ...slot,
-                  openTime: new Date(slot.openTime.getTime() + timeDiffMs),
-                  closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
-                  deadlines: shiftDeadlinesByMs(slot.deadlines, timeDiffMs),
-                }
-              : slot,
-          ),
-        }))
-      }
-      logEvent('onMoveSlotOnTimeAxis', { slotId, timeDiffMs, preview })
-    },
-    [logEvent],
-  )
-
-  const onBulkMoveSlotsOnTimeAxis = useCallback(
-    (slotIds: string[], timeDiffMs: number, preview: boolean): void => {
-      if (!preview && timeDiffMs !== 0) {
+    (slotIds: string[], timeDiffMs: number): void => {
+      if (timeDiffMs !== 0) {
         const movedSlotIds = new Set(slotIds)
         setHarnessData((current) => ({
           ...current,
@@ -750,34 +699,14 @@ export function E2eHarnessPage() {
           ),
         }))
       }
-      logEvent('onBulkMoveSlotsOnTimeAxis', { slotIds, timeDiffMs, preview })
+      logEvent('onMoveSlotOnTimeAxis', { slotIds, timeDiffMs })
     },
     [logEvent],
   )
 
   const onCopySlotOnTimeAxis = useCallback(
-    (slotId: string, timeDiffMs: number, preview: boolean): void => {
-      if (!preview && timeDiffMs !== 0) {
-        setHarnessData((current) => {
-          const existingIds = new Set(current.slots.map((slot) => slot.id))
-          const source = current.slots.find((slot) => slot.id === slotId)
-          if (!source) {
-            return current
-          }
-          return {
-            ...current,
-            slots: [...current.slots, buildCopiedSlotOnTimeAxis(source, timeDiffMs, existingIds)],
-          }
-        })
-      }
-      logEvent('onCopySlotOnTimeAxis', { slotId, timeDiffMs, preview })
-    },
-    [logEvent],
-  )
-
-  const onBulkCopySlotsOnTimeAxis = useCallback(
-    (slotIds: string[], timeDiffMs: number, preview: boolean): void => {
-      if (!preview && timeDiffMs !== 0) {
+    (slotIds: string[], timeDiffMs: number): void => {
+      if (timeDiffMs !== 0) {
         setHarnessData((current) => {
           const sourceIds = new Set(slotIds)
           const existingIds = new Set(current.slots.map((slot) => slot.id))
@@ -794,7 +723,7 @@ export function E2eHarnessPage() {
           }
         })
       }
-      logEvent('onBulkCopySlotsOnTimeAxis', { slotIds, timeDiffMs, preview })
+      logEvent('onCopySlotOnTimeAxis', { slotIds, timeDiffMs })
     },
     [logEvent],
   )
@@ -992,16 +921,14 @@ export function E2eHarnessPage() {
           markedRegion={harnessData.markedRegion}
           topContentPortion={harnessData.topContentPortion}
           activateRulers={harnessData.activateRulers}
+          slotResizeMinutesStep={harnessData.slotResizeMinutesStep}
+          dateTimeFormatters={harnessData.dateTimeFormatters}
           features={harnessData.features}
           onChangeStartAndEndTime={onChangeStartAndEndTime}
           onChangeDestinationId={onChangeDestinationId}
-          onBulkChangeDestinationId={onBulkChangeDestinationId}
           onCopyToDestinationId={onCopyToDestinationId}
-          onBulkCopyToDestinationId={onBulkCopyToDestinationId}
           onMoveSlotOnTimeAxis={onMoveSlotOnTimeAxis}
-          onBulkMoveSlotsOnTimeAxis={onBulkMoveSlotsOnTimeAxis}
           onCopySlotOnTimeAxis={onCopySlotOnTimeAxis}
-          onBulkCopySlotsOnTimeAxis={onBulkCopySlotsOnTimeAxis}
           onChangeSlotTime={onChangeSlotTime}
           onClickOnSlot={onClickOnSlot}
           onHoverOnSlot={onHoverOnSlot}

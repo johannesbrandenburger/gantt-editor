@@ -13,6 +13,15 @@ import type {
 import type { HelpOverlayTileDefinition, HelpOverlayTileId } from "./help-overlay/tile";
 
 export type GanttEditorRulerMode = "ROW" | "GLOBAL" | null;
+export type GanttEditorScaleOnResize = "FULL" | "TIME_ONLY";
+
+export interface GanttEditorDateTimeFormatters {
+  upper?: Intl.DateTimeFormat;
+  lower?: Intl.DateTimeFormat;
+  currentTime?: Intl.DateTimeFormat;
+  onMouseTimeStrip?: Intl.DateTimeFormat;
+  resizeSlotTime?: Intl.DateTimeFormat;
+}
 
 export type GanttEditorFeature =
   | "select-slots"
@@ -53,14 +62,22 @@ export interface GanttEditorProps {
   suggestions?: Array<GanttEditorSuggestion>;
   /** Enable slot-edge snap rulers while resizing (`null` disables). */
   activateRulers?: GanttEditorRulerMode;
+  /** Snap slot resizing to minute increments. Omit, `null`, or `0` to allow free resizing. */
+  slotResizeMinutesStep?: number | null;
   verticalMarkers?: Array<GanttEditorVerticalMarker>;
   contextMenuActions?: Array<GanttEditorCanvasContextMenuAction>;
   slotContextMenuActions?: Array<GanttEditorSlotContextMenuAction>;
   markedRegion?: GanttEditorMarkedRegion | null;
   isReadOnly: boolean;
+  /** Initial unified zoom multiplier. `1` keeps the default density; larger values make rows taller. */
+  defaultZoomLevel?: number;
+  /** Resize behavior. `FULL` preserves current unified zoom; `TIME_ONLY` only stretches the time axis. */
+  scaleOnResize?: GanttEditorScaleOnResize;
   topContentPortion?: number;
   /** Locale used by built-in date/time formatters. Does not translate user-provided text. */
   locale?: string | string[];
+  /** Date/time formatters used before falling back to locale-based built-in formatting. */
+  dateTimeFormatters?: GanttEditorDateTimeFormatters;
   /** Formats the current-time indicator label. Omit to show the locale date and time. */
   currentTimeIndicatorLabel?: (value: Date) => string;
   xAxisOptions?: GanttEditorXAxisOptions;
@@ -75,20 +92,16 @@ export interface GanttEditorProps {
 
 /**
  * Event callbacks for the canvas chart (framework bindings wire these to outputs).
- * Required entries are invoked today; optional ones mirror legacy emit names for future handlers.
  */
 export interface GanttEditorCallbacks {
   onChangeStartAndEndTime: (start: Date, end: Date) => void;
   onTopContentPortionChange: (portion: number, heightPx: number) => void;
   onChangeSlotTime: (slotId: string, openTime: Date, closeTime: Date) => void;
-  onChangeDestinationId?: (slotId: string, destinationId: string, preview: boolean) => void;
-  onBulkChangeDestinationId?: (slotIds: string[], destinationId: string, preview: boolean) => void;
-  onCopyToDestinationId?: (slotId: string, destinationId: string, preview: boolean) => void;
-  onBulkCopyToDestinationId?: (slotIds: string[], destinationId: string, preview: boolean) => void;
-  onMoveSlotOnTimeAxis?: (slotId: string, timeDiffMs: number, preview: boolean) => void;
-  onBulkMoveSlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number, preview: boolean) => void;
-  onCopySlotOnTimeAxis?: (slotId: string, timeDiffMs: number, preview: boolean) => void;
-  onBulkCopySlotsOnTimeAxis?: (slotIds: string[], timeDiffMs: number, preview: boolean) => void;
+  // TODO: not trigger changedestinationid if same destination
+  onChangeDestinationId?: (slotIds: string[], destinationId: string) => void;
+  onCopyToDestinationId?: (slotIds: string[], destinationId: string) => void;
+  onMoveSlotOnTimeAxis?: (slotIds: string[], timeDiffMs: number) => void;
+  onCopySlotOnTimeAxis?: (slotIds: string[], timeDiffMs: number) => void;
   onClickOnSlot?: (slotId: string) => void;
   onHoverOnSlot?: (slotId: string) => void;
   onDoubleClickOnSlot?: (slotId: string) => void;

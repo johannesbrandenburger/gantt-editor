@@ -116,11 +116,9 @@ test.describe("canvas rewrite slot interactions", () => {
     await expect
       .poll(async () => {
         const events = await getHarnessEvents(page);
-        const singleMoves = (events.onChangeDestinationId ?? []) as Array<{ preview?: boolean }>;
-        const bulkMoves = (events.onBulkChangeDestinationId ?? []) as Array<{ preview?: boolean }>;
-        const committedSingles = singleMoves.filter((event) => event.preview === false).length;
-        const committedBulks = bulkMoves.filter((event) => event.preview === false).length;
-        return committedSingles + committedBulks;
+        const singleMoves = events.onChangeDestinationId ?? [];
+        const bulkMoves = events.onChangeDestinationId ?? [];
+        return singleMoves.length + bulkMoves.length;
       })
       .toBe(0);
   });
@@ -217,5 +215,25 @@ test.describe("canvas rewrite slot interactions", () => {
         return resizes.filter((item) => item.slotId === SLOT_ID).length;
       })
       .toBe(1);
+  });
+
+  test("slot resizing snaps to configured minute increments", async ({ page }) => {
+    const canvas = await openE2eHarness(page, { fixture: "core" });
+    await setHarnessConfig(page, { slotResizeMinutesStep: 5 });
+    await expect
+      .poll(async () => await getCanvasStateField<number | null>(page, "slotResizeMinutesStep"))
+      .toBe(5);
+    await clearHarnessEvents(page);
+
+    const rightEdge = await findSlotPoint(page, SLOT_ID, "right-edge");
+    const from = await canvasPointToPagePoint(canvas, rightEdge);
+    await mouseDrag(page, from, { x: from.x + 17, y: from.y });
+
+    await expect
+      .poll(async () => {
+        const closeTimeMs = await getHarnessSlotCloseTimeMs(page, SLOT_ID);
+        return closeTimeMs == null ? null : closeTimeMs % (5 * 60_000);
+      })
+      .toBe(0);
   });
 });

@@ -109,13 +109,17 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
   @Input({ required: true }) destinationGroups!: GanttEditorProps['destinationGroups']
   @Input() suggestions?: GanttEditorProps['suggestions']
   @Input() activateRulers?: GanttEditorProps['activateRulers']
+  @Input() slotResizeMinutesStep?: GanttEditorProps['slotResizeMinutesStep']
   @Input() verticalMarkers?: GanttEditorProps['verticalMarkers']
   @Input() contextMenuActions?: GanttEditorProps['contextMenuActions']
   @Input() slotContextMenuActions?: GanttEditorProps['slotContextMenuActions']
   @Input() markedRegion?: GanttEditorProps['markedRegion']
   @Input({ required: true }) isReadOnly!: boolean
+  @Input() defaultZoomLevel?: number
+  @Input() scaleOnResize?: GanttEditorProps['scaleOnResize']
   @Input() topContentPortion?: number
   @Input() locale?: GanttEditorProps['locale']
+  @Input() dateTimeFormatters?: GanttEditorProps['dateTimeFormatters']
   @Input() currentTimeIndicatorLabel?: GanttEditorProps['currentTimeIndicatorLabel']
   @Input() xAxisOptions?: GanttEditorProps['xAxisOptions']
   @Input() hoverPreviewMaxClipboardSize?: number
@@ -124,14 +128,10 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
   @Input() helpOverlayTileIds?: GanttEditorProps['helpOverlayTileIds']
 
   @Output() onChangeStartAndEndTime = new EventEmitter<[Date, Date]>()
-  @Output() onChangeDestinationId = new EventEmitter<[string, string, boolean]>()
-  @Output() onBulkChangeDestinationId = new EventEmitter<[string[], string, boolean]>()
-  @Output() onCopyToDestinationId = new EventEmitter<[string, string, boolean]>()
-  @Output() onBulkCopyToDestinationId = new EventEmitter<[string[], string, boolean]>()
-  @Output() onMoveSlotOnTimeAxis = new EventEmitter<[string, number, boolean]>()
-  @Output() onBulkMoveSlotsOnTimeAxis = new EventEmitter<[string[], number, boolean]>()
-  @Output() onCopySlotOnTimeAxis = new EventEmitter<[string, number, boolean]>()
-  @Output() onBulkCopySlotsOnTimeAxis = new EventEmitter<[string[], number, boolean]>()
+  @Output() onChangeDestinationId = new EventEmitter<[string[], string]>()
+  @Output() onCopyToDestinationId = new EventEmitter<[string[], string]>()
+  @Output() onMoveSlotOnTimeAxis = new EventEmitter<[string[], number]>()
+  @Output() onCopySlotOnTimeAxis = new EventEmitter<[string[], number]>()
   @Output() onChangeSlotTime = new EventEmitter<[string, Date, Date]>()
   @Output() onSelectionChange = new EventEmitter<string[]>()
   @Output() onClickOnSlot = new EventEmitter<string>()
@@ -182,22 +182,14 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
         this.onTopContentPortionChange.emit([portion, heightPx]),
       onChangeSlotTime: (slotId, openTime, closeTime) =>
         this.onChangeSlotTime.emit([slotId, openTime, closeTime]),
-      onChangeDestinationId: (slotId, destinationId, preview) =>
-        this.onChangeDestinationId.emit([slotId, destinationId, preview]),
-      onBulkChangeDestinationId: (slotIds, destinationId, preview) =>
-        this.onBulkChangeDestinationId.emit([slotIds, destinationId, preview]),
-      onCopyToDestinationId: (slotId, destinationId, preview) =>
-        this.onCopyToDestinationId.emit([slotId, destinationId, preview]),
-      onBulkCopyToDestinationId: (slotIds, destinationId, preview) =>
-        this.onBulkCopyToDestinationId.emit([slotIds, destinationId, preview]),
-      onMoveSlotOnTimeAxis: (slotId, timeDiffMs, preview) =>
-        this.onMoveSlotOnTimeAxis.emit([slotId, timeDiffMs, preview]),
-      onBulkMoveSlotsOnTimeAxis: (slotIds, timeDiffMs, preview) =>
-        this.onBulkMoveSlotsOnTimeAxis.emit([slotIds, timeDiffMs, preview]),
-      onCopySlotOnTimeAxis: (slotId, timeDiffMs, preview) =>
-        this.onCopySlotOnTimeAxis.emit([slotId, timeDiffMs, preview]),
-      onBulkCopySlotsOnTimeAxis: (slotIds, timeDiffMs, preview) =>
-        this.onBulkCopySlotsOnTimeAxis.emit([slotIds, timeDiffMs, preview]),
+      onChangeDestinationId: (slotIds, destinationId) =>
+        this.onChangeDestinationId.emit([slotIds, destinationId]),
+      onCopyToDestinationId: (slotIds, destinationId) =>
+        this.onCopyToDestinationId.emit([slotIds, destinationId]),
+      onMoveSlotOnTimeAxis: (slotIds, timeDiffMs) =>
+        this.onMoveSlotOnTimeAxis.emit([slotIds, timeDiffMs]),
+      onCopySlotOnTimeAxis: (slotIds, timeDiffMs) =>
+        this.onCopySlotOnTimeAxis.emit([slotIds, timeDiffMs]),
       onClickOnSlot: (slotId) => this.onClickOnSlot.emit(slotId),
       onHoverOnSlot: (slotId) => this.onHoverOnSlot.emit(slotId),
       onDoubleClickOnSlot: (slotId) => this.onDoubleClickOnSlot.emit(slotId),
@@ -336,13 +328,17 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
       destinationGroups: this.destinationGroups,
       suggestions: this.suggestions,
       activateRulers: this.activateRulers,
+      slotResizeMinutesStep: this.slotResizeMinutesStep,
       verticalMarkers: this.verticalMarkers,
       contextMenuActions: this.contextMenuActions,
       slotContextMenuActions: this.slotContextMenuActions,
       markedRegion: this.markedRegion,
       isReadOnly: this.isReadOnly,
+      defaultZoomLevel: this.defaultZoomLevel,
+      scaleOnResize: this.scaleOnResize,
       topContentPortion: this.topContentPortion,
       locale: this.locale,
+      dateTimeFormatters: this.dateTimeFormatters,
       currentTimeIndicatorLabel: this.currentTimeIndicatorLabel,
       xAxisOptions: this.xAxisOptions,
       hoverPreviewMaxClipboardSize: this.hoverPreviewMaxClipboardSize,

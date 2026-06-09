@@ -19,8 +19,10 @@ export type {
   GanttEditorProps,
   GanttEditorCallbacks,
   GanttEditorHost,
+  GanttEditorDateTimeFormatters,
   GanttEditorFeature,
   GanttEditorRulerMode,
+  GanttEditorScaleOnResize,
 } from '../components/gantt-editor-lib/chart/props'
 
 export type {

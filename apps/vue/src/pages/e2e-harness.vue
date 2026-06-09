@@ -3,6 +3,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import GanttEditor from "@/vue/GanttEditor.vue";
 import type {
+  GanttEditorDateTimeFormatters,
   GanttEditorFeature,
   GanttEditorRulerMode,
 } from "@/components/gantt-editor-lib/chart/props";
@@ -40,8 +41,10 @@ type HarnessData = {
   slotContextMenuActions: GanttEditorSlotContextMenuAction[];
   markedRegion: GanttEditorMarkedRegion | null;
   activateRulers: GanttEditorRulerMode;
+  slotResizeMinutesStep: number | null;
   isReadOnly: boolean;
   topContentPortion: number;
+  dateTimeFormatters?: GanttEditorDateTimeFormatters;
   features?: GanttEditorFeature[];
 };
 
@@ -53,6 +56,7 @@ type QueryInput = Partial<{
   markers: string;
   markedRegion: string;
   activateRulers: string;
+  slotResizeMinutesStep: string;
   topContentPortion: string;
   features: string;
   startTime: string;
@@ -344,6 +348,7 @@ function baseData(fixture: FixtureName, slotCount: number): HarnessData {
     slotContextMenuActions: [],
     markedRegion: null,
     activateRulers: null,
+    slotResizeMinutesStep: null,
     isReadOnly: fixture === "readonly",
     topContentPortion: 0,
   };
@@ -442,6 +447,8 @@ function fromQuery(query: QueryInput): HarnessData {
   data.isReadOnly = parseBoolean(query.readOnly ?? null, data.isReadOnly);
   const rulersRaw = (query.activateRulers ?? "").toUpperCase();
   data.activateRulers = rulersRaw === "ROW" || rulersRaw === "GLOBAL" ? rulersRaw : null;
+  const resizeStep = parseNumber(query.slotResizeMinutesStep ?? null, 0);
+  data.slotResizeMinutesStep = resizeStep > 0 ? resizeStep : null;
   data.topContentPortion = Math.max(0, Math.min(0.5, parseNumber(query.topContentPortion ?? null, 0)));
   data.features = parseFeatures(query.features ?? null);
   data.startTime = parseDate(query.startTime ?? null, data.startTime);
@@ -486,8 +493,9 @@ function fromQuery(query: QueryInput): HarnessData {
             endTime: new Date(custom.markedRegion.endTime),
           }
         : data.markedRegion,
-        activateRulers: custom.activateRulers ?? data.activateRulers,
-        features: custom.features ?? data.features,
+      activateRulers: custom.activateRulers ?? data.activateRulers,
+      slotResizeMinutesStep: custom.slotResizeMinutesStep ?? data.slotResizeMinutesStep,
+      features: custom.features ?? data.features,
     });
   }
 
@@ -568,63 +576,33 @@ function onChangeStartAndEndTime(start: Date, end: Date): void {
   logEvent("onChangeStartAndEndTime", { start, end });
 }
 
-function onChangeDestinationId(slotId: string, destinationId: string, preview: boolean): void {
-  if (!preview) {
+function onChangeDestinationId(slotIds: string[], destinationId: string): void {
+  const movedSlotIds = new Set(slotIds);
+  harnessData.value = {
+    ...harnessData.value,
+    slots: harnessData.value.slots.map((slot) =>
+      movedSlotIds.has(slot.id) ? { ...slot, destinationId } : slot,
+    ),
+  };
+  logEvent("onChangeDestinationId", { slotIds, destinationId });
+}
+
+function onCopyToDestinationId(slotIds: string[], destinationId: string): void {
+  const sourceIds = new Set(slotIds);
+  const existingIds = new Set(harnessData.value.slots.map((slot) => slot.id));
+  const sources = harnessData.value.slots.filter(
+    (slot) => sourceIds.has(slot.id) && slot.destinationId !== destinationId,
+  );
+  if (sources.length > 0) {
     harnessData.value = {
       ...harnessData.value,
-      slots: harnessData.value.slots.map((slot) =>
-        slot.id === slotId ? { ...slot, destinationId } : slot,
-      ),
+      slots: [
+        ...harnessData.value.slots,
+        ...sources.map((source) => buildCopiedSlot(source, destinationId, existingIds)),
+      ],
     };
   }
-  logEvent("onChangeDestinationId", { slotId, destinationId, preview });
-}
-
-function onBulkChangeDestinationId(slotIds: string[], destinationId: string, preview: boolean): void {
-  if (!preview) {
-    const movedSlotIds = new Set(slotIds);
-    harnessData.value = {
-      ...harnessData.value,
-      slots: harnessData.value.slots.map((slot) =>
-        movedSlotIds.has(slot.id) ? { ...slot, destinationId } : slot,
-      ),
-    };
-  }
-  logEvent("onBulkChangeDestinationId", { slotIds, destinationId, preview });
-}
-
-function onCopyToDestinationId(slotId: string, destinationId: string, preview: boolean): void {
-  if (!preview) {
-    const existingIds = new Set(harnessData.value.slots.map((slot) => slot.id));
-    const source = harnessData.value.slots.find((slot) => slot.id === slotId);
-    if (source && source.destinationId !== destinationId) {
-      harnessData.value = {
-        ...harnessData.value,
-        slots: [...harnessData.value.slots, buildCopiedSlot(source, destinationId, existingIds)],
-      };
-    }
-  }
-  logEvent("onCopyToDestinationId", { slotId, destinationId, preview });
-}
-
-function onBulkCopyToDestinationId(slotIds: string[], destinationId: string, preview: boolean): void {
-  if (!preview) {
-    const sourceIds = new Set(slotIds);
-    const existingIds = new Set(harnessData.value.slots.map((slot) => slot.id));
-    const sources = harnessData.value.slots.filter(
-      (slot) => sourceIds.has(slot.id) && slot.destinationId !== destinationId,
-    );
-    if (sources.length > 0) {
-      harnessData.value = {
-        ...harnessData.value,
-        slots: [
-          ...harnessData.value.slots,
-          ...sources.map((source) => buildCopiedSlot(source, destinationId, existingIds)),
-        ],
-      };
-    }
-  }
-  logEvent("onBulkCopyToDestinationId", { slotIds, destinationId, preview });
+  logEvent("onCopyToDestinationId", { slotIds, destinationId });
 }
 
 function onChangeSlotTime(slotId: string, openTime: Date, closeTime: Date): void {
@@ -643,27 +621,8 @@ function onChangeSlotTime(slotId: string, openTime: Date, closeTime: Date): void
   logEvent("onChangeSlotTime", { slotId, openTime, closeTime });
 }
 
-function onMoveSlotOnTimeAxis(slotId: string, timeDiffMs: number, preview: boolean): void {
-  if (!preview && timeDiffMs !== 0) {
-    harnessData.value = {
-      ...harnessData.value,
-      slots: harnessData.value.slots.map((slot) =>
-        slot.id === slotId
-          ? {
-              ...slot,
-              openTime: new Date(slot.openTime.getTime() + timeDiffMs),
-              closeTime: new Date(slot.closeTime.getTime() + timeDiffMs),
-              deadlines: shiftDeadlinesByMs(slot.deadlines, timeDiffMs),
-            }
-          : slot,
-      ),
-    };
-  }
-  logEvent("onMoveSlotOnTimeAxis", { slotId, timeDiffMs, preview });
-}
-
-function onBulkMoveSlotsOnTimeAxis(slotIds: string[], timeDiffMs: number, preview: boolean): void {
-  if (!preview && timeDiffMs !== 0) {
+function onMoveSlotOnTimeAxis(slotIds: string[], timeDiffMs: number): void {
+  if (timeDiffMs !== 0) {
     const movedSlotIds = new Set(slotIds);
     harnessData.value = {
       ...harnessData.value,
@@ -679,25 +638,11 @@ function onBulkMoveSlotsOnTimeAxis(slotIds: string[], timeDiffMs: number, previe
       ),
     };
   }
-  logEvent("onBulkMoveSlotsOnTimeAxis", { slotIds, timeDiffMs, preview });
+  logEvent("onMoveSlotOnTimeAxis", { slotIds, timeDiffMs });
 }
 
-function onCopySlotOnTimeAxis(slotId: string, timeDiffMs: number, preview: boolean): void {
-  if (!preview && timeDiffMs !== 0) {
-    const existingIds = new Set(harnessData.value.slots.map((slot) => slot.id));
-    const source = harnessData.value.slots.find((slot) => slot.id === slotId);
-    if (source) {
-      harnessData.value = {
-        ...harnessData.value,
-        slots: [...harnessData.value.slots, buildCopiedSlotOnTimeAxis(source, timeDiffMs, existingIds)],
-      };
-    }
-  }
-  logEvent("onCopySlotOnTimeAxis", { slotId, timeDiffMs, preview });
-}
-
-function onBulkCopySlotsOnTimeAxis(slotIds: string[], timeDiffMs: number, preview: boolean): void {
-  if (!preview && timeDiffMs !== 0) {
+function onCopySlotOnTimeAxis(slotIds: string[], timeDiffMs: number): void {
+  if (timeDiffMs !== 0) {
     const sourceIds = new Set(slotIds);
     const existingIds = new Set(harnessData.value.slots.map((slot) => slot.id));
     const sources = harnessData.value.slots.filter((slot) => sourceIds.has(slot.id));
@@ -711,7 +656,7 @@ function onBulkCopySlotsOnTimeAxis(slotIds: string[], timeDiffMs: number, previe
       };
     }
   }
-  logEvent("onBulkCopySlotsOnTimeAxis", { slotIds, timeDiffMs, preview });
+  logEvent("onCopySlotOnTimeAxis", { slotIds, timeDiffMs });
 }
 
 function onClickOnSlot(slotId: string): void {
@@ -848,16 +793,14 @@ onBeforeUnmount(() => {
       :markedRegion="harnessData.markedRegion"
       :topContentPortion="harnessData.topContentPortion"
       :activateRulers="harnessData.activateRulers"
+      :slotResizeMinutesStep="harnessData.slotResizeMinutesStep"
+      :dateTimeFormatters="harnessData.dateTimeFormatters"
       :features="harnessData.features"
       @onChangeStartAndEndTime="onChangeStartAndEndTime"
       @onChangeDestinationId="onChangeDestinationId"
-      @onBulkChangeDestinationId="onBulkChangeDestinationId"
       @onCopyToDestinationId="onCopyToDestinationId"
-      @onBulkCopyToDestinationId="onBulkCopyToDestinationId"
       @onMoveSlotOnTimeAxis="onMoveSlotOnTimeAxis"
-      @onBulkMoveSlotsOnTimeAxis="onBulkMoveSlotsOnTimeAxis"
       @onCopySlotOnTimeAxis="onCopySlotOnTimeAxis"
-      @onBulkCopySlotsOnTimeAxis="onBulkCopySlotsOnTimeAxis"
       @onChangeSlotTime="onChangeSlotTime"
       @onClickOnSlot="onClickOnSlot"
       @onHoverOnSlot="onHoverOnSlot"

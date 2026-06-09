@@ -20,7 +20,7 @@ test.describe("canvas rewrite suggestions", () => {
     expect(point.y).toBeGreaterThan(0);
   });
 
-  test("clicking a suggestion applies destination change with preview flag", async ({ page }) => {
+  test("clicking a suggestion applies destination change", async ({ page }) => {
     await openE2eHarness(page, { fixture: "suggestions" });
     await clearHarnessEvents(page);
 
@@ -31,13 +31,12 @@ test.describe("canvas rewrite suggestions", () => {
       .poll(async () => {
         const events = await getHarnessEvents(page);
         const changes = (events.onChangeDestinationId ?? []) as Array<{
-          slotId?: string;
+          slotIds?: string[];
           destinationId?: string;
-          preview?: boolean;
         }>;
         return changes.at(-1) ?? null;
       })
-      .toEqual({ slotId: SLOT_ID, destinationId: "chute-3", preview: true });
+      .toEqual({ slotIds: [SLOT_ID], destinationId: "chute-3" });
   });
 
   test("applied suggestion updates slot destination in harness config", async ({ page }) => {
@@ -79,13 +78,12 @@ test.describe("canvas rewrite suggestions", () => {
     await expect
       .poll(async () => {
         const events = await getHarnessEvents(page);
-        const previews = (events.onChangeDestinationId ?? []) as Array<{
-          slotId?: string;
+        const changes = (events.onChangeDestinationId ?? []) as Array<{
+          slotIds?: string[];
           destinationId?: string;
-          preview?: boolean;
         }>;
-        return previews
-          .filter((item) => item.slotId === SLOT_ID && item.preview === true)
+        return changes
+          .filter((item) => item.slotIds?.includes(SLOT_ID))
           .map((item) => item.destinationId);
       })
       .toEqual(["chute-3", "chute-2"]);

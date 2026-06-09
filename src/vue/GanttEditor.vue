@@ -40,14 +40,10 @@ import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 
 interface GanttEditorEmits {
   onChangeStartAndEndTime: [Date, Date],
-  onChangeDestinationId: [string, string, boolean],
-  onBulkChangeDestinationId: [string[], string, boolean],
-  onCopyToDestinationId: [string, string, boolean],
-  onBulkCopyToDestinationId: [string[], string, boolean],
-  onMoveSlotOnTimeAxis: [string, number, boolean],
-  onBulkMoveSlotsOnTimeAxis: [string[], number, boolean],
-  onCopySlotOnTimeAxis: [string, number, boolean],
-  onBulkCopySlotsOnTimeAxis: [string[], number, boolean],
+  onChangeDestinationId: [string[], string],
+  onCopyToDestinationId: [string[], string],
+  onMoveSlotOnTimeAxis: [string[], number],
+  onCopySlotOnTimeAxis: [string[], number],
   onChangeSlotTime: [string, Date, Date],
   onSelectionChange: [string[]],
   onClickOnSlot: [string],
@@ -125,13 +121,17 @@ function propsSnapshot(): GanttEditorProps {
     destinationGroups: props.destinationGroups,
     suggestions: props.suggestions,
     activateRulers: props.activateRulers,
+    slotResizeMinutesStep: props.slotResizeMinutesStep,
     verticalMarkers: props.verticalMarkers,
     contextMenuActions: props.contextMenuActions,
     slotContextMenuActions: props.slotContextMenuActions,
     markedRegion: props.markedRegion,
     isReadOnly: props.isReadOnly,
+    defaultZoomLevel: props.defaultZoomLevel,
+    scaleOnResize: props.scaleOnResize,
     topContentPortion: props.topContentPortion,
     locale: props.locale,
+    dateTimeFormatters: props.dateTimeFormatters,
     currentTimeIndicatorLabel: props.currentTimeIndicatorLabel,
     xAxisOptions: props.xAxisOptions,
     hoverPreviewMaxClipboardSize: props.hoverPreviewMaxClipboardSize,
@@ -153,29 +153,17 @@ const controller = new GanttChartCanvasController(
     onChangeSlotTime: (slotId, openTime, closeTime) => {
       emit("onChangeSlotTime", slotId, openTime, closeTime);
     },
-    onChangeDestinationId: (slotId, destinationId, preview) => {
-      emit("onChangeDestinationId", slotId, destinationId, preview);
+    onChangeDestinationId: (slotIds, destinationId) => {
+      emit("onChangeDestinationId", slotIds, destinationId);
     },
-    onBulkChangeDestinationId: (slotIds, destinationId, preview) => {
-      emit("onBulkChangeDestinationId", slotIds, destinationId, preview);
+    onCopyToDestinationId: (slotIds, destinationId) => {
+      emit("onCopyToDestinationId", slotIds, destinationId);
     },
-    onCopyToDestinationId: (slotId, destinationId, preview) => {
-      emit("onCopyToDestinationId", slotId, destinationId, preview);
+    onMoveSlotOnTimeAxis: (slotIds, timeDiffMs) => {
+      emit("onMoveSlotOnTimeAxis", slotIds, timeDiffMs);
     },
-    onBulkCopyToDestinationId: (slotIds, destinationId, preview) => {
-      emit("onBulkCopyToDestinationId", slotIds, destinationId, preview);
-    },
-    onMoveSlotOnTimeAxis: (slotId, timeDiffMs, preview) => {
-      emit("onMoveSlotOnTimeAxis", slotId, timeDiffMs, preview);
-    },
-    onBulkMoveSlotsOnTimeAxis: (slotIds, timeDiffMs, preview) => {
-      emit("onBulkMoveSlotsOnTimeAxis", slotIds, timeDiffMs, preview);
-    },
-    onCopySlotOnTimeAxis: (slotId, timeDiffMs, preview) => {
-      emit("onCopySlotOnTimeAxis", slotId, timeDiffMs, preview);
-    },
-    onBulkCopySlotsOnTimeAxis: (slotIds, timeDiffMs, preview) => {
-      emit("onBulkCopySlotsOnTimeAxis", slotIds, timeDiffMs, preview);
+    onCopySlotOnTimeAxis: (slotIds, timeDiffMs) => {
+      emit("onCopySlotOnTimeAxis", slotIds, timeDiffMs);
     },
     onClickOnSlot: (slotId) => {
       emit("onClickOnSlot", slotId);
@@ -233,12 +221,16 @@ watch(
     props.destinationGroups,
     props.suggestions,
     props.activateRulers,
+    props.slotResizeMinutesStep,
     props.verticalMarkers,
     props.contextMenuActions,
     props.slotContextMenuActions,
     props.isReadOnly,
+    props.defaultZoomLevel,
+    props.scaleOnResize,
     props.topContentPortion,
     props.locale,
+    props.dateTimeFormatters,
     props.xAxisOptions,
     props.features,
     props.helpOverlayTiles,

@@ -438,10 +438,9 @@ const featureCases: FeatureCase[] = [
         await expect(findSuggestionPoint(page, SUGGESTION_SLOT_ID)).rejects.toThrow();
       }
       const events = await getHarnessEvents(page);
-      const moves = (events.onChangeDestinationId ?? []) as Array<{ preview?: boolean }>;
+      const moves = events.onChangeDestinationId ?? [];
       if (enabled) {
         expect(moves.length).toBeGreaterThan(0);
-        expect(moves.at(-1)?.preview).toBe(true);
       } else {
         expect(moves).toHaveLength(0);
       }
@@ -557,7 +556,7 @@ const featureCases: FeatureCase[] = [
       const targetPoint = await findSlotPoint(page, THIRD_SLOT_ID, "center");
       await dispatchCanvasMouseEvent(page, targetPoint, "click");
       const events = await getHarnessEvents(page);
-      const moves = (events.onBulkChangeDestinationId ?? []) as unknown[];
+      const moves = (events.onChangeDestinationId ?? []) as unknown[];
       if (enabled) {
         expect(moves.length).toBeGreaterThan(0);
       } else {
@@ -591,7 +590,7 @@ const featureCases: FeatureCase[] = [
       const targetPoint = await findSlotPoint(page, THIRD_SLOT_ID, "center");
       await dispatchCanvasMouseEvent(page, targetPoint, "click", { altKey: true });
       const events = await getHarnessEvents(page);
-      const copies = (events.onBulkCopyToDestinationId ?? []) as unknown[];
+      const copies = (events.onCopyToDestinationId ?? []) as unknown[];
       if (enabled) {
         expect(copies.length).toBeGreaterThan(0);
       } else {
@@ -629,7 +628,7 @@ const featureCases: FeatureCase[] = [
       await seedSelectionFromStorage(page, [SOURCE_SLOT_ID, SECOND_SLOT_ID]);
       await performTimeAxisAction(page, false);
       const events = await getHarnessEvents(page);
-      const moves = (events.onBulkMoveSlotsOnTimeAxis ?? []) as unknown[];
+      const moves = (events.onMoveSlotOnTimeAxis ?? []) as unknown[];
       if (enabled) {
         expect(moves.length).toBeGreaterThan(0);
       } else {
@@ -673,7 +672,7 @@ const featureCases: FeatureCase[] = [
       await seedSelectionFromStorage(page, [SOURCE_SLOT_ID, SECOND_SLOT_ID]);
       await performTimeAxisAction(page, true);
       const events = await getHarnessEvents(page);
-      const copies = (events.onBulkCopySlotsOnTimeAxis ?? []) as unknown[];
+      const copies = (events.onCopySlotOnTimeAxis ?? []) as unknown[];
       if (enabled) {
         expect(copies.length).toBeGreaterThan(0);
       } else {

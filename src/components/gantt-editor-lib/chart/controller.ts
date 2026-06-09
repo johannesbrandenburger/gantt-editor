@@ -207,6 +207,8 @@ export class GanttChartCanvasController {
   private internalStartTime: Date;
   private internalEndTime: Date;
   private panZoomCleanup: PanZoomCleanup | null = null;
+  private lastAppliedDefaultZoomLevel: number;
+  private currentScaleOnResize: NonNullable<GanttEditorProps["scaleOnResize"]>;
 
   private currentTopContentPortion: number;
   private isResizingTopContent = false;
@@ -352,6 +354,7 @@ export class GanttChartCanvasController {
     rulerMode: Exclude<GanttEditorRulerMode, null> | null;
     snapPoints: ResizeRulerSnapPoint[];
     startClientX: number;
+    pointerToEdgeOffsetPx: number;
     displayInnerLeft: number;
     displayInnerWidth: number;
     chartWidth: number;
@@ -448,6 +451,10 @@ export class GanttChartCanvasController {
     this.helpOverlayTiles = this.resolveHelpOverlayTiles(initialProps);
     this.internalStartTime = new Date(initialProps.startTime);
     this.internalEndTime = new Date(initialProps.endTime);
+    this.lastAppliedDefaultZoomLevel = this.normalizeDefaultZoomLevel(
+      initialProps.defaultZoomLevel,
+    );
+    this.currentScaleOnResize = this.normalizeScaleOnResize(initialProps.scaleOnResize);
     this.currentTopContentPortion = initialProps.topContentPortion ?? 0;
     this.lastSeenParentStartMs = initialProps.startTime.getTime();
     this.lastSeenParentEndMs = initialProps.endTime.getTime();
@@ -479,14 +486,18 @@ export class GanttChartCanvasController {
       previousProps.destinationGroups === next.destinationGroups &&
       previousProps.suggestions === next.suggestions &&
       previousProps.activateRulers === next.activateRulers &&
+      previousProps.slotResizeMinutesStep === next.slotResizeMinutesStep &&
       previousProps.features === next.features &&
       previousProps.helpOverlayTiles === next.helpOverlayTiles &&
       previousProps.helpOverlayTileIds === next.helpOverlayTileIds &&
       previousProps.verticalMarkers === next.verticalMarkers &&
       previousProps.markedRegion === next.markedRegion &&
       previousProps.isReadOnly === next.isReadOnly &&
+      previousProps.defaultZoomLevel === next.defaultZoomLevel &&
+      previousProps.scaleOnResize === next.scaleOnResize &&
       previousProps.topContentPortion === next.topContentPortion &&
       previousProps.locale === next.locale &&
+      previousProps.dateTimeFormatters === next.dateTimeFormatters &&
       previousProps.xAxisOptions === next.xAxisOptions;
     const isTimeRangeOnlyUpdate = parentTimeRangeChanged && nonTimePropsUnchangedByRef;
 
@@ -533,8 +544,31 @@ export class GanttChartCanvasController {
 
     if (
       previousProps.locale !== next.locale ||
+      previousProps.dateTimeFormatters !== next.dateTimeFormatters ||
       previousProps.xAxisOptions !== next.xAxisOptions
     ) {
+      shouldRedraw = true;
+    }
+
+    const defaultZoomLevel = this.normalizeDefaultZoomLevel(next.defaultZoomLevel);
+    if (defaultZoomLevel !== this.lastAppliedDefaultZoomLevel) {
+      this.lastAppliedDefaultZoomLevel = defaultZoomLevel;
+      this.reconcileUnifiedZoomRowHeight(
+        undefined,
+        this.defaultZoomLevelToSlotRenderRatio(defaultZoomLevel),
+      );
+      shouldRedraw = true;
+    }
+
+    const scaleOnResize = this.normalizeScaleOnResize(next.scaleOnResize);
+    if (scaleOnResize !== this.currentScaleOnResize) {
+      this.currentScaleOnResize = scaleOnResize;
+      if (scaleOnResize === "FULL") {
+        this.reconcileUnifiedZoomRowHeight(
+          undefined,
+          this.defaultZoomLevelToSlotRenderRatio(this.lastAppliedDefaultZoomLevel),
+        );
+      }
       shouldRedraw = true;
     }
 
@@ -554,7 +588,12 @@ export class GanttChartCanvasController {
       this.lastSeenParentEndMs = pe;
       this.internalStartTime = new Date(next.startTime);
       this.internalEndTime = new Date(next.endTime);
-      this.reconcileUnifiedZoomRowHeight();
+      if (this.currentScaleOnResize === "FULL") {
+        this.reconcileUnifiedZoomRowHeight(
+          undefined,
+          this.defaultZoomLevelToSlotRenderRatio(this.lastAppliedDefaultZoomLevel),
+        );
+      }
       shouldRedraw = true;
     }
 
@@ -631,6 +670,21 @@ export class GanttChartCanvasController {
 
   private isFeatureEnabled(feature: GanttEditorFeature): boolean {
     return this.enabledFeatures === null || this.enabledFeatures.has(feature);
+  }
+
+  private normalizeDefaultZoomLevel(value: number | undefined): number {
+    if (value === undefined) return 1;
+    return Number.isFinite(value) && value > 0 ? value : 1;
+  }
+
+  private normalizeScaleOnResize(
+    value: GanttEditorProps["scaleOnResize"],
+  ): NonNullable<GanttEditorProps["scaleOnResize"]> {
+    return value === "TIME_ONLY" ? "TIME_ONLY" : "FULL";
+  }
+
+  private defaultZoomLevelToSlotRenderRatio(defaultZoomLevel: number): number {
+    return SLOT_RENDER_RATIO / defaultZoomLevel;
   }
 
   private canSelectSlots(): boolean {
@@ -778,7 +832,12 @@ export class GanttChartCanvasController {
         this.containerHeight = entry.contentRect.height;
         this.containerWidth = entry.contentRect.width;
         this.invalidateLayoutCache();
-        this.reconcileUnifiedZoomRowHeight();
+        if (this.currentScaleOnResize === "FULL") {
+          this.reconcileUnifiedZoomRowHeight(
+            undefined,
+            this.defaultZoomLevelToSlotRenderRatio(this.lastAppliedDefaultZoomLevel),
+          );
+        }
         this.redraw();
         this.maybeNotifyTopContentLayout();
       }
@@ -790,7 +849,10 @@ export class GanttChartCanvasController {
     document.addEventListener("keyup", this.boundDocumentKeyUp);
 
     queueMicrotask(() => {
-      this.reconcileUnifiedZoomRowHeight();
+      this.reconcileUnifiedZoomRowHeight(
+        undefined,
+        this.defaultZoomLevelToSlotRenderRatio(this.lastAppliedDefaultZoomLevel),
+      );
       this.scrollToMarkedRegionDestination(this.props.markedRegion);
       this.drawUnifiedFrame();
       this.isInitialized = true;
@@ -1344,6 +1406,8 @@ export class GanttChartCanvasController {
         this.resetHoverSlot();
         const chartWidth = layout.canvasCssWidth - MARGIN.left - MARGIN.right;
         const rulerMode = this.resolveRulerMode();
+        const activeEdgeInnerX =
+          rh.edge === "left" ? rh.displayInnerLeft : rh.displayInnerLeft + rh.displayInnerWidth;
         this.slotResizeDrag = {
           edge: rh.edge,
           slotId: rh.slotId,
@@ -1352,6 +1416,7 @@ export class GanttChartCanvasController {
           rulerMode,
           snapPoints: this.collectResizeSnapPoints(rh.slotId, rh.slot.destinationId, rulerMode),
           startClientX: e.clientX,
+          pointerToEdgeOffsetPx: pt.x - MARGIN.left - activeEdgeInnerX,
           displayInnerLeft: rh.displayInnerLeft,
           displayInnerWidth: rh.displayInnerWidth,
           chartWidth,
@@ -1712,6 +1777,8 @@ export class GanttChartCanvasController {
     lastContextClickedSlotId: string | null;
     internalStartTimeMs: number;
     internalEndTimeMs: number;
+    scaleOnResize: NonNullable<GanttEditorProps["scaleOnResize"]>;
+    slotResizeMinutesStep: number | null | undefined;
     slotReferenceAspectRatio: number;
     slotContextMenuActionCount: number;
     contextMenuOpen: boolean;
@@ -1729,6 +1796,7 @@ export class GanttChartCanvasController {
     } | null;
     slotResizeActive: boolean;
     resizePreviewEdgeTimeMs: number | null;
+    resizePreviewEdgeTimeLabel: string | null;
     margin: { left: number; right: number };
     layout: {
       canvasCssWidth: number;
@@ -1748,6 +1816,14 @@ export class GanttChartCanvasController {
             ? this.slotResizePreview.openTime.getTime()
             : this.slotResizePreview.closeTime.getTime())
         : null;
+    const resizePreviewEdgeTimeLabel =
+      this.slotResizeDrag && this.slotResizePreview
+        ? this.formatResizeTimeLabel(
+            this.slotResizeDrag.edge === "left"
+              ? this.slotResizePreview.openTime
+              : this.slotResizePreview.closeTime,
+          )
+        : null;
     return {
       rowHeight: this.rowHeight,
       selectionSlotIds: this.clipboardItems.map((slot) => slot.id),
@@ -1765,6 +1841,8 @@ export class GanttChartCanvasController {
       lastContextClickedSlotId: this.lastContextClickedSlotId,
       internalStartTimeMs: this.internalStartTime.getTime(),
       internalEndTimeMs: this.internalEndTime.getTime(),
+      scaleOnResize: this.currentScaleOnResize,
+      slotResizeMinutesStep: this.props.slotResizeMinutesStep,
       slotReferenceAspectRatio: this.getCurrentSlotRenderRatio(),
       slotContextMenuActionCount: this.props.slotContextMenuActions?.length ?? 0,
       contextMenuOpen: this.contextMenuState.visible,
@@ -1800,6 +1878,7 @@ export class GanttChartCanvasController {
         : null,
       slotResizeActive: !!this.slotResizeDrag,
       resizePreviewEdgeTimeMs,
+      resizePreviewEdgeTimeLabel,
       margin: { left: MARGIN.left, right: MARGIN.right },
       layout: layout
         ? {
@@ -2008,10 +2087,10 @@ export class GanttChartCanvasController {
           });
           if (!edgeHit || edgeHit.slotId !== slotId) continue;
           if (mode === "left-edge" && edgeHit.edge === "left") {
-            return { x, y };
+            return { x: MARGIN.left + edgeHit.displayInnerLeft, y };
           }
           if (mode === "right-edge" && edgeHit.edge === "right") {
-            return { x, y };
+            return { x: MARGIN.left + edgeHit.displayInnerLeft + edgeHit.displayInnerWidth, y };
           }
         }
       }
@@ -3426,18 +3505,9 @@ export class GanttChartCanvasController {
       copiedSlotIds.push(source.id);
     }
 
-    if (copiedSlotIds.length > 1) {
+    if (copiedSlotIds.length > 0) {
       if (!this.canCopySlotsToDestination(copiedSlotIds.length)) return false;
-      if (this.callbacks.onBulkCopyToDestinationId) {
-        this.callbacks.onBulkCopyToDestinationId(copiedSlotIds, topicId, false);
-      } else {
-        for (const slotId of copiedSlotIds) {
-          this.callbacks.onCopyToDestinationId?.(slotId, topicId, false);
-        }
-      }
-    } else if (copiedSlotIds.length === 1) {
-      if (!this.canCopySlotsToDestination(copiedSlotIds.length)) return false;
-      this.callbacks.onCopyToDestinationId?.(copiedSlotIds[0], topicId, false);
+      this.callbacks.onCopyToDestinationId?.(copiedSlotIds, topicId);
     }
 
     return copiedSlotIds.length > 0;
@@ -3452,18 +3522,9 @@ export class GanttChartCanvasController {
       copiedSlotIds.push(source.id);
     }
 
-    if (copiedSlotIds.length > 1) {
+    if (copiedSlotIds.length > 0) {
       if (!this.canCopySlotsOnTimeAxis(copiedSlotIds.length)) return false;
-      if (this.callbacks.onBulkCopySlotsOnTimeAxis) {
-        this.callbacks.onBulkCopySlotsOnTimeAxis(copiedSlotIds, timeDiffMs, false);
-      } else {
-        for (const slotId of copiedSlotIds) {
-          this.callbacks.onCopySlotOnTimeAxis?.(slotId, timeDiffMs, false);
-        }
-      }
-    } else if (copiedSlotIds.length === 1) {
-      if (!this.canCopySlotsOnTimeAxis(copiedSlotIds.length)) return false;
-      this.callbacks.onCopySlotOnTimeAxis?.(copiedSlotIds[0], timeDiffMs, false);
+      this.callbacks.onCopySlotOnTimeAxis?.(copiedSlotIds, timeDiffMs);
     }
 
     return copiedSlotIds.length > 0;
@@ -3542,17 +3603,7 @@ export class GanttChartCanvasController {
       movedSlotIds.push(target.id);
     }
 
-    if (movedSlotIds.length > 1) {
-      if (this.callbacks.onBulkChangeDestinationId) {
-        this.callbacks.onBulkChangeDestinationId(movedSlotIds, topicId, false);
-      } else {
-        for (const slotId of movedSlotIds) {
-          this.callbacks.onChangeDestinationId?.(slotId, topicId, false);
-        }
-      }
-    } else if (movedSlotIds.length === 1) {
-      this.callbacks.onChangeDestinationId?.(movedSlotIds[0], topicId, false);
-    }
+    this.callbacks.onChangeDestinationId?.(movedSlotIds, topicId);
 
     this.writeSelection([]);
     this.updateSelection();
@@ -3596,17 +3647,7 @@ export class GanttChartCanvasController {
       .map((slot) => slot.id);
     if (movedSlotIds.length === 0 || !this.canMoveSlotsOnTimeAxis(movedSlotIds.length)) return;
 
-    if (movedSlotIds.length > 1) {
-      if (this.callbacks.onBulkMoveSlotsOnTimeAxis) {
-        this.callbacks.onBulkMoveSlotsOnTimeAxis(movedSlotIds, timeDiffMs, false);
-      } else {
-        for (const slotId of movedSlotIds) {
-          this.callbacks.onMoveSlotOnTimeAxis?.(slotId, timeDiffMs, false);
-        }
-      }
-    } else if (movedSlotIds.length === 1) {
-      this.callbacks.onMoveSlotOnTimeAxis?.(movedSlotIds[0], timeDiffMs, false);
-    }
+    this.callbacks.onMoveSlotOnTimeAxis?.(movedSlotIds, timeDiffMs);
 
     this.writeSelection([]);
     this.updateSelection();
@@ -3675,8 +3716,46 @@ export class GanttChartCanvasController {
   }
 
   private resolveRulerMode(): Exclude<GanttEditorRulerMode, null> | null {
+    if (this.resolveSlotResizeStepMs() > 0) return null;
     const mode = this.props.activateRulers ?? null;
     return mode === "ROW" || mode === "GLOBAL" ? mode : null;
+  }
+
+  private resolveSlotResizeStepMs(): number {
+    const step = this.props.slotResizeMinutesStep;
+    if (step == null || step <= 0 || !Number.isFinite(step)) return 0;
+    return step * 60_000;
+  }
+
+  private resolveResizePreviewWithMinuteStep(
+    drag: NonNullable<GanttChartCanvasController["slotResizeDrag"]>,
+    base: { openTime: Date; closeTime: Date },
+  ): { openTime: Date; closeTime: Date } {
+    const stepMs = this.resolveSlotResizeStepMs();
+    if (stepMs <= 0) return base;
+
+    const edgeTimeMs =
+      drag.edge === "left" ? base.openTime.getTime() : base.closeTime.getTime();
+    const snappedTimeMs = Math.round(edgeTimeMs / stepMs) * stepMs;
+    const rangeMs = this.internalEndTime.getTime() - this.internalStartTime.getTime();
+    if (rangeMs <= 0) return base;
+
+    const lockedInnerX =
+      ((snappedTimeMs - this.internalStartTime.getTime()) / rangeMs) * drag.chartWidth;
+    const snappedDx =
+      drag.edge === "left"
+        ? lockedInnerX - drag.displayInnerLeft
+        : lockedInnerX - drag.displayInnerLeft - drag.displayInnerWidth;
+
+    return slotTimesForResizeDragStep(
+      drag.edge,
+      snappedDx,
+      drag.displayInnerLeft,
+      drag.displayInnerWidth,
+      drag.chartWidth,
+      this.internalStartTime,
+      this.internalEndTime,
+    );
   }
 
   private collectResizeSnapPoints(
@@ -3726,13 +3805,14 @@ export class GanttChartCanvasController {
       this.internalStartTime,
       this.internalEndTime,
     );
+    const steppedBase = this.resolveResizePreviewWithMinuteStep(drag, base);
 
     if (!drag.rulerMode || drag.snapPoints.length === 0) {
-      return { ...base, ruler: null };
+      return { ...steppedBase, ruler: null };
     }
 
     const edgeTimeMs =
-      drag.edge === "left" ? base.openTime.getTime() : base.closeTime.getTime();
+      drag.edge === "left" ? steppedBase.openTime.getTime() : steppedBase.closeTime.getTime();
     const edgeCanvasX = timeMsToCanvasX(
       edgeTimeMs,
       canvasWidth,
@@ -3763,7 +3843,7 @@ export class GanttChartCanvasController {
     }
 
     if (!bestPoint) {
-      return { ...base, ruler: null };
+      return { ...steppedBase, ruler: null };
     }
 
     const lockedCanvasX = timeMsToCanvasX(
@@ -3792,8 +3872,9 @@ export class GanttChartCanvasController {
       this.internalEndTime,
     );
 
+    const steppedSnapped = this.resolveResizePreviewWithMinuteStep(drag, snapped);
     const snappedEdgeMs =
-      drag.edge === "left" ? snapped.openTime.getTime() : snapped.closeTime.getTime();
+      drag.edge === "left" ? steppedSnapped.openTime.getTime() : steppedSnapped.closeTime.getTime();
     const snappedEdgeCanvasX = timeMsToCanvasX(
       snappedEdgeMs,
       canvasWidth,
@@ -3802,7 +3883,7 @@ export class GanttChartCanvasController {
       MARGIN,
     );
     if (Math.abs(snappedEdgeCanvasX - lockedCanvasX) > 0.5) {
-      return { ...base, ruler: null };
+      return { ...steppedBase, ruler: null };
     }
 
     const kinds = drag.snapPoints
@@ -3813,7 +3894,7 @@ export class GanttChartCanvasController {
     );
 
     return {
-      ...snapped,
+      ...steppedSnapped,
       ruler: {
         canvasX: snappedEdgeCanvasX,
         snappedTimeMs: snappedEdgeMs,
@@ -3825,7 +3906,8 @@ export class GanttChartCanvasController {
 
   private onSlotResizeMouseMove(e: MouseEvent): void {
     if (!this.slotResizeDrag) return;
-    const dx = e.clientX - this.slotResizeDrag.startClientX;
+    const dx =
+      e.clientX - this.slotResizeDrag.startClientX + this.slotResizeDrag.pointerToEdgeOffsetPx;
     const d = this.slotResizeDrag;
     const canvasWidth = d.chartWidth + MARGIN.left + MARGIN.right;
     const preview = this.resolveResizePreviewWithRulers(d, dx, canvasWidth);
@@ -3853,7 +3935,7 @@ export class GanttChartCanvasController {
     document.removeEventListener("mouseup", this.boundSlotResizeMouseUp);
     if (!this.slotResizeDrag) return;
     const d = this.slotResizeDrag;
-    const dx = e.clientX - d.startClientX;
+    const dx = e.clientX - d.startClientX + d.pointerToEdgeOffsetPx;
     const canvasWidth = d.chartWidth + MARGIN.left + MARGIN.right;
     const preview = this.resolveResizePreviewWithRulers(d, dx, canvasWidth);
     const { openTime, closeTime } = preview;
@@ -4277,6 +4359,7 @@ export class GanttChartCanvasController {
     }
 
     this.getProcessedTopics();
+    this.invalidateLayoutCache();
 
     for (const group of this.props.destinationGroups) {
       const groupTopics = this.topicsByGroupId.get(group.id) ?? [];
@@ -4308,7 +4391,9 @@ export class GanttChartCanvasController {
     const chartW = this.containerWidth - MARGIN.left - MARGIN.right;
     const timeRangeMs = this.internalEndTime.getTime() - this.internalStartTime.getTime();
     const ratio = computeSlotRenderRatioForUnifiedZoom(chartW, timeRangeMs, this.rowHeight);
-    return Number.isFinite(ratio) ? ratio : SLOT_RENDER_RATIO;
+    return Number.isFinite(ratio)
+      ? ratio
+      : this.defaultZoomLevelToSlotRenderRatio(this.lastAppliedDefaultZoomLevel);
   }
 
   private buildPanZoomCallbacks() {
@@ -4394,6 +4479,7 @@ export class GanttChartCanvasController {
       endTime: this.internalEndTime,
       margin: MARGIN,
       locale: this.props.locale,
+      dateTimeFormatters: this.props.dateTimeFormatters,
       xAxisOptions: this.props.xAxisOptions,
       offsetY: layout.axisRect.y,
     });
@@ -4721,16 +4807,14 @@ export class GanttChartCanvasController {
     ctx.rect(0, topY, layout.canvasCssWidth, groupRect.h);
     ctx.clip();
 
-    ctx.strokeStyle = "rgba(37, 99, 235, 0.8)";
+    ctx.strokeStyle = "rgba(15, 118, 110, 0.85)";
     ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
     ctx.beginPath();
     ctx.moveTo(x + 0.5, topY + 1);
     ctx.lineTo(x + 0.5, bottomY - 1);
     ctx.stroke();
-    ctx.setLineDash([]);
 
-    ctx.strokeStyle = "#1d4ed8";
+    ctx.strokeStyle = "#0f766e";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(x + 0.5, topY + 1);
@@ -5013,9 +5097,13 @@ export class GanttChartCanvasController {
   }
 
   private formatResizeTimeLabel(value: Date): string {
-    const hh = `${value.getHours()}`.padStart(2, "0");
-    const mm = `${value.getMinutes()}`.padStart(2, "0");
-    return `${hh}:${mm}`;
+    const formatter =
+      this.props.dateTimeFormatters?.resizeSlotTime ??
+      new Intl.DateTimeFormat(this.props.locale, {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    return formatter.format(value);
   }
 
   private drawContextMenuOverlay(
@@ -5729,6 +5817,7 @@ export class GanttChartCanvasController {
       this.internalEndTime,
       MARGIN,
       this.props.locale,
+      this.props.dateTimeFormatters,
       this.props.currentTimeIndicatorLabel,
     );
   }
@@ -5744,6 +5833,7 @@ export class GanttChartCanvasController {
       MARGIN,
       this.pointerCanvasX,
       this.props.locale,
+      this.props.dateTimeFormatters,
     );
   }
 
@@ -5756,17 +5846,7 @@ export class GanttChartCanvasController {
     const slot = this.props.slots.find((s) => s.id === slotId);
     if (!slot || slot.readOnly) return;
 
-    const previousRowYBySlotId = this.captureSlotRowYById();
-    const previousLayoutByGroupId = this.captureTopicLayoutSnapshotByGroupId();
-
-    slot.destinationId = suggestion.alternativeDestinationId;
-    this.cachedProcessedTopics = null;
-    this.startSlotReflowAnimationFromPreviousRows(
-      previousRowYBySlotId,
-      performance.now(),
-      previousLayoutByGroupId,
-    );
-    this.callbacks.onChangeDestinationId?.(slot.id, suggestion.alternativeDestinationId, true);
+    this.callbacks.onChangeDestinationId?.([slot.id], suggestion.alternativeDestinationId);
     this.redraw();
   }
 

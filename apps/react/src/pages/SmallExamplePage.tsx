@@ -68,29 +68,17 @@ export function SmallExamplePage() {
         onChangeStartAndEndTime={(newStartTime: any, newEndTime: any) =>
           console.log(`onChangeStartAndEndTime(${newStartTime}, ${newEndTime})`)
         }
-        onChangeDestinationId={(slotId, newDestinationId) =>
-          console.log(`onChangeDestinationId(${slotId}, ${newDestinationId})`)
+        onChangeDestinationId={(slotIds, newDestinationId) =>
+          console.log(`onChangeDestinationId(${slotIds.join(',')}, ${newDestinationId})`)
         }
-        onBulkChangeDestinationId={(slotIds, newDestinationId) =>
-          console.log(`onBulkChangeDestinationId(${slotIds.join(',')}, ${newDestinationId})`)
+        onCopyToDestinationId={(slotIds, newDestinationId) =>
+          console.log(`onCopyToDestinationId(${slotIds.join(',')}, ${newDestinationId})`)
         }
-        onCopyToDestinationId={(slotId, newDestinationId) =>
-          console.log(`onCopyToDestinationId(${slotId}, ${newDestinationId})`)
+        onMoveSlotOnTimeAxis={(slotIds, timeDiffMs) =>
+          console.log(`onMoveSlotOnTimeAxis(${slotIds.join(',')}, ${timeDiffMs})`)
         }
-        onBulkCopyToDestinationId={(slotIds, newDestinationId) =>
-          console.log(`onBulkCopyToDestinationId(${slotIds.join(',')}, ${newDestinationId})`)
-        }
-        onMoveSlotOnTimeAxis={(slotId, timeDiffMs) =>
-          console.log(`onMoveSlotOnTimeAxis(${slotId}, ${timeDiffMs})`)
-        }
-        onBulkMoveSlotsOnTimeAxis={(slotIds, timeDiffMs) =>
-          console.log(`onBulkMoveSlotsOnTimeAxis(${slotIds.join(',')}, ${timeDiffMs})`)
-        }
-        onCopySlotOnTimeAxis={(slotId, timeDiffMs) =>
-          console.log(`onCopySlotOnTimeAxis(${slotId}, ${timeDiffMs})`)
-        }
-        onBulkCopySlotsOnTimeAxis={(slotIds, timeDiffMs) =>
-          console.log(`onBulkCopySlotsOnTimeAxis(${slotIds.join(',')}, ${timeDiffMs})`)
+        onCopySlotOnTimeAxis={(slotIds, timeDiffMs) =>
+          console.log(`onCopySlotOnTimeAxis(${slotIds.join(',')}, ${timeDiffMs})`)
         }
         onChangeSlotTime={(slotId, newOpenTime, newCloseTime) =>
           console.log(`onChangeSlotTime(${slotId}, ${newOpenTime}, ${newCloseTime})`)
