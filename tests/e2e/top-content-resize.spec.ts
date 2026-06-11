@@ -67,12 +67,14 @@ test.describe("canvas rewrite top content and resize", () => {
 
     const before = await page.evaluate(() => {
       const api = (window as Window & { __ganttCanvasTestApi?: { flush: () => void; getState: () => {
+        layout?: { canvasCssWidth: number } | null;
         rowHeight?: number;
         slotReferenceAspectRatio?: number;
       } } }).__ganttCanvasTestApi;
       api?.flush();
       const state = api?.getState();
       return {
+        canvasCssWidth: state?.layout?.canvasCssWidth ?? 0,
         rowHeight: state?.rowHeight ?? 0,
         ratio: state?.slotReferenceAspectRatio ?? 0,
       };
@@ -86,28 +88,31 @@ test.describe("canvas rewrite top content and resize", () => {
       .poll(async () => {
         return await page.evaluate(() => {
           const api = (window as Window & { __ganttCanvasTestApi?: { flush: () => void; getState: () => {
-            rowHeight?: number;
+            layout?: { canvasCssWidth: number } | null;
           } } }).__ganttCanvasTestApi;
           api?.flush();
           const state = api?.getState();
-          return state?.rowHeight ?? 0;
+          return state?.layout?.canvasCssWidth ?? 0;
         });
       })
-      .toBeCloseTo(before.rowHeight, 4);
+      .toBeGreaterThan(before.canvasCssWidth);
 
     const after = await page.evaluate(() => {
       const api = (window as Window & { __ganttCanvasTestApi?: { flush: () => void; getState: () => {
+        layout?: { canvasCssWidth: number } | null;
         rowHeight?: number;
         slotReferenceAspectRatio?: number;
       } } }).__ganttCanvasTestApi;
       api?.flush();
       const state = api?.getState();
       return {
+        canvasCssWidth: state?.layout?.canvasCssWidth ?? 0,
         rowHeight: state?.rowHeight ?? 0,
         ratio: state?.slotReferenceAspectRatio ?? 0,
       };
     });
 
+    expect(after.canvasCssWidth).toBeGreaterThan(before.canvasCssWidth);
     expect(after.rowHeight).toBeCloseTo(before.rowHeight, 4);
     expect(after.ratio).toBeGreaterThan(before.ratio);
   });
