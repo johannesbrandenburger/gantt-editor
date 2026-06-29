@@ -3597,17 +3597,19 @@ export class GanttChartCanvasController {
     if (movedTargets.length === 0 || !this.canMoveSlotsToDestination(movedTargets.length)) return;
     const movedSlotIds: string[] = [];
     for (const target of movedTargets) {
+      const previousDestinationId = target.destinationId;
       target.destinationId = topicId;
       target.isCopied = false;
-      movedSomething = true;
-      movedSlotIds.push(target.id);
+      if (previousDestinationId !== topicId) {
+        movedSomething = true;
+        movedSlotIds.push(target.id);
+      }
     }
-
-    this.callbacks.onChangeDestinationId?.(movedSlotIds, topicId);
 
     this.writeSelection([]);
     this.updateSelection();
     if (movedSomething) {
+      this.callbacks.onChangeDestinationId?.(movedSlotIds, topicId);
       this.cachedProcessedTopics = null;
       this.startSlotReflowAnimationFromPreviousRows(
         previousRowYBySlotId,
