@@ -151,6 +151,19 @@ test.describe("canvas rewrite brush selection", () => {
 
   test("brush selection followed by click moves selected slots to target destination", async ({ page }) => {
     const { selectedSlotIds } = await brushSelectFirstAllocatedGroup(page);
+    const harnessConfig = await getHarnessConfig(page);
+    const targetSlot = harnessConfig.slots.find((slot) => slot.id === DENSE_TARGET_SLOT_ID);
+    if (!targetSlot) {
+      throw new Error("Expected destination target slot to exist");
+    }
+    const expectedMovedSlotIds = harnessConfig.slots
+      .filter(
+        (slot) => selectedSlotIds.includes(slot.id) && slot.destinationId !== targetSlot.destinationId,
+      )
+      .map((slot) => slot.id)
+      .sort();
+    expect(expectedMovedSlotIds.length).toBeGreaterThan(0);
+    expect(expectedMovedSlotIds.length).toBeLessThan(selectedSlotIds.length);
     await clearHarnessEvents(page);
 
     const targetPoint = await findSlotPoint(page, DENSE_TARGET_SLOT_ID, "center");
@@ -175,12 +188,14 @@ test.describe("canvas rewrite brush selection", () => {
         const events = await getHarnessEvents(page);
         const bulkMoves = (events.onChangeDestinationId ?? []) as Array<{
           slotIds?: string[];
+          destinationId?: string;
         }>;
-        const committedBulk = bulkMoves[0];
-        const movedSlotIds = [...(committedBulk?.slotIds ?? [])].sort();
-        return JSON.stringify(movedSlotIds);
+        return bulkMoves.map((move) => ({
+          slotIds: [...(move.slotIds ?? [])].sort(),
+          destinationId: move.destinationId,
+        }));
       })
-      .toBe(JSON.stringify([...selectedSlotIds].sort()));
+      .toEqual([{ slotIds: expectedMovedSlotIds, destinationId: targetSlot.destinationId }]);
   });
 
   test("Escape clears selected slots", async ({ page }) => {
