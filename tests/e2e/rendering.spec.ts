@@ -21,6 +21,40 @@ type CanvasState = {
   } | null;
 };
 
+async function captureChartLabels(page: Page) {
+  return await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>("canvas.chart-canvas");
+    const ctx = canvas?.getContext("2d");
+    const api = (window as Window & {
+      __ganttCanvasTestApi?: {
+        flush: () => void;
+        getState: () => { layout: { axisRect: { y: number; h: number } } };
+      };
+    }).__ganttCanvasTestApi;
+    if (!ctx || !api) throw new Error("Chart canvas API unavailable");
+
+    const labels: Array<{ text: string; font: string; color: string | CanvasGradient | CanvasPattern; y: number }> = [];
+    const fillText = ctx.fillText;
+    ctx.fillText = function (text, x, y, maxWidth) {
+      labels.push({ text, font: this.font, color: this.fillStyle, y });
+      if (maxWidth === undefined) fillText.call(this, text, x, y);
+      else fillText.call(this, text, x, y, maxWidth);
+    };
+    try {
+      api.flush();
+      const axis = api.getState().layout.axisRect;
+      return {
+        axis,
+        ticks: labels.filter((label) => label.color === "#333333" && label.y >= axis.y && label.y < axis.y + axis.h),
+        weekdays: labels.filter((label) => label.color === "#008000"),
+        slot: labels.find((label) => label.text === "LH123 | F"),
+      };
+    } finally {
+      ctx.fillText = fillText;
+    }
+  });
+}
+
 async function findDepartureGapSlotId(page: Page): Promise<string | null> {
   return await page.evaluate(() => {
     const api = (window as Window & {
@@ -101,6 +135,46 @@ test.describe("canvas rewrite rendering and display", () => {
     expect(startMs).not.toBeNull();
     expect(endMs).not.toBeNull();
     expect((endMs as number) - (startMs as number)).toBeGreaterThan(0);
+  });
+
+  test("applies an initial font size to x-axis labels", async ({ page }) => {
+    await openE2eHarness(page, {
+      fixture: "core",
+      query: { data: JSON.stringify({ fontSize: 18 }) },
+    });
+
+    const labels = await captureChartLabels(page);
+    expect(labels.axis.h).toBe(90);
+    expect(labels.ticks.length).toBeGreaterThan(1);
+    expect(labels.ticks.every((label) => label.font === "18px sans-serif")).toBe(true);
+    expect(labels.weekdays.length).toBeGreaterThan(0);
+    expect(labels.weekdays.every((label) => label.font === "bold 18px sans-serif")).toBe(true);
+  });
+
+  test("updates font size dynamically and restores default label sizes", async ({ page }) => {
+    await openE2eHarness(page, { fixture: "core" });
+    const original = await captureChartLabels(page);
+    expect(original.axis.h).toBe(50);
+    expect(original.ticks.length).toBeGreaterThan(1);
+    expect(original.ticks.every((label) => label.font === "10px sans-serif")).toBe(true);
+    expect(original.slot).toBeTruthy();
+
+    await setHarnessConfig(page, { fontSize: 20 });
+    await expect.poll(async () => (await captureChartLabels(page)).axis.h).toBe(100);
+    const enlarged = await captureChartLabels(page);
+    expect(enlarged.ticks.every((label) => label.font === "20px sans-serif")).toBe(true);
+    expect(enlarged.slot).toBeTruthy();
+    expect(parseFloat(enlarged.slot!.font.replace("bold ", ""))).toBe(
+      parseFloat(original.slot!.font.replace("bold ", "")) * 2,
+    );
+
+    await setHarnessConfig(page, { fontSize: 6 });
+    await expect.poll(async () => (await captureChartLabels(page)).ticks[0]?.font).toBe("6px sans-serif");
+    expect((await captureChartLabels(page)).axis.h).toBe(50);
+
+    await setHarnessConfig(page, { fontSize: undefined });
+    await expect.poll(async () => (await captureChartLabels(page)).ticks[0]?.font).toBe("10px sans-serif");
+    expect((await captureChartLabels(page)).slot?.font).toBe(original.slot!.font);
   });
 
   test("draws a mouse-following time strip on the timeline", async ({ page }) => {

@@ -47,6 +47,7 @@ export interface DrawSlotsParams {
   topics: Topic[];
   margin: { left: number; right: number };
   rowHeight: number;
+  fontSize?: number;
   startTime: Date;
   endTime: Date;
   viewportTop?: number;
@@ -212,7 +213,7 @@ export function drawSlots(params: DrawSlotsParams) {
 
           ctx.globalAlpha = slotDef.isPreview ? drawAlpha : 1;
           ctx.fillStyle = slotDef.isPreview ? "#000000" : (slotDef.slot.labelColor ?? "#ffffff");
-          ctx.font = scaledBoldSansFont(rowHeight);
+          ctx.font = scaledBoldSansFont(rowHeight, params.fontSize);
           ctx.textBaseline = "middle";
           ctx.textAlign = "left";
           ctx.fillText(

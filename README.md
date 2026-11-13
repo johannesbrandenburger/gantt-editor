@@ -287,6 +287,7 @@ All wrappers expose the same core model and behavior.
 - `slotContextMenuActions: GanttEditorSlotContextMenuAction[]`
 - `defaultZoomLevel: number` (initial unified zoom multiplier; defaults to `1`, values above `1` start with taller rows and values below `1` start denser)
 - `scaleOnResize: "FULL" | "TIME_ONLY"` (defaults to `"FULL"`; `"TIME_ONLY"` keeps row height fixed and stretches only the time axis when the container resizes)
+- `fontSize: number` (base chart-label size in CSS pixels; defaults to `10`, must be finite and positive). Scales x-axis dates/times, weekdays, current/mouse-time labels, destination labels, and slot text while preserving their relative sizes and existing zoom/fit behavior. The x-axis band grows for larger fonts; menus, tooltips, and help UI are unchanged. For example: Vue `:font-size="14"`, React `fontSize={14}`, Angular `[fontSize]="14"`.
 - `topContentPortion: number`
 - `locale: string | string[]` (used by built-in date/time formatting)
 - `dateTimeFormatters: { upper?: Intl.DateTimeFormat; lower?: Intl.DateTimeFormat; currentTime?: Intl.DateTimeFormat; onMouseTimeStrip?: Intl.DateTimeFormat; resizeSlotTime?: Intl.DateTimeFormat }` (overrides locale-based formatting for matching labels)

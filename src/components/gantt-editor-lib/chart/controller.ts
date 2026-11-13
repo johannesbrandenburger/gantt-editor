@@ -444,6 +444,7 @@ export class GanttChartCanvasController {
     callbacks: GanttEditorCallbacks,
     host: GanttEditorHost = {},
   ) {
+    this.validateFontSize(initialProps.fontSize);
     this.props = initialProps;
     this.callbacks = callbacks;
     this.host = host;
@@ -472,6 +473,7 @@ export class GanttChartCanvasController {
    * top-content portion until the parent actually changes those inputs (matches prior Vue watches).
    */
   refreshModel(next: GanttEditorProps): void {
+    this.validateFontSize(next.fontSize);
     const previousProps = this.props;
     const wasReadOnly = previousProps.isReadOnly;
     const previousStartMs = previousProps.startTime.getTime();
@@ -495,6 +497,7 @@ export class GanttChartCanvasController {
       previousProps.isReadOnly === next.isReadOnly &&
       previousProps.defaultZoomLevel === next.defaultZoomLevel &&
       previousProps.scaleOnResize === next.scaleOnResize &&
+      previousProps.fontSize === next.fontSize &&
       previousProps.topContentPortion === next.topContentPortion &&
       previousProps.locale === next.locale &&
       previousProps.dateTimeFormatters === next.dateTimeFormatters &&
@@ -547,6 +550,11 @@ export class GanttChartCanvasController {
       previousProps.dateTimeFormatters !== next.dateTimeFormatters ||
       previousProps.xAxisOptions !== next.xAxisOptions
     ) {
+      shouldRedraw = true;
+    }
+
+    if (previousProps.fontSize !== next.fontSize) {
+      this.invalidateLayoutCache();
       shouldRedraw = true;
     }
 
@@ -2116,6 +2124,12 @@ export class GanttChartCanvasController {
     }
   }
 
+  private validateFontSize(fontSize: number | undefined): void {
+    if (fontSize !== undefined && (!Number.isFinite(fontSize) || fontSize <= 0)) {
+      throw new RangeError("fontSize must be a finite, positive number of CSS pixels.");
+    }
+  }
+
   private getChartLayout(): UnifiedChartLayout | null {
     if (this.containerWidth <= 0 || this.containerHeight <= 0) return null;
     if (this.props.destinationGroups.length === 0) return null;
@@ -2128,7 +2142,7 @@ export class GanttChartCanvasController {
       destinationGroups: this.props.destinationGroups,
       heightPortions: this.currentHeightPortions,
       topContentPortion: this.currentTopContentPortion,
-      xAxisHeight: X_AXIS_HEIGHT,
+      xAxisHeight: X_AXIS_HEIGHT * Math.max(1, (this.props.fontSize ?? 10) / 10),
       resizeHandlePx: 3,
     });
     this.chartLayoutDirty = false;
@@ -4476,13 +4490,14 @@ export class GanttChartCanvasController {
     drawXAxisOnCanvas({
       ctx,
       width: layout.canvasCssWidth,
-      height: X_AXIS_HEIGHT,
+      height: layout.axisRect.h,
       startTime: this.internalStartTime,
       endTime: this.internalEndTime,
       margin: MARGIN,
       locale: this.props.locale,
       dateTimeFormatters: this.props.dateTimeFormatters,
       xAxisOptions: this.props.xAxisOptions,
+      fontSize: this.props.fontSize,
       offsetY: layout.axisRect.y,
     });
 
@@ -4566,6 +4581,7 @@ export class GanttChartCanvasController {
         topics: groupTopics,
         margin: MARGIN,
         rowHeight: this.rowHeight,
+        fontSize: this.props.fontSize,
         viewportTop: clampedOffset,
         viewportHeight: viewportHeight,
         layouts: animatedTopicLayouts,
@@ -4578,6 +4594,7 @@ export class GanttChartCanvasController {
         topics: groupTopics,
         margin: MARGIN,
         rowHeight: this.rowHeight,
+        fontSize: this.props.fontSize,
         startTime: this.internalStartTime,
         endTime: this.internalEndTime,
         viewportTop: clampedOffset,
@@ -4642,6 +4659,7 @@ export class GanttChartCanvasController {
           topics: exitPreviewTopics,
           margin: MARGIN,
           rowHeight: this.rowHeight,
+          fontSize: this.props.fontSize,
           startTime: this.internalStartTime,
           endTime: this.internalEndTime,
           topicLayouts: this.getTopicLayouts(exitPreviewTopics),
@@ -4679,6 +4697,7 @@ export class GanttChartCanvasController {
       margin: MARGIN,
       startTime: this.internalStartTime,
       endTime: this.internalEndTime,
+      fontSize: this.props.fontSize,
     });
 
     this.drawCurrentTimeIndicator(ctx, layout);
@@ -5821,6 +5840,7 @@ export class GanttChartCanvasController {
       this.props.locale,
       this.props.dateTimeFormatters,
       this.props.currentTimeIndicatorLabel,
+      this.props.fontSize,
     );
   }
 
@@ -5836,6 +5856,7 @@ export class GanttChartCanvasController {
       this.pointerCanvasX,
       this.props.locale,
       this.props.dateTimeFormatters,
+      this.props.fontSize,
     );
   }
 

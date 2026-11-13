@@ -84,6 +84,7 @@ export function drawCurrentTimeIndicator(
   locale?: string | string[],
   dateTimeFormatters?: GanttEditorDateTimeFormatters,
   currentTimeIndicatorLabel?: (value: Date) => string,
+  fontSize = 10,
 ): void {
   const now = new Date();
   if (now < startTime || now > endTime) return;
@@ -108,7 +109,7 @@ export function drawCurrentTimeIndicator(
   ctx.stroke();
   ctx.setLineDash([]);
 
-  ctx.font = "bold 10px sans-serif";
+  ctx.font = `bold ${fontSize}px sans-serif`;
   const textMetrics = ctx.measureText(labelText);
   const textWidth = textMetrics.width;
   const labelPadX = 4;
@@ -121,7 +122,7 @@ export function drawCurrentTimeIndicator(
   ctx.fillRect(x, labelTop, labelWidth, labelHeight);
 
   ctx.fillStyle = "white";
-  ctx.font = "bold 10px sans-serif";
+  ctx.font = `bold ${fontSize}px sans-serif`;
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
   ctx.fillText(labelText, x + labelPadX, textBaselineY);
@@ -138,6 +139,7 @@ export function drawMouseTimeStrip(
   canvasX: number,
   locale?: string | string[],
   dateTimeFormatters?: GanttEditorDateTimeFormatters,
+  fontSize = 10,
 ): void {
   const minX = margin.left;
   const maxX = layout.canvasCssWidth - margin.right;
@@ -164,7 +166,7 @@ export function drawMouseTimeStrip(
   ctx.stroke();
   ctx.setLineDash([]);
 
-  ctx.font = "bold 10px sans-serif";
+  ctx.font = `bold ${fontSize}px sans-serif`;
   const textMetrics = ctx.measureText(labelText);
   const textWidth = textMetrics.width;
   const labelPadX = 4;
@@ -181,7 +183,7 @@ export function drawMouseTimeStrip(
   ctx.fillRect(labelLeft, labelTop, labelWidth, labelHeight);
 
   ctx.fillStyle = "white";
-  ctx.font = "bold 10px sans-serif";
+  ctx.font = `bold ${fontSize}px sans-serif`;
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
   ctx.fillText(labelText, labelLeft + labelPadX, textBaselineY);
