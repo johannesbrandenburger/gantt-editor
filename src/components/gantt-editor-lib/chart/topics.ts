@@ -9,11 +9,11 @@ const TOPIC_HEADER_MIN_FONT_PX = 3;
 export const TOPIC_BAND_PADDING = 0.2;
 
 /** Bold label font for topic headers and slot names; scales with row height. */
-export function scaledBoldSansFont(rowHeight: number): string {
+export function scaledBoldSansFont(rowHeight: number, fontSize = 10): string {
   const px = Math.round(
     Math.max(1, Math.min(36, (12 * rowHeight) / TEXT_SCALE_BASE_ROW_HEIGHT)),
   );
-  return `bold ${px}px sans-serif`;
+  return `bold ${px * fontSize / 10}px sans-serif`;
 }
 
 /**
@@ -67,9 +67,11 @@ function fitTopicHeaderFontPx(
   text: string,
   labelScaleHeight: number,
   maxLabelWidth: number,
+  fontSize = 10,
 ): number {
   const unclamped = 6 + (6 * labelScaleHeight) / TEXT_SCALE_BASE_ROW_HEIGHT;
-  const basePx = Math.max(
+  const scale = fontSize / 10;
+  const basePx = scale * Math.max(
     TOPIC_HEADER_MIN_FONT_PX,
     Math.min(TOPIC_HEADER_MAX_FONT_PX, unclamped),
   );
@@ -81,7 +83,7 @@ function fitTopicHeaderFontPx(
   }
 
   const widthFittedPx = (basePx * maxLabelWidth) / textWidth;
-  return Math.max(TOPIC_HEADER_MIN_FONT_PX, Math.min(basePx, widthFittedPx));
+  return Math.max(TOPIC_HEADER_MIN_FONT_PX * scale, Math.min(basePx, widthFittedPx));
 }
 
 export function scaledLabelInsetX(rowHeight: number): number {
@@ -114,6 +116,7 @@ export interface DrawTopicsParams {
   topics: Topic[];
   margin: { left: number; right: number };
   rowHeight: number;
+  fontSize?: number;
   viewportTop?: number;
   viewportHeight?: number;
   /** When set, skips internal computeTopicLayout (caller computed once per frame). */
@@ -274,6 +277,7 @@ export function drawTopicLines(params: DrawTopicsParams) {
         layout.labelText,
         effectiveVisibleHeight,
         maxLabelWidth,
+        params.fontSize,
       );
       ctx.font = topicHeaderFontSpec(fontPx);
       const displayLabel = truncateTextToWidth(ctx, layout.labelText, maxLabelWidth);

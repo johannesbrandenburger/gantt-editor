@@ -117,6 +117,7 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
   @Input({ required: true }) isReadOnly!: boolean
   @Input() defaultZoomLevel?: number
   @Input() scaleOnResize?: GanttEditorProps['scaleOnResize']
+  @Input() fontSize?: number
   @Input() topContentPortion?: number
   @Input() locale?: GanttEditorProps['locale']
   @Input() dateTimeFormatters?: GanttEditorProps['dateTimeFormatters']
@@ -336,6 +337,7 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
       isReadOnly: this.isReadOnly,
       defaultZoomLevel: this.defaultZoomLevel,
       scaleOnResize: this.scaleOnResize,
+      fontSize: this.fontSize,
       topContentPortion: this.topContentPortion,
       locale: this.locale,
       dateTimeFormatters: this.dateTimeFormatters,

@@ -20,6 +20,7 @@ export interface DrawWeekdayOverlayParams {
   margin: { left: number; right: number };
   startTime: Date;
   endTime: Date;
+  fontSize?: number;
 }
 
 /**
@@ -52,7 +53,7 @@ export function drawWeekdayOverlay(params: DrawWeekdayOverlayParams): void {
   }
 
   ctx.fillStyle = "#008000";
-  ctx.font = "bold 10px sans-serif";
+  ctx.font = `bold ${params.fontSize ?? 10}px sans-serif`;
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
   for (const day of days) {

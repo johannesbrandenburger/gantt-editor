@@ -73,6 +73,8 @@ export interface GanttEditorProps {
   defaultZoomLevel?: number;
   /** Resize behavior. `FULL` preserves current unified zoom; `TIME_ONLY` only stretches the time axis. */
   scaleOnResize?: GanttEditorScaleOnResize;
+  /** Base chart-label size in CSS pixels (default 10). Must be finite and positive. */
+  fontSize?: number;
   topContentPortion?: number;
   /** Locale used by built-in date/time formatters. Does not translate user-provided text. */
   locale?: string | string[];

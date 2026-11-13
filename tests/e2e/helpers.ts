@@ -33,6 +33,7 @@ type HarnessConfig = {
   }>;
   isReadOnly?: boolean;
   topContentPortion?: number;
+  fontSize?: number;
   suggestions?: Array<{ slotId: string; alternativeDestinationId: string }>;
   verticalMarkers?: Array<{
     id: string;

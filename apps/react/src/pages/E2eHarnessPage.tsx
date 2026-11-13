@@ -43,6 +43,7 @@ type HarnessData = {
   isReadOnly: boolean
   topContentPortion: number
   dateTimeFormatters?: GanttEditorDateTimeFormatters
+  fontSize?: number
   features?: GanttEditorFeature[]
 }
 
@@ -923,6 +924,7 @@ export function E2eHarnessPage() {
           activateRulers={harnessData.activateRulers}
           slotResizeMinutesStep={harnessData.slotResizeMinutesStep}
           dateTimeFormatters={harnessData.dateTimeFormatters}
+          fontSize={harnessData.fontSize}
           features={harnessData.features}
           onChangeStartAndEndTime={onChangeStartAndEndTime}
           onChangeDestinationId={onChangeDestinationId}

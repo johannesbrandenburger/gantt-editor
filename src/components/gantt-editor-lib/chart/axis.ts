@@ -12,6 +12,7 @@ export interface DrawXAxisParams {
   locale?: string | string[];
   dateTimeFormatters?: GanttEditorDateTimeFormatters;
   xAxisOptions?: GanttEditorXAxisOptions;
+  fontSize?: number;
   /** Top offset when drawing into a larger unified canvas (default 0). */
   offsetY?: number;
 }
@@ -92,7 +93,7 @@ export function drawXAxisOnCanvas(params: DrawXAxisParams) {
   // Draw upper axis ticks (date labels, no tick lines in original)
   ctx.save();
   ctx.fillStyle = "#333";
-  ctx.font = "10px sans-serif";
+  ctx.font = `${params.fontSize ?? 10}px sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   for (const tick of upperTicks) {
@@ -105,7 +106,7 @@ export function drawXAxisOnCanvas(params: DrawXAxisParams) {
   // Draw lower axis ticks (time labels + tick lines)
   ctx.save();
   ctx.fillStyle = "#333";
-  ctx.font = "10px sans-serif";
+  ctx.font = `${params.fontSize ?? 10}px sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.strokeStyle = "#333";
