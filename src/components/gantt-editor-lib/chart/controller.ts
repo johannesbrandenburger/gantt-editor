@@ -832,7 +832,7 @@ export class GanttChartCanvasController {
   private colorSchemeQuery: MediaQueryList | null = null;
 
   private syncTheme = (): void => {
-    const theme = this.props.theme ?? "system";
+    const theme = this.props.theme ?? "light";
     const dark = theme === "dark" || (theme === "system" && this.colorSchemeQuery?.matches);
     this.palette = dark ? darkPalette : lightPalette;
     if (this.container) {

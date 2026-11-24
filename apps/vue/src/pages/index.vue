@@ -192,7 +192,7 @@ const redTopLeftCornerOverlay: GanttEditorSlot['customOverlay'] = ({ ctx }) => {
 // Ref to the Gantt Editor component for programmatic access
 const ganttEditorRef = ref<InstanceType<typeof GanttEditor> | null>(null);
 
-const theme = ref<'system' | 'light' | 'dark'>('system');
+const theme = ref<'system' | 'light' | 'dark'>('light');
 const topContentPortion = ref(0.1); // 20% of total height for top content
 const onWindowKeydown = (event: KeyboardEvent) => {
     if (event.key === 't') {

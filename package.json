@@ -9,7 +9,7 @@
     "gh-pages"
   ],
   "type": "module",
-  "version": "2.13.0",
+  "version": "2.13.1",
   "types": "./dist/types/index.d.ts",
   "exports": {
     ".": {

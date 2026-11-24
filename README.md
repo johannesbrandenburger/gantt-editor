@@ -266,7 +266,7 @@ All wrappers expose the same core model and behavior.
 - `slotContextMenuActions: GanttEditorSlotContextMenuAction[]`
 - `defaultZoomLevel: number` (initial unified zoom multiplier; defaults to `1`, values above `1` start with taller rows and values below `1` start denser)
 - `scaleOnResize: "FULL" | "TIME_ONLY"` (defaults to `"FULL"`; `"TIME_ONLY"` keeps row height fixed and stretches only the time axis when the container resizes)
-- `theme?: "system" | "light" | "dark"` controls the editor appearance across Vue, React, and Angular. The default, `system`, follows changes to the device color scheme. Set `theme="dark"` to use dark mode regardless of device settings. Slot and marker colors supplied by the application are preserved.
+- `theme?: "system" | "light" | "dark"` controls the editor appearance across Vue, React, and Angular. Omitting the prop uses light mode. Set `theme="system"` to follow changes to the device color scheme. Set `theme="dark"` to use dark mode regardless of device settings. Slot and marker colors supplied by the application are preserved.
 - `fontSize: number` (base chart-label size in CSS pixels; defaults to `10`, must be finite and positive). Scales x-axis dates/times, weekdays, current/mouse-time labels, destination labels, and slot text while preserving their relative sizes and existing zoom/fit behavior. The x-axis band grows for larger fonts; menus, tooltips, and help UI are unchanged. For example: Vue `:font-size="14"`, React `fontSize={14}`, Angular `[fontSize]="14"`.
 - `topContentPortion: number`
 - `locale: string | string[]` (used by built-in date/time formatting)

@@ -9,12 +9,10 @@ async function axisPixel(page: Page) {
   });
 }
 
-test("the canvas follows live system theme changes", async ({ page }) => {
-  await page.emulateMedia({ colorScheme: "light" });
+test("omitting theme renders a light canvas on a dark device", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
   await openE2eHarness(page, { fixture: "core" });
   await expect.poll(() => axisPixel(page)).toEqual([245, 245, 245, 255]);
-  await page.emulateMedia({ colorScheme: "dark" });
-  await expect.poll(() => axisPixel(page)).toEqual([37, 37, 37, 255]);
   await page.emulateMedia({ colorScheme: "light" });
   await expect.poll(() => axisPixel(page)).toEqual([245, 245, 245, 255]);
 });
@@ -25,6 +23,7 @@ test("the demo theme selector overrides and restores the system preference", asy
   await page.goto("/");
   const selector = page.getByRole("combobox", { name: "Theme", exact: true });
   const chart = page.locator(".chart-container");
+  await expect(selector).toHaveValue("light");
   await selector.selectOption("dark");
   await expect(chart).toHaveCSS("color-scheme", "dark");
   await page.emulateMedia({ colorScheme: "dark" });
@@ -32,4 +31,6 @@ test("the demo theme selector overrides and restores the system preference", asy
   await expect(chart).toHaveCSS("color-scheme", "light");
   await selector.selectOption("system");
   await expect(chart).toHaveCSS("color-scheme", "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(chart).toHaveCSS("color-scheme", "light");
 });
