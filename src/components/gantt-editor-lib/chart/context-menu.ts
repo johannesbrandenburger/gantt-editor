@@ -1,3 +1,4 @@
+import type { ChartPalette } from "./theme";
 export type CanvasContextMenuItem<TPayload = unknown> = {
   id: string;
   label: string;
@@ -219,6 +220,7 @@ export function drawCanvasContextMenu<TPayload>(
   ctx: CanvasRenderingContext2D,
   layout: CanvasContextMenuLayout<TPayload>,
   state: CanvasContextMenuState<TPayload>,
+  palette: ChartPalette,
 ): void {
   ctx.save();
   ctx.font = "13px sans-serif";
@@ -243,9 +245,9 @@ export function drawCanvasContextMenu<TPayload>(
     ctx.quadraticCurveTo(rect.x, rect.y, rect.x + radius, rect.y);
     ctx.closePath();
 
-    ctx.fillStyle = "rgba(255, 255, 255, 0.98)";
+    ctx.fillStyle = palette.surface;
     ctx.fill();
-    ctx.strokeStyle = "#d1d5db";
+    ctx.strokeStyle = palette.border;
     ctx.lineWidth = 1;
     ctx.stroke();
   };
@@ -258,15 +260,15 @@ export function drawCanvasContextMenu<TPayload>(
     for (const item of items) {
       const isHovered = hoveredIndex === item.index;
       if (isHovered) {
-        ctx.fillStyle = "rgba(15, 118, 110, 0.12)";
+        ctx.fillStyle = palette.accentTint;
         ctx.fillRect(item.rect.x + 1, item.rect.y + 1, item.rect.width - 2, item.rect.height - 2);
       }
 
-      ctx.fillStyle = item.enabled ? "#111827" : "#9ca3af";
+      ctx.fillStyle = item.enabled ? palette.text : palette.disabled;
       ctx.fillText(item.label, item.rect.x + MENU_PADDING_X, item.rect.y + item.rect.height / 2);
 
       if (showChildrenArrow && item.hasChildren) {
-        ctx.fillStyle = item.enabled ? "#6b7280" : "#cbd5e1";
+        ctx.fillStyle = item.enabled ? palette.muted : palette.disabled;
         const arrowX = item.rect.x + item.rect.width - MENU_PADDING_X - 4;
         const arrowY = item.rect.y + item.rect.height / 2;
         ctx.beginPath();

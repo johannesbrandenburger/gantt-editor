@@ -1,3 +1,4 @@
+import type { ChartPalette } from "./theme";
 import type { Topic, GanttEditorSlotWithUiAttributes } from "./types";
 import { mapSlotToStateColor } from "../helpers";
 import {
@@ -42,6 +43,7 @@ export interface SlotRect {
 }
 
 export interface DrawSlotsParams {
+  palette: ChartPalette;
   ctx: CanvasRenderingContext2D;
   width: number;
   topics: Topic[];
@@ -176,7 +178,7 @@ export function drawSlots(params: DrawSlotsParams) {
         ctx.fillRect(slotDef.x, slotDef.y, slotDef.width, slotDef.height);
 
         if (slotDef.isPreview) {
-          ctx.strokeStyle = slotDef.slot.isCopyPreview ? "#166534" : "#1d4ed8";
+          ctx.strokeStyle = slotDef.slot.isCopyPreview ? params.palette.copyPreviewBorder : params.palette.movePreviewBorder;
           ctx.lineWidth = 1.25;
           ctx.setLineDash([6, 4]);
           ctx.strokeRect(slotDef.x + 0.5, slotDef.y + 0.5, Math.max(0, slotDef.width - 1), Math.max(0, slotDef.height - 1));
@@ -192,7 +194,7 @@ export function drawSlots(params: DrawSlotsParams) {
 
         // Copied indicator: dashed border
         if (slotDef.isCopied) {
-          ctx.strokeStyle = "#000";
+          ctx.strokeStyle = params.palette.text;
           ctx.lineWidth = 1;
           ctx.setLineDash([5, 5]);
           ctx.strokeRect(slotDef.x, slotDef.y, slotDef.width, slotDef.height);
@@ -212,7 +214,7 @@ export function drawSlots(params: DrawSlotsParams) {
           ctx.clip();
 
           ctx.globalAlpha = slotDef.isPreview ? drawAlpha : 1;
-          ctx.fillStyle = slotDef.isPreview ? "#000000" : (slotDef.slot.labelColor ?? "#ffffff");
+          ctx.fillStyle = slotDef.isPreview ? params.palette.text : (slotDef.slot.labelColor ?? "#ffffff");
           ctx.font = scaledBoldSansFont(rowHeight, params.fontSize);
           ctx.textBaseline = "middle";
           ctx.textAlign = "left";

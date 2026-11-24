@@ -1,3 +1,4 @@
+import type { ChartPalette } from "./theme";
 import type { GanttEditorDestinationGroup } from "./types";
 
 export const DEFAULT_RESIZE_HANDLE_PX = 3;
@@ -216,20 +217,15 @@ export function anchorYInGroupViewport(
   return Math.max(0, Math.min(gr.h, y - gr.y));
 }
 
-export const RESIZE_HANDLE_COLORS = {
-  idle: "#e0e0e0",
-  hover: "#3700ff",
-  active: "#6200ee",
-} as const;
-
 export function drawResizeBands(
   ctx: CanvasRenderingContext2D,
   layout: UnifiedChartLayout,
   /** `"top"`, `"between:<groupIdAbove>"`, or null */
   hoverBand: string | null,
+  palette: ChartPalette,
 ): void {
   const drawBand = (r: { y: number; h: number }, hot: boolean) => {
-    ctx.fillStyle = hot ? RESIZE_HANDLE_COLORS.hover : RESIZE_HANDLE_COLORS.idle;
+    ctx.fillStyle = hot ? palette.selection : palette.resizeBand;
     ctx.fillRect(0, r.y, layout.canvasCssWidth, r.h);
   };
 

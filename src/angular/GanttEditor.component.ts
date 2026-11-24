@@ -42,7 +42,7 @@ export class GanttEditorTopContentDirective {}
   styles: [
     `
       .chart-container {
-        color: #000;
+        color: var(--gantt-text, #000);
         position: relative;
         width: 100%;
         height: 100%;
@@ -54,7 +54,7 @@ export class GanttEditorTopContentDirective {}
       .top-content-container {
         width: 100%;
         overflow: hidden;
-        background-color: white;
+        background-color: var(--gantt-background, white);
       }
 
       .chart-canvas-wrap {
@@ -117,6 +117,7 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
   @Input({ required: true }) isReadOnly!: boolean
   @Input() defaultZoomLevel?: number
   @Input() scaleOnResize?: GanttEditorProps['scaleOnResize']
+  @Input() theme?: GanttEditorProps['theme']
   @Input() fontSize?: number
   @Input() topContentPortion?: number
   @Input() locale?: GanttEditorProps['locale']
@@ -337,6 +338,7 @@ export class GanttEditor implements GanttEditorProps, AfterViewInit, OnChanges, 
       isReadOnly: this.isReadOnly,
       defaultZoomLevel: this.defaultZoomLevel,
       scaleOnResize: this.scaleOnResize,
+      theme: this.theme,
       fontSize: this.fontSize,
       topContentPortion: this.topContentPortion,
       locale: this.locale,

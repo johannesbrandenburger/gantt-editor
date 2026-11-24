@@ -1,3 +1,4 @@
+import type { ChartPalette } from "./theme";
 import { createTimeScale, timeDay } from "./time-scale";
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
@@ -12,6 +13,7 @@ const WEEKDAY_NAMES = [
 ];
 
 export interface DrawWeekdayOverlayParams {
+  palette: ChartPalette;
   ctx: CanvasRenderingContext2D;
   width: number;
   lineTop: number;
@@ -44,7 +46,7 @@ export function drawWeekdayOverlay(params: DrawWeekdayOverlayParams): void {
 
   for (const day of days) {
     const x = margin.left + xScale(day);
-    ctx.strokeStyle = "rgba(0, 128, 0, 0.3)";
+    ctx.strokeStyle = params.palette.weekdayLine;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(x, lineTop);
@@ -52,7 +54,7 @@ export function drawWeekdayOverlay(params: DrawWeekdayOverlayParams): void {
     ctx.stroke();
   }
 
-  ctx.fillStyle = "#008000";
+  ctx.fillStyle = params.palette.weekday;
   ctx.font = `bold ${params.fontSize ?? 10}px sans-serif`;
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";

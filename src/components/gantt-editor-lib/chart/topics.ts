@@ -1,3 +1,4 @@
+import type { ChartPalette } from "./theme";
 import type { Topic } from "./types";
 
 /** Matches default row height in GanttEditor — fonts/padding scale from this baseline. */
@@ -110,6 +111,7 @@ export interface TopicLayout {
 }
 
 export interface DrawTopicsParams {
+  palette: ChartPalette;
   ctx: CanvasRenderingContext2D;
   width: number;
   height: number;
@@ -225,11 +227,11 @@ export function drawTopicLines(params: DrawTopicsParams) {
   // Clear — use viewport coordinates when scrolling is active
   if (hasViewport) {
     ctx.clearRect(0, viewportTop, width, viewportHeight);
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = params.palette.background;
     ctx.fillRect(0, viewportTop, width, viewportHeight);
   } else {
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = params.palette.background;
     ctx.fillRect(0, 0, width, height);
   }
 
@@ -237,7 +239,7 @@ export function drawTopicLines(params: DrawTopicsParams) {
 
   // Draw horizontal gridlines (one per topic, full width)
   ctx.save();
-  ctx.strokeStyle = "#dee2e6";
+  ctx.strokeStyle = params.palette.grid;
   ctx.lineWidth = 1;
   ctx.globalAlpha = 0.5;
   for (const layout of layouts) {
@@ -286,7 +288,7 @@ export function drawTopicLines(params: DrawTopicsParams) {
       const preferredLabelY = layout.topic.yStart + fontPx / 2 + 4;
       const maxLabelY = Math.max(minLabelY, layout.topic.yEnd - fontPx / 2 - 1);
       const labelY = Math.min(maxLabelY, preferredLabelY);
-      ctx.fillStyle = layout.isInactive ? "red" : "black";
+      ctx.fillStyle = layout.isInactive ? params.palette.inactive : params.palette.text;
       ctx.fillText(displayLabel, layout.labelX, labelY);
     }
     ctx.restore();

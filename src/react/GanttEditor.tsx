@@ -54,7 +54,7 @@ export interface GanttEditorRef {
 }
 
 const containerStyle: CSSProperties = {
-  color: '#000',
+  color: 'var(--gantt-text, #000)',
   position: 'relative',
   width: '100%',
   height: '100%',
@@ -66,7 +66,7 @@ const containerStyle: CSSProperties = {
 const topContentStyle = (height: number): CSSProperties => ({
   width: '100%',
   overflow: 'hidden',
-  backgroundColor: 'white',
+  backgroundColor: 'var(--gantt-background, white)',
   height,
 })
 
@@ -98,6 +98,7 @@ function snapshotProps(props: GanttEditorWrapperProps): GanttEditorCanvasProps {
     isReadOnly: props.isReadOnly,
     defaultZoomLevel: props.defaultZoomLevel,
     scaleOnResize: props.scaleOnResize,
+    theme: props.theme,
     fontSize: props.fontSize,
     topContentPortion: props.topContentPortion,
     locale: props.locale,
@@ -226,6 +227,7 @@ export const GanttEditor = forwardRef<GanttEditorRef, GanttEditorWrapperProps>(
       props.isReadOnly,
       props.defaultZoomLevel,
       props.scaleOnResize,
+      props.theme,
       props.fontSize,
       props.topContentPortion,
       props.locale,

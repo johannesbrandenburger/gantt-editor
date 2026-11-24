@@ -1,3 +1,4 @@
+import { lightPalette, darkPalette } from "./theme";
 import { drawXAxisOnCanvas } from "./axis";
 import {
   setupCanvasPanZoom,
@@ -505,6 +506,7 @@ export class GanttChartCanvasController {
     const isTimeRangeOnlyUpdate = parentTimeRangeChanged && nonTimePropsUnchangedByRef;
 
     this.props = next;
+    if (next.theme !== previousProps.theme) this.syncTheme();
     const featureFlagsChanged = this.syncEnabledFeatures(next.features);
 
     let shouldRedraw = false;
@@ -826,10 +828,28 @@ export class GanttChartCanvasController {
     this.invalidateLayoutCache();
   }
 
+  private palette = lightPalette;
+  private colorSchemeQuery: MediaQueryList | null = null;
+
+  private syncTheme = (): void => {
+    const theme = this.props.theme ?? "system";
+    const dark = theme === "dark" || (theme === "system" && this.colorSchemeQuery?.matches);
+    this.palette = dark ? darkPalette : lightPalette;
+    if (this.container) {
+      this.container.style.colorScheme = dark ? "dark" : "light";
+      this.container.style.setProperty("--gantt-background", this.palette.background);
+      this.container.style.setProperty("--gantt-text", this.palette.text);
+      this.redraw();
+    }
+  };
+
   attach(container: HTMLElement, canvas: HTMLCanvasElement): void {
     this.detach();
     this.container = container;
     this.canvas = canvas;
+    this.colorSchemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    this.colorSchemeQuery.addEventListener("change", this.syncTheme);
+    this.syncTheme();
 
     this.containerHeight = container.clientHeight;
     this.containerWidth = container.clientWidth;
@@ -873,6 +893,8 @@ export class GanttChartCanvasController {
   }
 
   detach(): void {
+    this.colorSchemeQuery?.removeEventListener("change", this.syncTheme);
+    this.colorSchemeQuery = null;
     if (this.frameRedrawRaf !== null) {
       cancelAnimationFrame(this.frameRedrawRaf);
       this.frameRedrawRaf = null;
@@ -4481,13 +4503,14 @@ export class GanttChartCanvasController {
     if (!ctx) return;
 
     ctx.clearRect(0, 0, layout.canvasCssWidth, layout.canvasCssHeight);
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = this.palette.background;
     ctx.fillRect(0, 0, layout.canvasCssWidth, layout.canvasCssHeight);
 
     const bandKey = this.hoverResizeBand;
-    drawResizeBands(ctx, layout, bandKey);
+    drawResizeBands(ctx, layout, bandKey, this.palette);
 
     drawXAxisOnCanvas({
+      palette: this.palette,
       ctx,
       width: layout.canvasCssWidth,
       height: layout.axisRect.h,
@@ -4575,6 +4598,7 @@ export class GanttChartCanvasController {
       }
 
       drawTopicLines({
+        palette: this.palette,
         ctx,
         width: layout.canvasCssWidth,
         height: viewportHeight,
@@ -4589,6 +4613,7 @@ export class GanttChartCanvasController {
       });
 
       drawSlots({
+        palette: this.palette,
         ctx,
         width: layout.canvasCssWidth,
         topics: groupTopics,
@@ -4654,6 +4679,7 @@ export class GanttChartCanvasController {
         ctx.save();
         ctx.translate(0, gr.y - scrollOffset);
         drawSlots({
+          palette: this.palette,
           ctx,
           width: layout.canvasCssWidth,
           topics: exitPreviewTopics,
@@ -4689,6 +4715,7 @@ export class GanttChartCanvasController {
     this.drawSlotResizeRulerOverlay(ctx, layout);
 
     drawWeekdayOverlay({
+      palette: this.palette,
       ctx,
       width: layout.canvasCssWidth,
       lineTop: layout.axisRect.y,
@@ -4773,15 +4800,15 @@ export class GanttChartCanvasController {
     ctx.quadraticCurveTo(x, y, x + radius, y);
     ctx.closePath();
 
-    ctx.fillStyle = "rgba(255, 255, 255, 0.97)";
+    ctx.fillStyle = this.palette.surface;
     ctx.fill();
-    ctx.strokeStyle = "#d4d4d8";
+    ctx.strokeStyle = this.palette.border;
     ctx.lineWidth = 1;
     ctx.stroke();
 
     lines.forEach((line, idx) => {
       const baseline = y + padY + idx * lineHeight + 11;
-      ctx.fillStyle = idx === lines.length - 1 ? "#0f766e" : "#111827";
+      ctx.fillStyle = idx === lines.length - 1 ? this.palette.accent : this.palette.text;
       ctx.fillText(line, x + padX, baseline);
     });
 
@@ -4828,14 +4855,14 @@ export class GanttChartCanvasController {
     ctx.rect(0, topY, layout.canvasCssWidth, groupRect.h);
     ctx.clip();
 
-    ctx.strokeStyle = "rgba(15, 118, 110, 0.85)";
+    ctx.strokeStyle = this.palette.accent;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(x + 0.5, topY + 1);
     ctx.lineTo(x + 0.5, bottomY - 1);
     ctx.stroke();
 
-    ctx.strokeStyle = "#0f766e";
+    ctx.strokeStyle = this.palette.accent;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(x + 0.5, topY + 1);
@@ -4912,8 +4939,8 @@ export class GanttChartCanvasController {
     if (w <= 0 || h <= 0) return;
 
     ctx.save();
-    ctx.fillStyle = "rgba(55, 0, 255, 0.16)";
-    ctx.strokeStyle = "rgba(55, 0, 255, 0.8)";
+    ctx.fillStyle = this.palette.selectionTint;
+    ctx.strokeStyle = this.palette.selection;
     ctx.lineWidth = 1;
     ctx.fillRect(x, y, w, h);
     ctx.strokeRect(x + 0.5, y + 0.5, Math.max(0, w - 1), Math.max(0, h - 1));
@@ -4975,9 +5002,9 @@ export class GanttChartCanvasController {
     ctx.quadraticCurveTo(x, y, x + radius, y);
     ctx.closePath();
 
-    ctx.fillStyle = "rgba(17, 24, 39, 0.9)";
+    ctx.fillStyle = this.palette.tooltipBackground;
     ctx.fill();
-    ctx.strokeStyle = "rgba(59, 130, 246, 0.9)";
+    ctx.strokeStyle = this.palette.tooltipBorder;
     ctx.lineWidth = 1;
     ctx.stroke();
 
@@ -4988,7 +5015,7 @@ export class GanttChartCanvasController {
       } else if (extraCount > 0 && idx === lines.length - 1) {
         ctx.fillStyle = "#d1d5db";
       } else {
-        ctx.fillStyle = "#f9fafb";
+        ctx.fillStyle = this.palette.tooltipText;
       }
       ctx.fillText(line, x + padX, baseline);
     });
@@ -5046,9 +5073,9 @@ export class GanttChartCanvasController {
     ctx.quadraticCurveTo(x, y, x + radius, y);
     ctx.closePath();
 
-    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+    ctx.fillStyle = this.palette.surface;
     ctx.fill();
-    ctx.strokeStyle = "#dddddd";
+    ctx.strokeStyle = this.palette.border;
     ctx.lineWidth = 1;
     ctx.stroke();
 
@@ -5104,13 +5131,13 @@ export class GanttChartCanvasController {
     ctx.quadraticCurveTo(x, y, x + radius, y);
     ctx.closePath();
 
-    ctx.fillStyle = "rgba(30, 41, 59, 0.92)";
+    ctx.fillStyle = this.palette.tooltipBackground;
     ctx.fill();
-    ctx.strokeStyle = "rgba(148, 163, 184, 0.9)";
+    ctx.strokeStyle = this.palette.tooltipBorder;
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    ctx.fillStyle = "#f8fafc";
+    ctx.fillStyle = this.palette.tooltipText;
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
     ctx.fillText(label, x + padX, y + boxHeight / 2);
@@ -5133,7 +5160,7 @@ export class GanttChartCanvasController {
   ): void {
     const menuLayout = this.getContextMenuLayout(layout.canvasCssWidth, layout.canvasCssHeight);
     if (!menuLayout) return;
-    drawCanvasContextMenu(ctx, menuLayout, this.contextMenuState);
+    drawCanvasContextMenu(ctx, menuLayout, this.contextMenuState, this.palette);
   }
 
   private hoveredSlotHoverData(): string | null {
@@ -5342,7 +5369,7 @@ export class GanttChartCanvasController {
     let cursorX = x;
     for (const segment of line.segments) {
       ctx.font = this.hoverTooltipFont(segment.style);
-      ctx.fillStyle = "#111111";
+      ctx.fillStyle = this.palette.text;
       ctx.fillText(segment.text, cursorX, baseline);
       cursorX += ctx.measureText(segment.text).width;
     }
@@ -5424,6 +5451,7 @@ export class GanttChartCanvasController {
   ): number {
     const progress = this.getHelpOverlayProgress(nowMs);
     drawHelpOverlay({
+      palette: this.palette,
       ctx,
       width: layout.canvasCssWidth,
       height: layout.canvasCssHeight,

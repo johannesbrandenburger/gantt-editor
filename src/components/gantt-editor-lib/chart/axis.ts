@@ -1,8 +1,10 @@
+import type { ChartPalette } from "./theme";
 import type { GanttEditorXAxisOptions } from "./types";
 import type { GanttEditorDateTimeFormatters } from "./props";
 import { createTimeScale, type TimeDomainValue } from "./time-scale";
 
 export interface DrawXAxisParams {
+  palette: ChartPalette;
   ctx: CanvasRenderingContext2D;
   width: number;
   height: number;
@@ -56,7 +58,7 @@ export function drawXAxisOnCanvas(params: DrawXAxisParams) {
 
   // Clear axis band
   ctx.clearRect(0, offsetY, width, height);
-  ctx.fillStyle = "#f5f5f5";
+  ctx.fillStyle = params.palette.axis;
   ctx.fillRect(0, offsetY, width, height);
 
   // Formatters (matching original axis.ts defaults)
@@ -92,7 +94,7 @@ export function drawXAxisOnCanvas(params: DrawXAxisParams) {
 
   // Draw upper axis ticks (date labels, no tick lines in original)
   ctx.save();
-  ctx.fillStyle = "#333";
+  ctx.fillStyle = params.palette.axisText;
   ctx.font = `${params.fontSize ?? 10}px sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -105,11 +107,11 @@ export function drawXAxisOnCanvas(params: DrawXAxisParams) {
 
   // Draw lower axis ticks (time labels + tick lines)
   ctx.save();
-  ctx.fillStyle = "#333";
+  ctx.fillStyle = params.palette.axisText;
   ctx.font = `${params.fontSize ?? 10}px sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.strokeStyle = "#333";
+  ctx.strokeStyle = params.palette.axisText;
   ctx.lineWidth = 1;
   for (const tick of lowerTicks) {
     const x = margin.left + xScale(tick);
@@ -126,7 +128,7 @@ export function drawXAxisOnCanvas(params: DrawXAxisParams) {
 
   // Bottom border line
   ctx.save();
-  ctx.strokeStyle = "#333";
+  ctx.strokeStyle = params.palette.axisText;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(margin.left, offsetY + height - 0.5);

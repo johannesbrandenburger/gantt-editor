@@ -21,6 +21,7 @@
             :verticalMarkers="verticalMarkers"
             :contextMenuActions="contextMenuActions"
             :markedRegion="markedRegion"
+            :theme="theme"
             :locale="selectedLocale"
             :activate-rulers="'GLOBAL'"
             :slotContextMenuActions="[
@@ -49,7 +50,15 @@
                 v-if="topContentPortion > 0"
             >
                 <div
-                    style="padding: 10px; background: #f5f5f5; border-bottom: 1px solid #ddd; flex-shrink: 0; display: flex; align-items: center; gap: 10px; height: 100%;">
+                    style="padding: 10px; background: var(--gantt-background); flex-shrink: 0; display: flex; align-items: center; gap: 10px; height: 100%;">
+                    <label>
+                        Theme
+                        <select v-model="theme">
+                            <option value="system">System</option>
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
+                    </label>
                     <button
                         @click="toggleReadOnly"
                         :style="{
@@ -183,6 +192,7 @@ const redTopLeftCornerOverlay: GanttEditorSlot['customOverlay'] = ({ ctx }) => {
 // Ref to the Gantt Editor component for programmatic access
 const ganttEditorRef = ref<InstanceType<typeof GanttEditor> | null>(null);
 
+const theme = ref<'system' | 'light' | 'dark'>('system');
 const topContentPortion = ref(0.1); // 20% of total height for top content
 const onWindowKeydown = (event: KeyboardEvent) => {
     if (event.key === 't') {

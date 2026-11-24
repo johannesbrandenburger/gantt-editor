@@ -129,6 +129,7 @@ function propsSnapshot(): GanttEditorProps {
     isReadOnly: props.isReadOnly,
     defaultZoomLevel: props.defaultZoomLevel,
     scaleOnResize: props.scaleOnResize,
+    theme: props.theme,
     fontSize: props.fontSize,
     topContentPortion: props.topContentPortion,
     locale: props.locale,
@@ -229,6 +230,7 @@ watch(
     props.isReadOnly,
     props.defaultZoomLevel,
     props.scaleOnResize,
+    props.theme,
     props.fontSize,
     props.topContentPortion,
     props.locale,
@@ -313,7 +315,7 @@ defineExpose({
 
 <style lang="css">
 .chart-container {
-  color: #000;
+  color: var(--gantt-text, #000);
   position: relative;
   width: 100%;
   height: 100%;
@@ -336,6 +338,6 @@ defineExpose({
 .top-content-container {
   width: 100%;
   overflow: hidden;
-  background-color: white;
+  background-color: var(--gantt-background, white);
 }
 </style>

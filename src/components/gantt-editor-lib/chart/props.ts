@@ -54,6 +54,8 @@ export type GanttEditorFeature =
  * (e.g. Angular) can bind the same fields without redefining types.
  */
 export interface GanttEditorProps {
+  /** Defaults to the system color scheme. */
+  theme?: "light" | "dark" | "system";
   startTime: Date;
   endTime: Date;
   slots: Array<GanttEditorSlotWithUiAttributes>;

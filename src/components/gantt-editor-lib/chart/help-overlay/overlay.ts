@@ -1,3 +1,4 @@
+import type { ChartPalette } from "../theme";
 import type {
   CanvasRect,
   HelpOverlayHitTarget,
@@ -376,6 +377,7 @@ export function buildHelpOverlayLayout(
 }
 
 type DrawHelpOverlayArgs = {
+  palette: ChartPalette;
   ctx: CanvasRenderingContext2D;
   width: number;
   height: number;
@@ -409,7 +411,7 @@ export function drawHelpOverlay(args: DrawHelpOverlayArgs): HelpOverlayLayout {
   const closeHovered = hoverTarget === "close";
 
   if (layout.buttonRect) {
-    drawHelpButton(ctx, layout.buttonRect, {
+    drawHelpButton(args.palette, ctx, layout.buttonRect, {
       active: progress > 0.02,
       hovered: buttonHovered,
     });
@@ -431,8 +433,8 @@ export function drawHelpOverlay(args: DrawHelpOverlayArgs): HelpOverlayLayout {
   ctx.save();
   ctx.globalAlpha = panelAlpha;
   ctx.translate(0, panelOffsetY);
-  drawHelpPanel(ctx, layout.panelRect);
-  drawHelpHeader(ctx, layout.panelRect, layout.closeRect, closeHovered);
+  drawHelpPanel(args.palette, ctx, layout.panelRect);
+  drawHelpHeader(args.palette, ctx, layout.panelRect, layout.closeRect, closeHovered);
 
   if (layout.tilesClipRect && layout.tileLayouts.length > 0) {
     const scrollY = clamp(tilesScrollY, 0, layout.tilesMaxScrollY);
@@ -455,7 +457,7 @@ export function drawHelpOverlay(args: DrawHelpOverlayArgs): HelpOverlayLayout {
         isActive && activeTileAnimationStartMs !== null
           ? nowMs - activeTileAnimationStartMs
           : tileLayout.tile.nonHoverOffsetMs ?? 0;
-      drawHelpTile(ctx, tileLayout, previewNowMs, panelAlpha, isActive);
+      drawHelpTile(args.palette, ctx, tileLayout, previewNowMs, panelAlpha, isActive);
     }
     ctx.restore();
   }
@@ -465,6 +467,7 @@ export function drawHelpOverlay(args: DrawHelpOverlayArgs): HelpOverlayLayout {
 }
 
 function drawHelpButton(
+  palette: ChartPalette,
   ctx: CanvasRenderingContext2D,
   rect: CanvasRect,
   state: { active: boolean; hovered: boolean },
@@ -472,12 +475,12 @@ function drawHelpButton(
   ctx.save();
   ctx.beginPath();
   ctx.arc(rect.x + rect.w / 2, rect.y + rect.h / 2, rect.w / 2, 0, Math.PI * 2);
-  ctx.fillStyle = state.active ? "#1f2937" : state.hovered ? "#ffffff" : "rgba(255, 255, 255, 0.96)";
+  ctx.fillStyle = state.active ? palette.text : state.hovered ? palette.hover : palette.surface;
   ctx.fill();
-  ctx.strokeStyle = state.active ? "#1f2937" : "#cfd6df";
+  ctx.strokeStyle = state.active ? palette.text : palette.border;
   ctx.lineWidth = 1;
   ctx.stroke();
-  ctx.fillStyle = state.active ? "#ffffff" : "#1f2937";
+  ctx.fillStyle = state.active ? palette.surface : palette.text;
   ctx.font = "600 14px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -485,30 +488,35 @@ function drawHelpButton(
   ctx.restore();
 }
 
-function drawHelpPanel(ctx: CanvasRenderingContext2D, rect: CanvasRect): void {
+function drawHelpPanel(
+  palette: ChartPalette,
+  ctx: CanvasRenderingContext2D,
+  rect: CanvasRect,
+): void {
   ctx.save();
   ctx.shadowColor = "rgba(15, 23, 42, 0.08)";
   ctx.shadowBlur = 20;
   ctx.shadowOffsetY = 6;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.98)";
+  ctx.fillStyle = palette.axis;
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.restore();
 
   ctx.save();
-  ctx.strokeStyle = "#d7dde5";
+  ctx.strokeStyle = palette.border;
   ctx.lineWidth = 1;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
   ctx.restore();
 }
 
 function drawHelpHeader(
+  palette: ChartPalette,
   ctx: CanvasRenderingContext2D,
   panelRect: CanvasRect,
   closeRect: CanvasRect,
   closeHovered: boolean,
 ): void {
   ctx.save();
-  ctx.fillStyle = "#111827";
+  ctx.fillStyle = palette.text;
   ctx.font = "600 15px sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
@@ -516,13 +524,13 @@ function drawHelpHeader(
 
   ctx.beginPath();
   ctx.arc(closeRect.x + closeRect.w / 2, closeRect.y + closeRect.h / 2, closeRect.w / 2, 0, Math.PI * 2);
-  ctx.fillStyle = closeHovered ? "#eef2f7" : "#ffffff";
+  ctx.fillStyle = closeHovered ? palette.hover : palette.surface;
   ctx.fill();
-  ctx.strokeStyle = "#d5dce5";
+  ctx.strokeStyle = palette.border;
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  ctx.strokeStyle = "#5b6472";
+  ctx.strokeStyle = palette.muted;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(closeRect.x + 6.5, closeRect.y + 6.5);
@@ -535,6 +543,7 @@ function drawHelpHeader(
 }
 
 function drawHelpTile(
+  palette: ChartPalette,
   ctx: CanvasRenderingContext2D,
   tileLayout: HelpOverlayTileLayout,
   nowMs: number,
@@ -557,9 +566,9 @@ function drawHelpTile(
   } = tileLayout;
 
   ctx.save();
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = palette.surface;
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = active ? "#0d5ccb" : "#e0e5ec";
+  ctx.strokeStyle = active ? palette.accent : palette.border;
   ctx.lineWidth = active ? 1.5 : 1;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
   ctx.restore();
@@ -577,18 +586,18 @@ function drawHelpTile(
   ctx.restore();
 
   ctx.save();
-  ctx.fillStyle = "#111827";
+  ctx.fillStyle = palette.text;
   ctx.font = TITLE_FONT;
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   drawWrappedTextLines(ctx, titleLines, textX, titleY, TITLE_LINE_HEIGHT);
 
-  ctx.fillStyle = "#4b5563";
+  ctx.fillStyle = palette.muted;
   ctx.font = DESCRIPTION_FONT;
   drawWrappedTextLines(ctx, descriptionLines, textX, descriptionY, DESCRIPTION_LINE_HEIGHT);
 
   if (detailLines.length > 0 && detailY !== null) {
-    ctx.fillStyle = "#6b7280";
+    ctx.fillStyle = palette.muted;
     ctx.font = DETAIL_FONT;
     drawWrappedTextLines(ctx, detailLines, textX, detailY, DETAIL_LINE_HEIGHT);
   }
@@ -600,10 +609,10 @@ function drawHelpTile(
       const shortcutRect = shortcutRects[i]!;
       const label = labels[i] ?? "";
       const labelWidth = Math.min(textWidth, shortcutRect.w);
-      ctx.fillStyle = "#f8fafc";
+      ctx.fillStyle = palette.axis;
       roundedRectPath(ctx, { ...shortcutRect, w: labelWidth }, SHORTCUT_RADIUS);
       ctx.fill();
-      ctx.strokeStyle = "#d9dfe8";
+      ctx.strokeStyle = palette.border;
       ctx.lineWidth = 1;
       roundedRectPath(
         ctx,
@@ -616,16 +625,16 @@ function drawHelpTile(
         Math.max(0, SHORTCUT_RADIUS - 0.5),
       );
       ctx.stroke();
-      ctx.fillStyle = "#374151";
+      ctx.fillStyle = palette.text;
       ctx.fillText(label, shortcutRect.x + SHORTCUT_TEXT_PAD_X, shortcutRect.y + 13.5);
 
       const nextShortcutRect = shortcutRects[i + 1];
       if (nextShortcutRect && nextShortcutRect.y === shortcutRect.y) {
-        ctx.fillStyle = "#6b7280";
+        ctx.fillStyle = palette.muted;
         const separatorX = shortcutRect.x + labelWidth + (nextShortcutRect.x - (shortcutRect.x + labelWidth)) / 2;
         ctx.fillText("/", separatorX - 2, shortcutRect.y + 13.5);
       } else if (nextShortcutRect) {
-        ctx.fillStyle = "#6b7280";
+        ctx.fillStyle = palette.muted;
         const separatorX = Math.min(
           textX + textWidth - SHORTCUT_TEXT_PAD_X,
           shortcutRect.x + labelWidth + SHORTCUT_SEPARATOR_PAD_X,
